@@ -3,6 +3,11 @@ pnpm-lock.yaml
 packages/db/drizzle/
 apps/web/next-env.d.ts
 
+# Maintained by `next dev` (agentRules). Formatting them would fight the generator
+# and produce a dirty tree on every run.
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
+
 node_modules/
 .next/
 dist/

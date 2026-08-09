@@ -38,6 +38,8 @@ ESLint enforces this. **If a boundary rule fires, move the code — never add an
 4. **No background workers, no cron.** Compute on demand and cache the result. See `docs/decisions/0003-lazy-computation.md`.
 5. **Missing price or FX data is an error, not an estimate.** Surface the gap; never extrapolate.
 6. **Do not upgrade TypeScript past 6.0.x.** `typescript-eslint` peer-requires `<6.1.0`; bumping it silently breaks linting. `deps:update` excludes it deliberately.
+7. **Next 16 diverges from what you likely know** (`middleware.ts` is now `proxy.ts`, for one). Working in `apps/web`? Read `apps/web/AGENTS.md` — Next maintains the top block of it, and our web-specific rules sit below.
+8. **Intra-package imports are extensionless** (`./money`, not `./money.js`). Turbopack cannot resolve a `.js` specifier to a `.ts` file.
 
 ## Which doc to read
 
