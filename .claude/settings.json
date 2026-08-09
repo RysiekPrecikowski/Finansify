@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm check)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm lint:fix)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:run)",
+      "Bash(pnpm build)",
+      "Bash(pnpm format)",
+      "Bash(pnpm format:check)",
+      "Bash(pnpm db:generate)",
+      "Bash(pnpm -r typecheck)",
+      "Bash(npx drizzle-kit generate:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(npm view:*)"
+    ],
+    "ask": ["Bash(pnpm db:migrate)", "Bash(git push:*)", "Bash(gh pr create:*)"],
+    "deny": ["Read(./.env.local)", "Read(./.env)", "Bash(pnpm db:studio)"]
+  }
+}
