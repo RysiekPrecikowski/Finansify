@@ -1,0 +1,13 @@
+# Generated -- never hand-format these.
+pnpm-lock.yaml
+packages/db/drizzle/
+apps/web/next-env.d.ts
+
+node_modules/
+.next/
+dist/
+coverage/
+.vercel/
+
+# shadcn/ui components are vendored in as-is; keep them diffable against upstream.
+apps/web/src/components/ui/

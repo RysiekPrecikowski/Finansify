@@ -1,0 +1,39 @@
+{
+  "name": "finansify",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.18.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @finansify/web dev",
+    "build": "pnpm --filter @finansify/web build",
+    "start": "pnpm --filter @finansify/web start",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "pnpm --filter @finansify/db generate",
+    "db:migrate": "pnpm --filter @finansify/db migrate",
+    "db:studio": "pnpm --filter @finansify/db studio",
+    "deps:outdated": "pnpm outdated -r",
+    "deps:update": "pnpm up -r --latest !typescript"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.2.0",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.9.0",
+    "prettier": "3.9.6",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}

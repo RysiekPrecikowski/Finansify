@@ -1,0 +1,8 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Allowed to run install scripts. esbuild links a platform-specific binary and is
+# used by vitest and drizzle-kit; without this pnpm 10 skips it and warns on every install.
+onlyBuiltDependencies:
+  - esbuild
