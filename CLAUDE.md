@@ -10,13 +10,13 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 + shadcn/ui · 
 
 ## Commands
 
-|                                 |                                                         |
-| ------------------------------- | ------------------------------------------------------- |
-| `pnpm dev`                      | run the app                                             |
-| `pnpm check`                    | lint + typecheck + test — **run before every commit**   |
-| `pnpm test` / `pnpm test:watch` | tests                                                   |
-| `pnpm db:generate`              | new migration after editing `packages/db/src/schema.ts` |
-| `pnpm db:migrate`               | apply migrations                                        |
+|                                 |                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                      | run the app                                                                                                |
+| `pnpm check`                    | build + lint + typecheck + test + format:check, cached via turbo, same as CI — **run before every commit** |
+| `pnpm test` / `pnpm test:watch` | tests                                                                                                      |
+| `pnpm db:generate`              | new migration after editing `packages/db/src/schema.ts`                                                    |
+| `pnpm db:migrate`               | apply migrations                                                                                           |
 
 ## Where code goes
 

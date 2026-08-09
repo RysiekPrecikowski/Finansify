@@ -24,17 +24,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm lint
-
-      - run: pnpm typecheck
-
-      - run: pnpm test
-
+      # One command, the same one `pnpm check` runs locally before a commit --
+      # build, lint, typecheck, test, format:check, all cached and scheduled by turbo.
+      #
       # No database or Supabase credentials here on purpose: the db client connects
       # lazily, so a build must succeed without them. If this step starts failing on a
       # missing env var, something began connecting at import time -- fix that, do not
       # add secrets here.
-      - run: pnpm build
+      - run: pnpm check
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder

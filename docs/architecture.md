@@ -47,8 +47,21 @@ still makes "where does this go?" answerable without judgement. See ADR
 ## No build step for packages
 
 `core` and `db` export TypeScript source directly; Next transpiles them
-(`transpilePackages`). So there is no `tsup`, no `dist/`, no build ordering, and no
-orchestrator — `pnpm` alone runs the workspace. Vitest reads the same source the app does.
+(`transpilePackages`). So there is no `tsup`, no `dist/`, no build ordering for packages.
+Vitest reads the same source the app does.
+
+`pnpm check` runs `build`, `typecheck`, `lint`, `test` and `format:check` through
+Turborepo for caching, free via Vercel remote cache once linked — not for build output.
+`lint`, `test` and `format:check` are wired as root tasks rather than per-package
+scripts, since all three already run once across the whole repo in a single process.
+`pnpm lint`, `pnpm test` and `pnpm format:check` still exist as plain direct commands for
+fast local iteration. CI runs `pnpm check` as one step, so the enforced gate and the
+local pre-commit gate are the same command by construction.
+
+Every package also carries a no-op `transit` script purely so turbo's cache key for
+`typecheck`/`build` correctly includes a package's internal dependencies — without it,
+changing `core` can leave a downstream package's cached typecheck looking green when it
+is actually stale. See ADR [0006](decisions/0006-turborepo-for-caching.md).
 
 ## How a request works
 

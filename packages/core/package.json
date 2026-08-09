@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "transit": "exit 0",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

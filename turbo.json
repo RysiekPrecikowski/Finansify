@@ -1,0 +1,27 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env*"],
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["transit"],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build", "transit"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "//#lint": {
+      "outputs": []
+    },
+    "//#test": {
+      "outputs": []
+    },
+    "//#format:check": {
+      "outputs": []
+    }
+  }
+}
