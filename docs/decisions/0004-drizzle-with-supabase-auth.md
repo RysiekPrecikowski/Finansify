@@ -1,6 +1,6 @@
 # 0004 — Drizzle for data, Supabase for auth
 
-**Status:** Accepted
+**Status:** Superseded by [0008](0008-neon-clerk-migration.md)
 **Date:** 2026-08-10
 
 ## Context

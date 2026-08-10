@@ -1,6 +1,6 @@
 # 0001 — Next.js on Vercel with Supabase
 
-**Status:** Accepted
+**Status:** Superseded by [0008](0008-neon-clerk-migration.md)
 **Date:** 2026-08-10
 
 ## Context

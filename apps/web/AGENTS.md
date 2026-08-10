@@ -28,10 +28,10 @@ file covers only what is specific to working inside `apps/web`.
 ## Rules for this app
 
 1. **No financial calculations here.** Import them from `@finansify/core`. This layer fetches, renders, and validates — it does not compute money.
-2. **No table queries from the browser.** Reads happen in Server Components, writes in Server Actions, both via `@finansify/db`. Supabase is used for auth only.
+2. **No table queries from the browser.** Reads happen in Server Components, writes in Server Actions, both via `@finansify/db`. Clerk is used for auth only.
 3. **Validate every write** with a zod schema from `@finansify/core` (`contracts.ts`), reusing it for client-side form validation so the two cannot drift.
-4. **Use `getCurrentUser()`** from `src/lib/supabase/server.ts`, never `getSession()` on the server.
-5. **Filter by `user_id` in every query**, even though RLS also enforces it. Both layers are required.
+4. **Use `getCurrentUser()`** from `src/lib/auth/server.ts`.
+5. **Filter by `user_id` in every query.** There is no RLS backstop — see ADR `docs/decisions/0008-neon-clerk-migration.md`. A missed filter is a real cross-user leak, not a rejected query.
 6. **Money renders with `.tabular`** (tabular figures) so columns line up, and is formatted at the last moment — never rounded upstream.
 
 ## Layout
@@ -40,8 +40,8 @@ file covers only what is specific to working inside `apps/web`.
 src/app/          routes, layouts, server actions
 src/components/   app components
 src/components/ui shadcn/ui — vendored, do not hand-edit or format
-src/lib/          app-local helpers (Supabase clients, cn)
-src/proxy.ts      auth session refresh
+src/lib/          app-local helpers (Clerk auth wrapper, cn)
+src/proxy.ts      Clerk session handling
 ```
 
 Add shadcn components with `pnpm dlx shadcn@latest add <name>` rather than writing them

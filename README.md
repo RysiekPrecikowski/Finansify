@@ -15,21 +15,22 @@ Requires Node 22+ and pnpm 10.
 pnpm install
 ```
 
-Then create a Supabase project (free tier) and copy the credentials:
+Then, with the [Vercel CLI](https://vercel.com/docs/cli) installed and this repo linked
+(`vercel link`), provision Neon (database) and Clerk (auth) from the Vercel Marketplace:
 
 ```bash
-cp .env.example .env.local
+vercel integration add neon
+vercel integration add clerk
+vercel env pull .env.local --yes
 ```
 
-Fill in from the Supabase dashboard:
-
-| Variable                                                    | Where                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Project Settings → API                                                               |
-| `DATABASE_URL`                                              | Project Settings → Database → Connection string → **Transaction pooler** (port 6543) |
-| `DIRECT_DATABASE_URL`                                       | Same page → **Direct connection** (port 5432)                                        |
-
-Both connection strings are required and are not interchangeable — see
+Each `integration add` may print a one-time browser link to accept that integration's
+marketplace terms — accept it, then re-run the command. This provisions
+`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `CLERK_SECRET_KEY` and
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and pulls them into `.env.local` automatically —
+no manual copying from a dashboard, and no renaming, since these are Neon's and Clerk's
+own variable names. Both `DATABASE_URL*` values are required and are not
+interchangeable — see
 [docs/architecture.md](docs/architecture.md#two-connection-strings-on-purpose).
 
 Apply the schema, then run:
@@ -76,4 +77,3 @@ right doc. Shared slash commands live in `.claude/commands/`.
 ## Notes
 
 - **Do not upgrade TypeScript past 6.0.x.** `typescript-eslint` peer-requires `<6.1.0`; bumping it breaks linting silently. `pnpm deps:update` excludes it on purpose.
-- Supabase free projects pause after 7 days without database traffic.
