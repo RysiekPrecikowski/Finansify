@@ -5,7 +5,7 @@ import {
   type Decimal,
   type DecimalInput,
 } from './money';
-import { toEpochMilliseconds } from './time';
+import { isAtOrBefore } from './time';
 
 export const TRANSACTION_TYPES = ['BUY', 'SELL', 'DEPOSIT', 'WITHDRAW'] as const;
 
@@ -65,11 +65,7 @@ export function filterTransactionsAtOrBefore(
   transactions: readonly TimedLedgerTransaction[],
   asOf: string,
 ): TimedLedgerTransaction[] {
-  const asOfEpoch = toEpochMilliseconds(asOf);
-
-  return transactions.filter(
-    (transaction) => toEpochMilliseconds(transaction.occurredAt) <= asOfEpoch,
-  );
+  return transactions.filter((transaction) => isAtOrBefore(transaction.occurredAt, asOf));
 }
 
 export function calculateCashBalanceAt(

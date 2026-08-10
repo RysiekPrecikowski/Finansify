@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "decimal.js": "10.6.0",
+    "temporal-polyfill": "1.0.3",
     "zod": "4.4.3"
   }
 }

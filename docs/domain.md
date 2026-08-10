@@ -85,4 +85,7 @@ transaction. If a source format changes, fix the normalizer — do not match aro
 
 All timestamps crossing a boundary are **ISO-8601 UTC strings**, never `Date` objects.
 `Date` serializes inconsistently between server and client, and these values are compared
-across price and FX series.
+across price and FX series. Internally, `packages/core/src/time.ts` parses these strings
+into `Temporal.Instant` (via the `temporal-polyfill` package -- Temporal isn't a stable
+JS engine feature yet) for comparison. Callers outside `time.ts` use its exported helpers
+(`isAtOrBefore`, `findLatestAtOrBefore`) rather than reaching for `Temporal` directly.

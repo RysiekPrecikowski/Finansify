@@ -8,14 +8,15 @@ the reasoning that would otherwise get re-argued every few months, by us or by a
 
 Write one when a choice would plausibly be questioned later. Skip it for anything obvious.
 
-| #                                          | Decision                                     | Status   |
-| ------------------------------------------ | -------------------------------------------- | -------- |
-| [0001](0001-platform-vercel-supabase.md)   | Next.js on Vercel with Supabase              | Accepted |
-| [0002](0002-three-package-workspace.md)    | Three packages, no build step                | Accepted |
-| [0003](0003-lazy-computation.md)           | Lazy computation instead of background jobs  | Accepted |
-| [0004](0004-drizzle-with-supabase-auth.md) | Drizzle for data, Supabase for auth          | Accepted |
-| [0005](0005-bonds-before-import.md)        | Bonds ship before XTB import                 | Accepted |
-| [0006](0006-turborepo-for-caching.md)      | Turborepo for task orchestration and caching | Accepted |
+| #                                          | Decision                                               | Status   |
+| ------------------------------------------ | ------------------------------------------------------ | -------- |
+| [0001](0001-platform-vercel-supabase.md)   | Next.js on Vercel with Supabase                        | Accepted |
+| [0002](0002-three-package-workspace.md)    | Three packages, no build step                          | Accepted |
+| [0003](0003-lazy-computation.md)           | Lazy computation instead of background jobs            | Accepted |
+| [0004](0004-drizzle-with-supabase-auth.md) | Drizzle for data, Supabase for auth                    | Accepted |
+| [0005](0005-bonds-before-import.md)        | Bonds ship before XTB import                           | Accepted |
+| [0006](0006-turborepo-for-caching.md)      | Turborepo for task orchestration and caching           | Accepted |
+| [0007](0007-temporal-for-time.md)          | Temporal, via a polyfill, for internal time arithmetic | Accepted |
 
 ## Template
 

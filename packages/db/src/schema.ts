@@ -19,7 +19,8 @@ import {
  * - `userId` references `auth.users(id)` (Supabase Auth owns the users table).
  * - Every user-owned table has RLS enabled and a policy scoped to `auth.uid()`.
  * - Money is `numeric`, never `double precision`, and is read back as a string.
- * - Timestamps are `timestamptz`, always stored in UTC.
+ * - Timestamps are `timestamptz`, always stored in UTC, and read back as an ISO
+ *   string (`mode: 'string'`) -- never a `Date` object. See docs/domain.md.
  */
 
 export const currencyCode = pgEnum('currency_code', ['PLN', 'USD', 'EUR', 'GBP', 'CHF']);
@@ -35,9 +36,9 @@ export const portfolios = pgTable(
     userId: uuid().notNull(),
     name: text().notNull(),
     baseCurrency: currencyCode().notNull(),
-    archivedAt: timestamp({ withTimezone: true }),
-    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    archivedAt: timestamp({ withTimezone: true, mode: 'string' }),
+    createdAt: timestamp({ withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   },
   (table) => [
     index('portfolios_user_id_idx').on(table.userId),
@@ -54,9 +55,9 @@ export const accounts = pgTable(
     /** An account has exactly one base currency. All its ledger entries normalize to it. */
     baseCurrency: currencyCode().notNull(),
     wrapper: accountWrapper().notNull().default('TAXABLE'),
-    archivedAt: timestamp({ withTimezone: true }),
-    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    archivedAt: timestamp({ withTimezone: true, mode: 'string' }),
+    createdAt: timestamp({ withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   },
   (table) => [
     index('accounts_user_id_idx').on(table.userId),
@@ -78,7 +79,7 @@ export const portfolioAccounts = pgTable(
     accountId: uuid()
       .notNull()
       .references(() => accounts.id, { onDelete: 'cascade' }),
-    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp({ withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.portfolioId, table.accountId] }),
@@ -97,7 +98,7 @@ export const auditEvents = pgTable(
     action: auditAction().notNull(),
     before: jsonb(),
     after: jsonb(),
-    occurredAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    occurredAt: timestamp({ withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   },
   (table) => [
     index('audit_events_entity_idx').on(table.entityType, table.entityId),

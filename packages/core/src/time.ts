@@ -1,16 +1,22 @@
+import { Temporal } from 'temporal-polyfill';
+
 /**
  * All timestamps crossing a module boundary are ISO-8601 strings in UTC.
- * Dates are never passed around as `Date` -- they serialize inconsistently
- * between server and client, and we compare them across FX and price series.
+ * They're parsed into `Temporal.Instant` for comparison -- never into `Date`,
+ * which serializes inconsistently between server and client and parses
+ * non-ISO input inconsistently across engines.
  */
-export function toEpochMilliseconds(timestamp: string): number {
-  const epoch = Date.parse(timestamp);
-
-  if (Number.isNaN(epoch)) {
+export function toInstant(timestamp: string): Temporal.Instant {
+  try {
+    return Temporal.Instant.from(timestamp);
+  } catch {
     throw new Error(`Invalid timestamp: ${timestamp}`);
   }
+}
 
-  return epoch;
+/** Whether `timestamp` is at or before `asOf`. */
+export function isAtOrBefore(timestamp: string, asOf: string): boolean {
+  return Temporal.Instant.compare(toInstant(timestamp), toInstant(asOf)) <= 0;
 }
 
 /**
@@ -25,17 +31,20 @@ export function findLatestAtOrBefore<T>(
   getObservedAt: (point: T) => string,
   matches: (point: T) => boolean,
 ): T | undefined {
-  const asOfEpoch = toEpochMilliseconds(asOf);
+  const asOfInstant = toInstant(asOf);
   let best: T | undefined;
-  let bestEpoch = Number.NEGATIVE_INFINITY;
+  let bestInstant: Temporal.Instant | undefined;
 
   for (const point of points) {
     if (!matches(point)) continue;
 
-    const epoch = toEpochMilliseconds(getObservedAt(point));
-    if (epoch <= asOfEpoch && epoch > bestEpoch) {
+    const instant = toInstant(getObservedAt(point));
+    if (
+      Temporal.Instant.compare(instant, asOfInstant) <= 0 &&
+      (bestInstant === undefined || Temporal.Instant.compare(instant, bestInstant) > 0)
+    ) {
       best = point;
-      bestEpoch = epoch;
+      bestInstant = instant;
     }
   }
 
