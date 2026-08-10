@@ -33,6 +33,12 @@ export const createAccountSchema = z.object({
 });
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 
+export const linkAccountSchema = z.object({
+  portfolioId: z.uuid(),
+  accountId: z.uuid(),
+});
+export type LinkAccountInput = z.infer<typeof linkAccountSchema>;
+
 export const createTransactionSchema = z.object({
   accountId: z.uuid(),
   type: z.enum(TRANSACTION_TYPES),

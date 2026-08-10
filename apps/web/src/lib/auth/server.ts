@@ -9,3 +9,13 @@ import { currentUser } from '@clerk/nextjs/server';
 export async function getCurrentUser() {
   return currentUser();
 }
+
+/** Like `getCurrentUser`, but throws instead of returning null. Routes behind `proxy.ts`
+ * already require a session, so a null user here means the auth check was bypassed. */
+export async function requireUserId(): Promise<string> {
+  const user = await currentUser();
+  if (!user) {
+    throw new Error('Unauthorized');
+  }
+  return user.id;
+}

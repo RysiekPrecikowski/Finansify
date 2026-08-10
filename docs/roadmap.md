@@ -7,10 +7,11 @@ Last updated: 2026-08-10
 
 ## Where we are
 
-**Phase 0 complete.** Phase 1 not started.
+**Phase 0 and Phase 1 complete.** Phase 2 not started.
 
-The repository was rebuilt from scratch on 2026-08-10. What exists today is a verified
-skeleton — toolchain, boundaries, docs, one Phase-1 schema — and no product features.
+The repository was rebuilt from scratch on 2026-08-10. Accounts and portfolios are live:
+sign in/out, create and list both, link an account into multiple portfolios, and an
+audit trail on every mutation, running against a real Neon database.
 
 ## Phases
 
@@ -20,23 +21,23 @@ Each phase ends at a checkpoint that can be verified by hand, not by "it compile
 
 - [x] pnpm workspace: `apps/web`, `packages/core`, `packages/db`
 - [x] Next 16 + Tailwind v4 + shadcn/ui configured
-- [x] Drizzle wired to Supabase with pooler/direct split
+- [x] Drizzle wired to Neon with pooler/direct split
 - [x] Money, FX and valuation primitives ported, 25 tests passing
 - [x] Import boundaries enforced by ESLint
-- [x] Supabase Auth session handling
+- [x] Clerk session handling
 - [x] CI, docs, ADRs
 
 **Checkpoint:** `pnpm check` and `pnpm build` pass from a clean clone. ✅
 
-### Phase 1 — Accounts and portfolios
+### Phase 1 — Accounts and portfolios ✅
 
-- [ ] Sign in / sign out (Supabase Auth)
-- [ ] Create and list portfolios and accounts, with wrappers
-- [ ] Link one account to multiple portfolios
-- [ ] Audit events written on every mutation
-- [ ] Apply migrations to a real Supabase project, confirm RLS blocks cross-user reads
+- [x] Sign in / sign out (Clerk)
+- [x] Create and list portfolios and accounts, with wrappers
+- [x] Link one account to multiple portfolios
+- [x] Audit events written on every mutation
+- [x] Apply migrations to a real Neon project, confirm app-level `user_id` filtering blocks cross-user reads
 
-**Checkpoint:** an account in two portfolios appears once in the global view, not twice.
+**Checkpoint:** an account in two portfolios appears once in the global view, not twice. ✅
 
 ### Phase 2 — Ledger and valuation
 

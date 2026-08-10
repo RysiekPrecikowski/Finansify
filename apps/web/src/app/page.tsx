@@ -1,10 +1,18 @@
 import { calculateNetWorth } from '@finansify/core';
+import { listAccounts } from '@finansify/db';
+import Link from 'next/link';
+
+import { Card, CardContent } from '@/components/ui/card';
+import { requireUserId } from '@/lib/auth/server';
 
 /**
- * Placeholder shell. Phase 1 replaces this with the real portfolio list.
- * Kept deliberately thin so it is obvious this is scaffolding, not a feature.
+ * Distinct accounts, queried straight from `accounts` rather than through any
+ * portfolio join -- so an account linked into two portfolios still shows once here.
+ * See docs/domain.md: global totals aggregate over the distinct account set.
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const userId = await requireUserId();
+  const accounts = await listAccounts(userId);
   const netWorth = calculateNetWorth('0', '0');
 
   return (
@@ -16,14 +24,41 @@ export default function HomePage() {
         </h1>
       </div>
 
-      <div className="border-border rounded-lg border p-6">
-        <p className="text-muted-foreground text-sm">Net worth</p>
-        <p className="tabular mt-1 text-2xl font-medium">{netWorth.toFixed(2)} PLN</p>
-        <p className="text-muted-foreground mt-4 text-sm">
-          No accounts yet. Phase 1 adds portfolios and accounts &mdash; see{' '}
-          <code className="font-mono text-xs">docs/roadmap.md</code>.
-        </p>
-      </div>
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <div>
+            <p className="text-muted-foreground text-sm">Net worth</p>
+            <p className="tabular mt-1 text-2xl font-medium">{netWorth.toFixed(2)} PLN</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground text-sm">
+              {accounts.length} distinct account{accounts.length === 1 ? '' : 's'}
+            </p>
+            {accounts.length === 0 ? (
+              <p className="text-muted-foreground mt-2 text-sm">
+                No accounts yet. Create one on the{' '}
+                <Link href="/accounts" className="underline">
+                  Accounts
+                </Link>{' '}
+                page, then group it into a{' '}
+                <Link href="/portfolios" className="underline">
+                  portfolio
+                </Link>
+                .
+              </p>
+            ) : (
+              <ul className="mt-2 flex flex-col gap-1">
+                {accounts.map((account) => (
+                  <li key={account.id} className="text-sm">
+                    {account.name}{' '}
+                    <span className="text-muted-foreground">({account.baseCurrency})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </main>
   );
 }
