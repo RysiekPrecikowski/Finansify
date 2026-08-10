@@ -1,5 +1,5 @@
 {
-  "id": "b04a19b4-d8c0-4bb5-9f53-ea483b4eb17d",
+  "id": "43fc8e38-30ad-493e-8ae0-d3d8f37da400",
   "prevId": "36ad637c-f742-478c-b37c-248b24e352ab",
   "version": "7",
   "dialect": "postgresql",
@@ -17,7 +17,7 @@
         },
         "user_id": {
           "name": "user_id",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -75,9 +75,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "accounts_user_id_name_key": {
           "name": "accounts_user_id_name_key",
@@ -96,9 +96,9 @@
             }
           ],
           "isUnique": true,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -121,7 +121,7 @@
         },
         "user_id": {
           "name": "user_id",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -182,9 +182,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "audit_events_user_id_occurred_at_idx": {
           "name": "audit_events_user_id_occurred_at_idx",
@@ -203,9 +203,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -251,35 +251,46 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "portfolio_accounts_portfolio_id_portfolios_id_fk": {
           "name": "portfolio_accounts_portfolio_id_portfolios_id_fk",
           "tableFrom": "portfolio_accounts",
-          "columnsFrom": ["portfolio_id"],
           "tableTo": "portfolios",
-          "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "columnsFrom": [
+            "portfolio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "portfolio_accounts_account_id_accounts_id_fk": {
           "name": "portfolio_accounts_account_id_accounts_id_fk",
           "tableFrom": "portfolio_accounts",
-          "columnsFrom": ["account_id"],
           "tableTo": "accounts",
-          "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "portfolio_accounts_portfolio_id_account_id_pk": {
           "name": "portfolio_accounts_portfolio_id_account_id_pk",
-          "columns": ["portfolio_id", "account_id"]
+          "columns": [
+            "portfolio_id",
+            "account_id"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -300,7 +311,7 @@
         },
         "user_id": {
           "name": "user_id",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -350,9 +361,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "portfolios_user_id_name_key": {
           "name": "portfolios_user_id_name_key",
@@ -371,9 +382,9 @@
             }
           ],
           "isUnique": true,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -388,24 +399,39 @@
     "public.account_wrapper": {
       "name": "account_wrapper",
       "schema": "public",
-      "values": ["TAXABLE", "IKE", "IKZE", "PPK"]
+      "values": [
+        "TAXABLE",
+        "IKE",
+        "IKZE",
+        "PPK"
+      ]
     },
     "public.audit_action": {
       "name": "audit_action",
       "schema": "public",
-      "values": ["CREATE", "UPDATE", "DELETE"]
+      "values": [
+        "CREATE",
+        "UPDATE",
+        "DELETE"
+      ]
     },
     "public.currency_code": {
       "name": "currency_code",
       "schema": "public",
-      "values": ["PLN", "USD", "EUR", "GBP", "CHF"]
+      "values": [
+        "PLN",
+        "USD",
+        "EUR",
+        "GBP",
+        "CHF"
+      ]
     }
   },
   "schemas": {},
-  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

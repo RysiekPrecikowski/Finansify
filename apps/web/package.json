@@ -11,10 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/nextjs": "7.7.1",
     "@finansify/core": "workspace:*",
     "@finansify/db": "workspace:*",
-    "@supabase/ssr": "0.12.4",
-    "@supabase/supabase-js": "2.112.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.31.0",

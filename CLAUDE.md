@@ -6,7 +6,7 @@ Ledger-first portfolio tracker for Polish investors. Web only, single user, MVP.
 
 ## Stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 + shadcn/ui · Drizzle → Supabase Postgres · Supabase Auth · pnpm workspace · Vitest · deployed on Vercel.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 + shadcn/ui · Drizzle → Neon Postgres · Clerk Auth · pnpm workspace · Vitest · deployed on Vercel.
 
 ## Commands
 
@@ -33,7 +33,7 @@ ESLint enforces this. **If a boundary rule fires, move the code — never add an
 ## Hard rules
 
 1. **Money is `Decimal`, never `number`.** Parse from strings, store as `numeric`, round only at render. `0.1 + 0.2 !== 0.3`.
-2. **Every user-owned table gets RLS** plus a `user_id` filter in code. Both. See `packages/db/drizzle/0001_enable_rls.sql`.
+2. **Every query filters by `user_id` in code.** No RLS backstop — Neon/Clerk has no `auth.uid()` equivalent, and building one wasn't worth it for a single-user MVP. This is the only enforcement layer; a missed filter is a real leak, not a Postgres-refused query. See ADR `docs/decisions/0008-neon-clerk-migration.md`.
 3. **Store the FX rate on the transaction.** Never re-derive it later, or historical balances shift when the rate series is corrected.
 4. **No background workers, no cron.** Compute on demand and cache the result. See `docs/decisions/0003-lazy-computation.md`.
 5. **Missing price or FX data is an error, not an estimate.** Surface the gap; never extrapolate.

@@ -47,6 +47,8 @@ export default tseslint.config(
       '**/node_modules/**',
       'packages/db/drizzle/**',
       'apps/web/src/components/ui/**',
+      '.agents/**',
+      '.claude/skills/**',
     ],
   },
 

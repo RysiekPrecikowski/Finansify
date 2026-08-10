@@ -1,6 +1,6 @@
 # Architecture
 
-One Next.js app on Vercel, one Supabase project, three packages. No other services.
+One Next.js app on Vercel, one Neon database, three packages. No other services.
 
 ```
 Browser
@@ -8,9 +8,9 @@ Browser
    v
 Next.js on Vercel ......... UI, server actions, route handlers
    |            \
-   |             `-------> Supabase Auth      (identity, sessions)
+   |             `-------> Clerk               (identity, sessions)
    v
-packages/db ............... Drizzle -> Supabase Postgres  (all data access)
+packages/db ............... Drizzle -> Neon Postgres  (all data access)
    |
    v
 packages/core ............. money, FX, ledger, valuation  (pure, no I/O)
@@ -78,18 +78,23 @@ Rules that keep this honest:
 
 ## Auth and data access
 
-Supabase Auth owns identity; Drizzle owns data. Two libraries, two jobs, one query path.
+Clerk owns identity; Drizzle owns data. Two libraries, two jobs, one query path.
 
 The browser never queries tables — it only holds a session. Server code reads
-`getCurrentUser()` and filters by `user_id`; RLS then independently enforces the same
-thing in Postgres. Both layers are mandatory. See ADR [0004](decisions/0004-drizzle-with-supabase-auth.md).
+`getCurrentUser()` (`apps/web/src/lib/auth/server.ts`) and filters by `user_id`. That
+filter is the only enforcement layer — there is no RLS backstop, unlike the Supabase
+setup this replaced. See ADR [0008](decisions/0008-neon-clerk-migration.md) for why, and
+the condition for rebuilding one.
 
 ## Two connection strings, on purpose
 
-|                       | Port                               | Used by                                        |
-| --------------------- | ---------------------------------- | ---------------------------------------------- |
-| `DATABASE_URL`        | 6543 (Supavisor, transaction mode) | the app at runtime — requires `prepare: false` |
-| `DIRECT_DATABASE_URL` | 5432 (direct)                      | `drizzle-kit` migrations only                  |
+|                         | Port                                 | Used by                                        |
+| ----------------------- | ------------------------------------ | ---------------------------------------------- |
+| `DATABASE_URL`          | pooled (PgBouncer, transaction mode) | the app at runtime — requires `prepare: false` |
+| `DATABASE_URL_UNPOOLED` | unpooled                             | `drizzle-kit` migrations only                  |
+
+Both names are Neon's own — set automatically by the Vercel Marketplace integration and
+left unrenamed on purpose, so `vercel env pull` never needs a manual remap.
 
 Serverless functions open and drop connections constantly, so runtime goes through the
 pooler. The pooler cannot run multi-statement transactions, so migrations must not.

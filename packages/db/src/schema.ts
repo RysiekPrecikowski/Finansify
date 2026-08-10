@@ -16,8 +16,10 @@ import {
  * See docs/roadmap.md before adding tables here.
  *
  * Conventions, enforced by review:
- * - `userId` references `auth.users(id)` (Supabase Auth owns the users table).
- * - Every user-owned table has RLS enabled and a policy scoped to `auth.uid()`.
+ * - `userId` is a Clerk user id (text, e.g. `user_xxx`) -- not a foreign key, since
+ *   Clerk owns identity outside this database. See ADR 0008.
+ * - Every query must filter by `userId` in code. There is no RLS backstop -- see ADR
+ *   0008 for why, and the revisit condition.
  * - Money is `numeric`, never `double precision`, and is read back as a string.
  * - Timestamps are `timestamptz`, always stored in UTC, and read back as an ISO
  *   string (`mode: 'string'`) -- never a `Date` object. See docs/domain.md.
@@ -33,7 +35,7 @@ export const portfolios = pgTable(
   'portfolios',
   {
     id: uuid().primaryKey().defaultRandom(),
-    userId: uuid().notNull(),
+    userId: text().notNull(),
     name: text().notNull(),
     baseCurrency: currencyCode().notNull(),
     archivedAt: timestamp({ withTimezone: true, mode: 'string' }),
@@ -50,7 +52,7 @@ export const accounts = pgTable(
   'accounts',
   {
     id: uuid().primaryKey().defaultRandom(),
-    userId: uuid().notNull(),
+    userId: text().notNull(),
     name: text().notNull(),
     /** An account has exactly one base currency. All its ledger entries normalize to it. */
     baseCurrency: currencyCode().notNull(),
@@ -92,7 +94,7 @@ export const auditEvents = pgTable(
   'audit_events',
   {
     id: uuid().primaryKey().defaultRandom(),
-    userId: uuid().notNull(),
+    userId: text().notNull(),
     entityType: text().notNull(),
     entityId: uuid().notNull(),
     action: auditAction().notNull(),
