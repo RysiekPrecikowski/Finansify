@@ -8,7 +8,8 @@ import { requireUserId } from '@/lib/auth/server';
 /**
  * Distinct accounts, queried straight from `accounts` rather than through any
  * portfolio join -- so an account linked into two portfolios still shows once here.
- * See docs/domain.md: global totals aggregate over the distinct account set.
+ * This is the Phase 1 checkpoint. See docs/domain.md: global totals aggregate over
+ * the distinct account set.
  */
 export default async function HomePage() {
   const userId = await requireUserId();
