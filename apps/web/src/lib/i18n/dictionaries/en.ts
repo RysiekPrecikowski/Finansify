@@ -1,0 +1,85 @@
+import { type Dictionary } from './pl';
+
+export const en: Dictionary = {
+  app: {
+    name: 'Finansify',
+    tagline: 'Investment portfolio',
+  },
+  nav: {
+    dashboard: 'Dashboard',
+    portfolio: 'Portfolio',
+    transactions: 'Transactions',
+    more: 'More',
+  },
+  actions: {
+    toggleTheme: 'Toggle theme',
+    changeLanguage: 'Change language',
+    changeCurrency: 'Change presentation currency',
+    sort: 'Sort',
+  },
+  dashboard: {
+    title: 'Dashboard',
+    totalValue: 'Total value',
+    todayChange: 'Today',
+    totalChange: 'All time',
+    asOf: 'As of',
+    stale: 'stale',
+    filterByAssetClass: 'Filter by asset class',
+    chartRange: 'Chart range',
+    currencyLocked: 'Currency conversion arrives in Phase 2, together with NBP rates.',
+    ranges: {
+      '1D': '1D',
+      '1W': '1W',
+      '1M': '1M',
+      YTD: 'YTD',
+      '1Y': '1Y',
+      MAX: 'MAX',
+    },
+    assetClasses: {
+      all: 'All',
+      equity: 'Equities',
+      etf: 'ETFs',
+      fund: 'Funds',
+      bond: 'Bonds',
+      cash: 'Cash',
+    },
+    accounts: {
+      title: 'Accounts',
+      limit: '{year} limit',
+      limitUsed: '{used} of {limit}',
+    },
+    holdings: {
+      title: 'Holdings',
+      empty: 'No holdings yet. Add a transaction to see your portfolio here.',
+      instrument: 'Instrument',
+      quantity: 'Quantity',
+      averageCost: 'Average cost',
+      price: 'Price',
+      value: 'Value',
+      pnl: 'Profit / loss',
+      weight: 'Weight',
+      unvaluable: 'No price',
+      unvaluableNote: '{count} position(s) without a current price — excluded from the total.',
+    },
+    sort: {
+      valueDesc: 'Value (high to low)',
+      gainAbsoluteDesc: 'Absolute gains (high to low)',
+      gainPercentDesc: 'Relative gains (high to low)',
+      nameAsc: 'Name (A–Z)',
+    },
+  },
+  wrappers: {
+    brokerage: 'Brokerage account',
+    ike: 'IKE',
+    ikze: 'IKZE',
+    ppk: 'PPK',
+  },
+  placeholder: {
+    portfolio: 'Positions, accounts and lots arrive in Phase 1, with the ledger.',
+    transactions: 'Manual transaction entry arrives in Phase 1.',
+    more: 'Settings, statement imports and reports.',
+  },
+  mock: {
+    banner: 'Demo data — the transaction ledger arrives in Phase 1.',
+  },
+};
