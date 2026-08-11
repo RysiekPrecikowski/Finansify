@@ -55,10 +55,22 @@ must remember to avoid; it is something they cannot express. This is the cheap
 version of the guarantee RLS gives, it survives an engine swap, and unlike RLS it
 costs nothing at read time and works identically on Postgres and SQLite.
 
-The costs: one extra indirection on every user lookup, a `users` row that must be
-provisioned on first sign-in (via webhook or lazily on first request — a Phase 0
-decision), and the fact that rules 2 and 4 are conventions rather than enforced
-constraints, per ADR 0002.
+The costs: one extra indirection on every user lookup, and the fact that rules 2
+and 4 are conventions rather than enforced constraints, per ADR 0002.
+
+**The `users` row is provisioned lazily, inside `getCurrentUser()`, not via a
+Clerk webhook.** `getCurrentUser()` looks up `users` by `(auth_provider,
+auth_subject)`; on a miss, it inserts (`ON CONFLICT DO NOTHING RETURNING *`,
+so two concurrent first requests from the same new user — e.g. two tabs — don't
+race) and returns the result. Every request pays the same lookup either way, so
+this is not an added cost over the webhook path — only the creation step moves.
+A webhook route needs the same lazy check anyway as a fallback for the gap
+between signup and the event arriving, which would leave two creation paths
+instead of one. Lazy also introduces no new endpoint, no signature
+verification, and no webhook secret — consistent with ADR 0003's bias against
+async, out-of-request machinery. The trade-off: nothing currently reacts to a
+user being deleted or changed on Clerk's side (an orphaned `users` row);
+acceptable at two known users, revisit if it starts to matter.
 
 Declining RLS also means there is no database-level backstop. If a repository
 implementation is written wrongly, nothing below it will catch the mistake. The

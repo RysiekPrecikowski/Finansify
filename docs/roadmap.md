@@ -57,14 +57,10 @@ bond value reaches a user.
 
 ## Open questions
 
-1. **Database engine.** Neon versus Turso, still undecided. ADR 0008 holds the
-   full comparison and the recommendation. It blocks neither Phase 0 nor Phase 1,
-   since `core` is engine-agnostic and `packages/db` is a thin implementation of
-   interfaces defined elsewhere.
-2. **XTB and Boś export formats.** The parsers need real files exported from real
+1. **XTB and Boś export formats.** The parsers need real files exported from real
    accounts before Phase 4. The importer is deliberately profile-and-column-mapping
    rather than hardcoded offsets, so a format change is a config edit — but the
    initial profiles need samples, not guesses.
-3. **Benchmark set.** WIG, an accumulating world ETF, and the S&P 500 are
+2. **Benchmark set.** WIG, an accumulating world ETF, and the S&P 500 are
    proposed. Worth confirming which comparisons actually matter, since each one
    becomes a tracked instrument with its own price history.
