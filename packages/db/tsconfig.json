@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    // Explicit rather than relying on auto-discovery of @types: this package is the
-    // only one allowed to touch Node globals like process.env.
-    "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "drizzle.config.ts"]
-}

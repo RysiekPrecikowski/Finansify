@@ -18,9 +18,6 @@
     "typecheck": "turbo run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "pnpm --filter @finansify/db generate",
-    "db:migrate": "pnpm --filter @finansify/db migrate",
-    "db:studio": "pnpm --filter @finansify/db studio",
     "deps:outdated": "pnpm outdated -r",
     "deps:update": "pnpm up -r --latest !typescript"
   },

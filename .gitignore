@@ -7,7 +7,6 @@ coverage/
 
 .env
 .env.*
-!.env.example
 
 .DS_Store
 *.log
@@ -15,7 +14,6 @@ coverage/
 .vercel
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
-.env*
 
 # Vendor reference docs installed by `vercel integration add` -- regenerated locally
 # whenever that command runs, see README.md setup.
