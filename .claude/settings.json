@@ -20,7 +20,9 @@
       "Bash(git branch:*)",
       "Bash(git checkout:*)",
       "Bash(git switch:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)"
     ],
     "ask": ["Bash(git push:*)", "Bash(gh pr create:*)"],
     "deny": ["Read(./.env.local)", "Read(./.env)"]
