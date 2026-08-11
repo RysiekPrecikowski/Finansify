@@ -1,6 +1,6 @@
 # 0008. Database engine
 
-**Status:** Proposed — **open**
+**Status:** Accepted
 **Date:** 2026-08-11
 
 ## Context
@@ -46,8 +46,10 @@ behind the `PriceCache` port.
 
 ## Decision
 
-**Not yet made.** The recommendation is **Neon**, for three reasons specific to
-this domain rather than general preference:
+**Neon**, provisioned through the **Vercel Marketplace, Neon-Managed
+Integration** (billing stays in Neon; Vercel gets an isolated database branch
+per preview deployment). Three reasons specific to this domain rather than
+general preference:
 
 1. **Exact decimal money is native.** Losing `NUMERIC` is survivable — ADR 0005
    does the arithmetic in `decimal.js` regardless — but it permanently removes
@@ -59,13 +61,13 @@ this domain rather than general preference:
 3. The storage constraint is dissolved by the reframing above, so Turso's
    headroom advantage buys less than it first appears.
 
-If the decision is deferred: pick Neon and revisit only if the retention policy
-starts feeling restrictive in practice, or if cold starts become visibly
-annoying. Both are observable within weeks of real use.
+Cold start (a few hundred ms after 5 minutes idle, by default) was weighed
+against Turso's zero-cold-start replicas and judged immaterial at two-user
+scale — a one-time delay on return, not a standing cost.
 
-**Nothing is blocked by this.** `core` is engine-agnostic, and `packages/db` is a
-thin implementation of interfaces defined elsewhere, so Phases 0 and 1 can
-proceed either way.
+Revisit only if the retention policy starts feeling restrictive in practice, or
+if cold starts become visibly annoying. Both are observable within weeks of
+real use.
 
 ## Consequences
 
