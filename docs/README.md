@@ -32,11 +32,19 @@ actually contradict, one of them is a bug.
 Project skills live in `.claude/skills/<name>/SKILL.md` and load on demand, so
 they carry procedure without costing context on every task.
 
-**None exist yet, deliberately.** A skill describing how to add a `PriceFeed`
-adapter, written before `PriceFeed` exists, is a guess — and a procedure
-document that has never been executed is the fastest way to teach people that
-these files can be ignored. Each skill lands in the phase that creates the code
-it describes:
+**`run-finansify`** builds, launches, and drives `apps/web`: start the dev
+server, then a headless-Chromium driver (`driver.mjs` — this environment has
+no `chromium-cli`) navigates it and takes real screenshots, desktop and at
+iPhone-13-mini width. Use it whenever a change needs to be _seen_ rather than
+just typechecked — CLAUDE.md's Definition of done requires the change to be
+exercised, and this is what makes that possible without a human opening a
+browser.
+
+The domain-code skills below **don't exist yet, deliberately.** A skill
+describing how to add a `PriceFeed` adapter, written before `PriceFeed`
+exists, is a guess — and a procedure document that has never been executed is
+the fastest way to teach people that these files can be ignored. Each lands in
+the phase that creates the code it describes:
 
 | Skill                 | Lands in | Covers                                                                                       |
 | --------------------- | -------- | -------------------------------------------------------------------------------------------- |
@@ -58,8 +66,13 @@ needed; no `.gitignore` edit per skill.
 
 ## Slash commands
 
-`.claude/commands/` holds one-shots too small to be skills: `/context` loads the
-docs relevant to a described task, `/sync-docs` checks that docs and code still
-agree, `/ship` runs the pre-PR checklist, `/pr` writes the PR title/description
-from the actual diff and opens it, `/review` checks a diff, branch, or PR
-against this repo's own invariants (the generic pass is `/code-review`).
+`.claude/commands/` holds one-shots too small to be skills — instructions
+followed when you type `/name`, not code that runs on its own:
+
+| Command           | Does                                                                                                                                 | Use it when                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `/context <task>` | Loads only the docs relevant to a described task                                                                                     | Starting work, so unrelated docs don't waste context |
+| `/sync-docs`      | Checks that `docs/` still matches the code                                                                                           | After a change that might have made a doc stale      |
+| `/ship`           | Runs `pnpm check`, checks the boundary rules by hand (nothing lints them), reports readiness                                         | Before opening a PR                                  |
+| `/pr`             | Writes the PR title/description from the actual diff and commit log, then opens it                                                   | Once `/ship` is clean and the PR text needs writing  |
+| `/review`         | Checks a diff/branch/PR against this repo's own rules — money/Decimal, package boundaries, ADRs — that a generic reviewer can't know | Before merge, alongside `/code-review`               |

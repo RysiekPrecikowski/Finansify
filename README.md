@@ -27,6 +27,12 @@ what you are doing, and lists the invariants that hold across all of them.
 | [`docs/roadmap.md`](docs/roadmap.md)           | Build order, verification, open questions           |
 | [`docs/decisions/`](docs/decisions/)           | ADRs — why things are the way they are              |
 
+[`docs/README.md`](docs/README.md) explains how the docs are organized, and
+lists the `/slash-commands` and AI-agent skills available under `.claude/` —
+including `run-finansify`, which builds, launches, and drives the app
+headlessly (real screenshots, no human needed to check that a UI change
+actually renders).
+
 ## Layout
 
 ```
