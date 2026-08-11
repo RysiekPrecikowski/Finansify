@@ -26,7 +26,11 @@ with our own UUID — never a Clerk subject id. See ADR 0009.
 Clerk's own React components appear only on `/sign-in` and `/sign-up`.
 
 Middleware lives in `src/proxy.ts`. Next 16 renamed `middleware.ts` to
-`proxy.ts`.
+`proxy.ts`, and parses that file statically: the handler must be a function
+**declared there** and `config` a literal object — re-exporting either fails the
+build. So `src/proxy.ts` is a thin shim that calls `authProxy` from
+`src/lib/auth/proxy.ts`. Keep it that way; putting `clerkMiddleware` directly in
+`src/proxy.ts` builds fine but breaks the rule above for no gain.
 
 ## Caching
 

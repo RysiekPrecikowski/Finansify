@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { dictionaryFor } from '@/lib/i18n/dictionaries';
 import { getLocale } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
+import { AuthProvider } from '@/lib/auth';
 
 import './globals.css';
 
@@ -30,11 +31,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       className={cn('h-full', 'antialiased', inter.variable, geistMono.variable)}
     >
       <body className="flex min-h-full flex-col">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-          <I18nProvider locale={locale} dictionary={dictionaryFor(locale)}>
-            <TooltipProvider>{children}</TooltipProvider>
-          </I18nProvider>
-        </ThemeProvider>
+        <AuthProvider>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+            <I18nProvider locale={locale} dictionary={dictionaryFor(locale)}>
+              <TooltipProvider>{children}</TooltipProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </AuthProvider>
         <Analytics />
         <SpeedInsights />
       </body>
