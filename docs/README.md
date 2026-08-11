@@ -60,4 +60,6 @@ needed; no `.gitignore` edit per skill.
 
 `.claude/commands/` holds one-shots too small to be skills: `/context` loads the
 docs relevant to a described task, `/sync-docs` checks that docs and code still
-agree, `/ship` runs the pre-PR checklist.
+agree, `/ship` runs the pre-PR checklist, `/pr` writes the PR title/description
+from the actual diff and opens it, `/review` checks a diff, branch, or PR
+against this repo's own invariants (the generic pass is `/code-review`).
