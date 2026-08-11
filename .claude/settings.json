@@ -12,9 +12,7 @@
       "Bash(pnpm build)",
       "Bash(pnpm format)",
       "Bash(pnpm format:check)",
-      "Bash(pnpm db:generate)",
       "Bash(pnpm -r typecheck)",
-      "Bash(npx drizzle-kit generate:*)",
       "Bash(git status)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -24,7 +22,7 @@
       "Bash(git switch:*)",
       "Bash(npm view:*)"
     ],
-    "ask": ["Bash(pnpm db:migrate)", "Bash(git push:*)", "Bash(gh pr create:*)"],
-    "deny": ["Read(./.env.local)", "Read(./.env)", "Bash(pnpm db:studio)"]
+    "ask": ["Bash(git push:*)", "Bash(gh pr create:*)"],
+    "deny": ["Read(./.env.local)", "Read(./.env)"]
   }
 }

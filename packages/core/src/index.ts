@@ -1,6 +1,4 @@
-export * from './money';
-export * from './time';
-export * from './fx';
-export * from './ledger';
-export * from './valuation';
-export * from './contracts';
+// Empty on purpose. This package exists to prove the workspace/build wiring
+// (pnpm workspace, tsconfig base, turbo `typecheck`/`transit` tasks,
+// `transpilePackages` if apps/web ever imports it) before any real code lands.
+export {};
