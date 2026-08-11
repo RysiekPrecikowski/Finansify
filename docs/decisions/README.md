@@ -30,6 +30,7 @@ constraint six months from now.
 | 0009 | Auth behind a port, with our own user identity       | Accepted            |
 | 0010 | Market data shared globally, portfolio data isolated | Accepted            |
 | 0011 | Bond terms resolved on first use                     | Accepted            |
+| 0012 | Repository language, branch protection, file hygiene | Accepted            |
 
 ## Template
 

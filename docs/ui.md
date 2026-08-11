@@ -59,6 +59,10 @@ Top to bottom:
 
 ## Mobile
 
+Reference devices: iPhone 13 mini (375 px, the narrowest realistic target) and
+a mid-size Android like the Pixel (~412 px). Every layout is checked at both
+widths, not just resized down from desktop.
+
 - **Bottom tab bar on mobile, left sidebar on desktop** — Dashboard, Portfolio,
   Transactions, More. Same routes, one layout component.
 - **A `<DataList>` primitive** that renders a real `<table>` at `md` and above
