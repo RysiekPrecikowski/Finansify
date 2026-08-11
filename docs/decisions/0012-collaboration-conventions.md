@@ -75,5 +75,5 @@ conventions decay silently in a way that documented ones don't.
 
 **Enforce PR-only `main` with a lint rule / CI check instead of a written
 rule.** GitHub's branch protection already does the mechanical enforcement;
-a CLAUDE.md rule is still needed so the *reason* ("no direct pushes because
+a CLAUDE.md rule is still needed so the _reason_ ("no direct pushes because
 X breaks Y") is legible to whoever is working in the repo, human or agent.

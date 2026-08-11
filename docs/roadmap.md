@@ -8,11 +8,11 @@ package boundaries while there is still little code to move.
 | **0 — Foundations**  | Docs and ADRs · package skeleton with ports · `Money` / `Currency` / Temporal primitives with tests · `.env.example` · `vercel.ts` · database and auth provisioned · `users` with the provider indirection |
 | **1 — Ledger**       | Accounts, portfolios, manual transaction entry, position building, FIFO lot matching. No prices yet — but cost basis is already correct.                                                                   |
 | **2 — Valuation**    | Instruments and identifier mapping · NBP FX · Yahoo and Stooq price feeds · the shared cache with TTLs and a market calendar · dashboard headline, hero chart, allocation                                  |
-| **3 — Polish bonds** | `BondTermsResolver` with lazy auto-population · family rules · the accrual engine with golden tests · bonds on the dashboard · forward cash-flow schedule and redemption-value projection                                                                               |
+| **3 — Polish bonds** | `BondTermsResolver` with lazy auto-population · family rules · the accrual engine with golden tests · bonds on the dashboard · forward cash-flow schedule and redemption-value projection                  |
 | **4 — Imports**      | Blob upload · import staging and review UI · XTB parser · Boś/bossa parser · generic CSV mapper · dedup by `external_id`                                                                                   |
 | **5 — Performance**  | TWR, XIRR, benchmark overlay, the versus-index view                                                                                                                                                        |
 | **6 — Income**       | Dividend and interest analytics over time, yield-on-cost                                                                                                                                                   |
-| **Later**            | OKI (2027) · PPK and TFI · crypto · metals · tax reports · optional daily snapshots via cron · expense/budget tracking (unscoped, see Feature backlog)                                                                                                               |
+| **Later**            | OKI (2027) · PPK and TFI · crypto · metals · tax reports · optional daily snapshots via cron · expense/budget tracking (unscoped, see Feature backlog)                                                     |
 
 Phase 1 landing before any price feed exists is intentional: it forces the ledger
 and lot matching to be correct on their own, with nothing to hide behind.
