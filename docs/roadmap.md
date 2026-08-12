@@ -34,12 +34,12 @@ for shipped work is how this section stops being trusted.
       (fork PR could run with `DATABASE_URL_UNPOOLED` in scope) and an
       auth-bypass in the proxy matcher (`.rsc` and any dotted path skipped
       `auth.protect()`)
-- [ ] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
+- [x] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
 - [x] Clerk provisioned, sign-up set to **restricted**, both users invited
 - [ ] The migration applied against a real database
 
-The remaining open boxes are Vercel/Neon dashboard work — nothing in the repo
-can close them.
+The migration box closes itself once this branch merges to `main` and the
+`migrate` CI job runs against the now-configured `DATABASE_URL_UNPOOLED`.
 
 ## Verification
 
