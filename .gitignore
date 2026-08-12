@@ -35,3 +35,4 @@ skills-lock.json
 # symlink, it would be picked up -- check `git status` after running it.)
 .claude/skills/*
 !.claude/skills/*/
+.env*
