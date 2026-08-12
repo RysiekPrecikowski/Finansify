@@ -75,6 +75,11 @@ Two guardrails carry the weight instead:
 - TypeScript: `decimal.js` wrapped in a `Money` value object
   `{ amount: Decimal; currency: Currency }`. Arithmetic only through `Money`
   methods; mixing currencies throws.
+- **`Decimal` runs at 40 significant digits**, set once in `money.ts`. The
+  library defaults to 20, which is fewer than the 28 the column holds — a
+  division would then round in memory to a precision the database would have
+  kept, and pro-rated cost basis stopped summing back to the original.
+  Arithmetic must never be less precise than storage.
 - Formatting happens at the UI edge via `Intl.NumberFormat`, never in `core`.
 
 See ADR 0005.
