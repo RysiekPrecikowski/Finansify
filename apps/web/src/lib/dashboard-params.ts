@@ -8,9 +8,15 @@ import {
 } from '@/lib/fixtures/portfolio';
 
 /**
- * Range, filter and sort live in the URL rather than in client state. The whole
- * dashboard then renders on the server, every control is a real link, and the
- * view survives a reload and a share — which client-side tabs do not.
+ * Range, filter and sort live in the URL. The dashboard renders on the server,
+ * every control is a real link, and the view survives a reload and a share —
+ * which client-side tab state does not.
+ *
+ * The chart range is the one control that also switches without a navigation:
+ * all six series are already on the client, so re-fetching the page to redraw
+ * a line the browser is holding would only add latency. It writes the same URL
+ * back with `history.replaceState`, so reload and share behave identically —
+ * see `components/dashboard/chart-card.tsx`.
  */
 export interface DashboardParams {
   readonly range: Range;
@@ -61,4 +67,14 @@ export function dashboardHref(
   if (next.sort !== defaultDashboardParams.sort) query.sort = next.sort;
 
   return { pathname: '/dashboard', query };
+}
+
+/**
+ * The same href as a string, for `history.replaceState`. Kept here so the query
+ * shape stays known to this module alone — a caller assembling `?range=` by
+ * hand is how the URL and the links drift apart.
+ */
+export function dashboardUrl(href: DashboardHref): string {
+  const query = new URLSearchParams(href.query).toString();
+  return query === '' ? href.pathname : `${href.pathname}?${query}`;
 }
