@@ -1,9 +1,12 @@
 # Generated -- never hand-format these.
 pnpm-lock.yaml
 apps/web/next-env.d.ts
+packages/db/migrations/
 
 node_modules/
 .next/
+# Clerk's keyless-mode scratch dir: generated, git-ignored, holds temporary keys.
+.clerk/
 dist/
 coverage/
 .vercel/

@@ -20,6 +20,47 @@ Do not read all of `docs/` — each file is written to stand on its own.
 | What ships when                                            | `docs/roadmap.md`      |
 | Why something is the way it is                             | `docs/decisions/`      |
 
+## How to work
+
+Applies to every task in this repo, by default, without being asked.
+
+1. **Plan before touching anything.** Anything beyond a one-file edit gets a plan
+   first — what changes, in which files, in what order, and what verifies it.
+   Read the code the plan depends on before writing the plan, not after.
+2. **While working, report only the stage.** One short line per stage
+   (`Stage 2/4 — schema + migration`), not a narration of each edit, not a
+   preview of what you are about to type. The diff is the record; prose about the
+   diff is noise.
+3. **Final output is short, factual, technical.** What changed, what it verifies
+   against, what is left. No summaries of your own reasoning, no restating the
+   request, no congratulating the result. Prefer a list of paths and one clause
+   each over paragraphs.
+4. **Ask only when something genuinely needs a decision** — an ambiguity that
+   would send the work in materially different directions, a boundary that needs
+   an ADR, a destructive or outward-facing action. Otherwise pick the
+   defensible option, state the assumption in one line, and continue. A question
+   that has an obvious answer costs more than the answer.
+
+Verification is not optional and not a stage you can report without running:
+`pnpm check` before saying anything is done.
+
+## PR and review tone
+
+`/pr` and `/review` write text the other teammate reads and acts on — this is
+different from the terse stage-reporting above, which is narration to whoever
+is watching the session run.
+
+- State the fact and its concrete consequence plainly: what changed, what it
+  affects, what to check. No hedging ("might want to consider"), no
+  editorializing ("sloppy", "obviously wrong") — name the exact thing, not a
+  verdict on the person who wrote it.
+- Concrete and kind are not in tension. A short acknowledgment of a good call,
+  or "worth a look" instead of a bare imperative, costs nothing and reads
+  better than a flat instruction — but it never replaces the specific file,
+  line, or number the other person needs to act.
+- Still no filler adjectives, no emoji, no padding a section to look complete.
+  Warmer is a register, not an excuse to get vaguer.
+
 ## Rules
 
 Invariants, not preferences. Breaking one is a bug even if it compiles and the
@@ -57,6 +98,12 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
 13. **Prefer extending an existing file to adding a new one.** A third copy of
     a pattern is a refactor waiting to happen — propose the refactor instead of
     writing the copy.
+14. **Finishing work means ticking its box.** If a change completes something
+    tracked in `docs/roadmap.md` — a "Where we are" item or a Feature-backlog
+    entry — tick that checkbox in the same commit. Never tick one for work that
+    is merely planned or partially done; a box that overstates reality is worse
+    than an unticked one. If the work isn't tracked there and should be, add the
+    line, then tick it.
 
 ## When you change a boundary
 

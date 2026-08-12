@@ -17,6 +17,29 @@ package boundaries while there is still little code to move.
 Phase 1 landing before any price feed exists is intentional: it forces the ledger
 and lot matching to be correct on their own, with nothing to hide behind.
 
+## Where we are
+
+Phase 0 complete. Tick a box in the same change that finishes the work — an
+unticked box for shipped work is how this section stops being trusted.
+
+- [x] Docs, ADRs 0001–0012
+- [x] Package skeleton — `core` (`money`, `time`, `ports`), `db`
+- [x] `Money` / `Currency` / Temporal primitives with tests
+- [x] `.env.example`, `vercel.ts`, `next.config.ts`
+- [x] App shell and dashboard on fixture data, PL/EN
+- [x] `users` with the provider indirection — schema, migration, `SessionProvider`, Clerk behind `apps/web/src/lib/auth/`
+- [x] Migration apply path — `.github/workflows/ci.yml`'s `migrate` job
+- [x] `/security-review` over the auth, `users`, and migration surface — found
+      and fixed two HIGH findings: a pwn-request in the migration workflow
+      (fork PR could run with `DATABASE_URL_UNPOOLED` in scope) and an
+      auth-bypass in the proxy matcher (`.rsc` and any dotted path skipped
+      `auth.protect()`)
+- [x] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
+- [x] Clerk provisioned, sign-up set to **restricted**, both users invited
+- [x] The migration applied against a real database
+
+Phase 0 is complete. Phase 1 (Ledger) is next.
+
 ## Verification
 
 **Every phase**

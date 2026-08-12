@@ -31,8 +31,10 @@ export function AssetClassChips({
   return (
     <nav
       aria-label={dictionary.dashboard.filterByAssetClass}
-      // Edge-to-edge scroll on a phone, no scrollbar furniture.
-      className="-mx-4 flex [scrollbar-width:none] gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
+      // The chips wrap rather than scroll sideways: a handful of short labels
+      // fits in two rows on a phone, and every filter stays visible instead of
+      // hiding past the right edge with nothing to say so.
+      className="flex flex-wrap gap-2 pb-1"
     >
       <Link
         href={dashboardHref(params, { assetClass: null })}
