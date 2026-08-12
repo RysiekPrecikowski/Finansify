@@ -35,10 +35,10 @@ for shipped work is how this section stops being trusted.
       auth-bypass in the proxy matcher (`.rsc` and any dotted path skipped
       `auth.protect()`)
 - [ ] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
-- [ ] Clerk provisioned, sign-up set to **restricted**, both users invited
+- [x] Clerk provisioned, sign-up set to **restricted**, both users invited
 - [ ] The migration applied against a real database
 
-The three open boxes are Vercel/Neon/Clerk dashboard work — nothing in the repo
+The remaining open boxes are Vercel/Neon dashboard work — nothing in the repo
 can close them.
 
 ## Verification
