@@ -44,6 +44,23 @@ Applies to every task in this repo, by default, without being asked.
 Verification is not optional and not a stage you can report without running:
 `pnpm check` before saying anything is done.
 
+## PR and review tone
+
+`/pr` and `/review` write text the other teammate reads and acts on — this is
+different from the terse stage-reporting above, which is narration to whoever
+is watching the session run.
+
+- State the fact and its concrete consequence plainly: what changed, what it
+  affects, what to check. No hedging ("might want to consider"), no
+  editorializing ("sloppy", "obviously wrong") — name the exact thing, not a
+  verdict on the person who wrote it.
+- Concrete and kind are not in tension. A short acknowledgment of a good call,
+  or "worth a look" instead of a bare imperative, costs nothing and reads
+  better than a flat instruction — but it never replaces the specific file,
+  line, or number the other person needs to act.
+- Still no filler adjectives, no emoji, no padding a section to look complete.
+  Warmer is a register, not an excuse to get vaguer.
+
 ## Rules
 
 Invariants, not preferences. Breaking one is a bug even if it compiles and the
