@@ -1,3 +1,4 @@
+import { type UserId } from '@finansify/core';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { type Database } from './client';
@@ -37,7 +38,7 @@ export function findUserByIdentity(
  */
 export async function ensureDataKey(
   db: Database,
-  userId: string,
+  userId: UserId,
   masterKey: Buffer,
 ): Promise<Buffer> {
   const [existing] = await db

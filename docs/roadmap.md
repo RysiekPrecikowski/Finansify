@@ -3,17 +3,17 @@
 Each phase ends somewhere usable. The early ones deliberately exercise the
 package boundaries while there is still little code to move.
 
-| Phase                | Ships                                                                                    |
-| -------------------- | ---------------------------------------------------------------------------------------- |
+| Phase                | Ships                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------- |
 | **0 — Foundations**  | Docs and ADRs · packages and ports · `Money`/`Currency`/Temporal · auth · database · CI |
-| **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices.  |
-| **1.5 — Unlock**     | Encryption Stage 2: ledger passphrase, per-user key, the boundary between the two of us  |
-| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo and Stooq · shared cache · dashboard on real data    |
-| **3 — Polish bonds** | `BondTermsResolver` · family rules · accrual engine with golden tests · projections      |
-| **4 — Imports**      | Blob upload · staging and review UI · XTB and Boś parsers · CSV mapper · dedup           |
-| **5 — Performance**  | TWR, XIRR, benchmark overlay, versus-index view                                          |
-| **6 — Income**       | Dividend and interest analytics over time, yield-on-cost                                 |
-| **Later**            | OKI (2027) · PPK and TFI · crypto · metals · tax reports · expenses (unscoped)           |
+| **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices. |
+| **1.5 — Unlock**     | Encryption Stage 2: ledger passphrase, per-user key, the boundary between the two of us |
+| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo and Stooq · shared cache · dashboard on real data   |
+| **3 — Polish bonds** | `BondTermsResolver` · family rules · accrual engine with golden tests · projections     |
+| **4 — Imports**      | Blob upload · staging and review UI · XTB and Boś parsers · CSV mapper · dedup          |
+| **5 — Performance**  | TWR, XIRR, benchmark overlay, versus-index view                                         |
+| **6 — Income**       | Dividend and interest analytics over time, yield-on-cost                                |
+| **Later**            | OKI (2027) · PPK and TFI · crypto · metals · tax reports · expenses (unscoped)          |
 
 Phase 1 landing before any price feed is intentional: it forces the ledger and
 lot matching to be correct on their own, with nothing to hide behind.
@@ -31,10 +31,10 @@ found and fixed.
 
 - [x] `core`: ledger vocabulary, `LedgerRepository` port, branded ids
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
-- [ ] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
-- [ ] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
+- [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
+- [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
 - [ ] `apps/web`: transaction entry, positions view, CSV/JSON export
-- [ ] Encryption at rest, Stage 1: per-user data key, env-held master key (ADR 0013)
+- [x] Encryption at rest, Stage 1: per-user data key, env-held master key (ADR 0013)
 - [ ] CSV/JSON ledger export
 - [ ] `/security-review` over the whole surface
 

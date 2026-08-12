@@ -48,7 +48,7 @@ using **envelope encryption with a per-user data key**.
   carry no amount, and the database needs them to filter, order and enforce the
   re-import unique index.
 - **AES-256-GCM**, a fresh random IV per row, stored as `iv || ciphertext ||
-  tag`. The AAD binds the payload to `(user_id, 'transactions', row id)`, so a
+tag`. The AAD binds the payload to `(user_id, 'transactions', row id)`, so a
   payload cannot be replayed onto another row or another user's row.
 - Each user has their own **data key (DEK)**, generated on first use and stored
   in `users` only in wrapped form.
@@ -135,7 +135,7 @@ application, after ADR 0009 declined row-level security, and the two compound:
 nothing beneath the application layer checks either isolation or numeric
 validity.
 
-Worth weighing honestly, though: the database was the *second* line, never the
+Worth weighing honestly, though: the database was the _second_ line, never the
 first. The only write path is the adapter, which already parses every amount
 through `core`'s `decimalString` schema and constructs a `Decimal` from the
 string. What is lost is the backstop, not the validation — and the same is true
@@ -147,14 +147,14 @@ nothing underneath it, which is why both this surface and that one get
 invites, and the answer is that Postgres was never doing the arithmetic. The
 `numeric` columns are already read in Drizzle's `string` mode and handed to
 `Decimal` unparsed; after this change the adapter decrypts a JSON payload and
-hands `Decimal` the *same strings*. Every figure downstream is bit-for-bit
+hands `Decimal` the _same strings_. Every figure downstream is bit-for-bit
 identical. What is given up is SQL-side aggregation, ordering and indexing of
 amounts — none of which any phase in `docs/roadmap.md` uses, because ADR 0003
 folds the whole transaction list in memory.
 
 One inversion worth noting: `NUMERIC(28, 10)` silently rounds an eleventh
 decimal place away on write. A serialized payload keeps whatever string it is
-given, so the encrypted form can preserve *more* precision than the column did.
+given, so the encrypted form can preserve _more_ precision than the column did.
 The adapter therefore has to decide explicitly what it serializes rather than
 inheriting the column's rounding by accident.
 
