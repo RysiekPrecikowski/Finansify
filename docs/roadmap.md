@@ -28,14 +28,18 @@ for shipped work is how this section stops being trusted.
 - [x] `.env.example`, `vercel.ts`, `next.config.ts`
 - [x] App shell and dashboard on fixture data, PL/EN
 - [x] `users` with the provider indirection — schema, migration, `SessionProvider`, Clerk behind `apps/web/src/lib/auth/`
-- [x] Migration apply path — `.github/workflows/migrate.yml`
+- [x] Migration apply path — `.github/workflows/ci.yml`'s `migrate` job
+- [x] `/security-review` over the auth, `users`, and migration surface — found
+      and fixed two HIGH findings: a pwn-request in the migration workflow
+      (fork PR could run with `DATABASE_URL_UNPOOLED` in scope) and an
+      auth-bypass in the proxy matcher (`.rsc` and any dotted path skipped
+      `auth.protect()`)
 - [ ] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
 - [ ] Clerk provisioned, sign-up set to **restricted**, both users invited
 - [ ] The migration applied against a real database
-- [ ] `/security-review` over the auth, `users`, and migration surface
 
-The first three open boxes are Vercel/Neon/Clerk dashboard work — nothing in the
-repo can close them. The last one is ours to run.
+The three open boxes are Vercel/Neon/Clerk dashboard work — nothing in the repo
+can close them.
 
 ## Verification
 

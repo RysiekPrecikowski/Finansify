@@ -7,7 +7,7 @@ The schema lives in `packages/db/src/schema/`, the generated SQL in
 `packages/db/migrations/`. Both are committed; neither is written by hand.
 
 Migrations **never run in a build** (CLAUDE.md rule 9). They apply from
-`.github/workflows/migrate.yml` after CI passes on main.
+`ci.yml`'s `migrate` job after `check` passes on a push to main.
 
 ## Generate
 
@@ -48,8 +48,10 @@ which is data loss that typechecks.
 ## Apply
 
 Nobody applies migrations by hand to production. The path is: PR → review →
-merge to main → `ci.yml` green → `migrate.yml` runs `drizzle-kit migrate` over
-`DATABASE_URL_UNPOOLED`.
+merge to main → `check` passes → `migrate` runs `drizzle-kit migrate` over
+`DATABASE_URL_UNPOOLED`. `migrate` only triggers on a `push` event to `main` —
+never on `pull_request` — so a fork PR can never reach it, secret or no
+secret.
 
 The unpooled connection is not interchangeable with the pooled one the app uses
 — `drizzle-kit migrate` needs a direct session.

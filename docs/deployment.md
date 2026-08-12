@@ -30,13 +30,15 @@ The flow instead:
 
 1. `drizzle-kit generate` produces the migration; it is reviewed and committed
    alongside the schema change.
-2. `.github/workflows/migrate.yml` applies it with `drizzle-kit migrate` over
-   the **unpooled** connection string. It triggers on CI succeeding on main,
-   not on the push itself — a migration must never apply against a commit that
-   failed `pnpm check` — and checks out the exact SHA that CI validated.
-   Requires the `DATABASE_URL_UNPOOLED` repository secret; until Neon is
-   provisioned and that secret is set, the job fails rather than silently
-   doing nothing.
+2. `ci.yml`'s `migrate` job applies it with `drizzle-kit migrate` over the
+   **unpooled** connection string, `needs: check` so it never runs against a
+   commit that failed `pnpm check`. It is deliberately a job in `ci.yml`
+   rather than a `workflow_run`-triggered workflow: gating on
+   `github.event_name == 'push'` means a fork PR — which only ever produces a
+   `pull_request` event — cannot reach it at all, rather than relying on a
+   provenance check to filter one out. Requires the `DATABASE_URL_UNPOOLED`
+   repository secret; until Neon is provisioned and that secret is set, the
+   job fails rather than silently doing nothing.
 3. Preview deployments get their own database branch, so every PR exercises the
    migration against a real copy before it reaches production.
 
@@ -60,12 +62,12 @@ migrations.
 
 ## CI
 
-Two workflows:
+One workflow, `ci.yml`, on push to main and on every PR:
 
-- **`ci.yml`** — on push to main and on every PR: install with a frozen
-  lockfile, then `pnpm check` (build, lint, typecheck, test, format, cached via
-  Turbo).
-- **`migrate.yml`** — on `ci.yml` succeeding on main. See Migrations above.
+- **`check`** — install with a frozen lockfile, then `pnpm check` (build, lint,
+  typecheck, test, format, cached via Turbo). Runs for both events.
+- **`migrate`** — `needs: check`, and only on `push` to `main`. See Migrations
+  above.
 
 To add: a **migration-drift check** that fails if the schema and the generated
 migrations disagree. Without it, a schema edit that never got a migration

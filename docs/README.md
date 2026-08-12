@@ -42,10 +42,10 @@ browser.
 
 **`db-migration`** covers a Drizzle schema change end to end: generate the
 migration, what to look for when reading the generated SQL (a rename Drizzle
-can't see becomes `DROP` + `ADD`), and the apply path through
-`.github/workflows/migrate.yml`. It also names the two things that are _not_
-built yet — the preview-branch check and the drift check — so nobody writes a
-PR description implying they ran.
+can't see becomes `DROP` + `ADD`), and the apply path through `ci.yml`'s
+`migrate` job. It also names the two things that are _not_ built yet — the
+preview-branch check and the drift check — so nobody writes a PR description
+implying they ran.
 
 The domain-code skills below **don't exist yet, deliberately.** A skill
 describing how to add a `PriceFeed` adapter, written before `PriceFeed`

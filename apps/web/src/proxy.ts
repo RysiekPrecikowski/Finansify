@@ -15,7 +15,14 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  // Skip Next internals and static files; run on everything else. Routing
-  // concern, not an auth one, which is why it belongs in this file.
-  matcher: ['/((?!_next|.*\\..*).*)'],
+  // Clerk's documented matcher: an explicit, closed list of static-asset
+  // extensions, not "anything with a dot" — the open-ended form skips the RSC
+  // payload route (<path>.rsc, served in Vercel's minimal mode) along with any
+  // future dotted route segment (a ticker like CDR.WA), silently exempting it
+  // from auth.protect(). API routes are re-added unconditionally since they
+  // don't otherwise match the first pattern.
+  matcher: [
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
+  ],
 };

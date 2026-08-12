@@ -1,11 +1,25 @@
+import type { Route } from 'next';
 import type { CSSProperties, ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import { AppSidebar } from '@/components/app-sidebar';
 import { BottomNav } from '@/components/bottom-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { getCurrentUser } from '@/lib/auth';
 
-export default function AppLayout({ children }: Readonly<{ children: ReactNode }>) {
+// Second layer, not the only one: src/proxy.ts's matcher is the primary gate,
+// but a matcher is routing config, and routing config being the *sole*
+// authorization decision is exactly how that gate was bypassable. This layout
+// is every route under (app), so checking here means one bug in the matcher
+// no longer means an unauthenticated render.
+export default async function AppLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const user = await getCurrentUser();
+  // Not a typedRoutes literal: the sign-in page is the catch-all
+  // `/sign-in/[[...sign-in]]`, and `/sign-in` itself isn't in that route's
+  // generated type even though Clerk resolves it correctly at runtime.
+  if (user === null) redirect('/sign-in' as Route);
+
   return (
     <SidebarProvider style={{ '--sidebar-width': '17rem' } as CSSProperties}>
       <AppSidebar />
