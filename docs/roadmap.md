@@ -19,8 +19,8 @@ and lot matching to be correct on their own, with nothing to hide behind.
 
 ## Where we are
 
-Phase 0. Tick a box in the same change that finishes the work — an unticked box
-for shipped work is how this section stops being trusted.
+Phase 0 complete. Tick a box in the same change that finishes the work — an
+unticked box for shipped work is how this section stops being trusted.
 
 - [x] Docs, ADRs 0001–0012
 - [x] Package skeleton — `core` (`money`, `time`, `ports`), `db`
@@ -36,10 +36,9 @@ for shipped work is how this section stops being trusted.
       `auth.protect()`)
 - [x] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
 - [x] Clerk provisioned, sign-up set to **restricted**, both users invited
-- [ ] The migration applied against a real database
+- [x] The migration applied against a real database
 
-The migration box closes itself once this branch merges to `main` and the
-`migrate` CI job runs against the now-configured `DATABASE_URL_UNPOOLED`.
+Phase 0 is complete. Phase 1 (Ledger) is next.
 
 ## Verification
 
