@@ -4,6 +4,11 @@ import { createDbClient, type Database } from '@finansify/db';
  * The composition root: the only place adapters get instantiated. Route
  * handlers, server components, and server actions call the exports here — they
  * never construct an adapter themselves. See apps/web/AGENTS.md.
+ *
+ * `src/lib/auth/get-current-user.ts` is the one exception: it composes
+ * `@clerk/nextjs` with `@finansify/db`'s `users` functions directly, using
+ * `getDb()` below. ADR 0009 places the `SessionProvider` implementation inside
+ * the auth adapter itself, not here — see the note in apps/web/AGENTS.md.
  */
 
 function requiredEnv(name: string): string {

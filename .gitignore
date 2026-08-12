@@ -10,8 +10,7 @@ coverage/
 # permanently dirty depending on which ran last.
 apps/web/next-env.d.ts
 
-.env
-.env.*
+.env*
 !apps/web/.env.example
 
 .DS_Store
@@ -35,4 +34,3 @@ skills-lock.json
 # symlink, it would be picked up -- check `git status` after running it.)
 .claude/skills/*
 !.claude/skills/*/
-.env*

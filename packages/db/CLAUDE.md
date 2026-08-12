@@ -9,8 +9,12 @@ for the boundary and `docs/decisions/0008-database-engine.md` for why Neon.
 - Imports `@finansify/core` to use its value objects and to implement its
   ports; never imports `@finansify/providers` or `@finansify/importers`
   (adapters don't import each other — `docs/architecture.md`).
-- **Every user-scoped query takes a `userId` as an argument.** There is no
-  unscoped path (rule 4, ADR 0009).
+- **Every user-scoped domain query is exposed through a repository bound to a
+  user id at construction** — `repository.forUser(userId)`, never a free
+  function that takes `userId` as a plain parameter (rule 4, root CLAUDE.md;
+  ADR 0009). `users.ts`'s identity lookup is the one exception: it is how a
+  `userId` gets discovered in the first place, so it necessarily takes the
+  auth-provider identity, not a `userId`, as input.
 - Schema lives in `src/schema/`, one file per table or tight cluster of tables.
   `src/client.ts` builds the Drizzle instance from a connection string; nothing
   in this package reads `process.env` directly — the caller (`apps/web`'s

@@ -15,7 +15,12 @@ ready-made use cases. Route handlers, server components, and server actions call
 those — they do not construct adapters themselves.
 
 Importing `@finansify/db`, `@finansify/providers`, or `@finansify/importers`
-outside the server layer is a boundary violation.
+outside the server layer is a boundary violation. The one exception:
+`src/lib/auth/get-current-user.ts` composes `@clerk/nextjs` with
+`@finansify/db`'s `users` functions directly rather than going through
+`container.ts` — ADR 0009 places the `SessionProvider` implementation inside
+the auth adapter itself, because `core` cannot define a port shaped around a
+Clerk identity (`authProvider`/`authSubject`) without knowing Clerk exists.
 
 ## Auth
 

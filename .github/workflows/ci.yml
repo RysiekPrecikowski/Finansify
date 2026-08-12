@@ -39,6 +39,12 @@ jobs:
     # job could be armed by a fork PR whose branch happened to be named
     # `main`; this job design removes that class rather than filtering it.)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Own group, not the workflow-level one above: that group cancels on every
+    # new push to main, which would kill drizzle-kit mid-migration if two
+    # merges land close together. Migrations queue instead of being cancelled.
+    concurrency:
+      group: migrate-main
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -55,8 +61,10 @@ jobs:
       # drizzle.config.ts falls back to an empty connection string, which fails
       # deep inside drizzle-kit. Name the real cause instead.
       - name: Require DATABASE_URL_UNPOOLED
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
         run: |
-          if [ -z "${{ secrets.DATABASE_URL_UNPOOLED }}" ]; then
+          if [ -z "$DATABASE_URL_UNPOOLED" ]; then
             echo "::error::DATABASE_URL_UNPOOLED is not set. Provision Neon and add it as a repository secret (docs/deployment.md)."
             exit 1
           fi
