@@ -60,14 +60,15 @@ export async function ensureDataKey(
     .where(and(eq(users.id, userId), isNull(users.wrappedDataKey)))
     .returning({ wrapped: users.wrappedDataKey });
 
-  if (installed?.wrapped != null) return unwrapDataKey(installed.wrapped, masterKey, userId);
+  if (installed?.wrapped !== null && installed?.wrapped !== undefined)
+    return unwrapDataKey(installed.wrapped, masterKey, userId);
 
   const [afterRace] = await db
     .select({ wrapped: users.wrappedDataKey })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  if (afterRace?.wrapped == null) {
+  if (afterRace?.wrapped === null || afterRace?.wrapped === undefined) {
     throw new Error(`Could not install a data key for user ${userId}`);
   }
   return unwrapDataKey(afterRace.wrapped, masterKey, userId);

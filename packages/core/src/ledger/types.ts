@@ -11,7 +11,6 @@ import { Temporal } from '../time';
 export * from './vocabulary';
 import {
   fxRateSources,
-  instrumentKinds,
   transactionTypes,
   wrappers,
   type FxRateSource,

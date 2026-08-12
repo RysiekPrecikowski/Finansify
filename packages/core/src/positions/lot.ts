@@ -2,7 +2,7 @@ import type Decimal from 'decimal.js';
 
 import { type AccountId, type InstrumentId, type TransactionId } from '../ledger';
 import { type Money } from '../money';
-import { Temporal } from '../time';
+import { type Temporal } from '../time';
 
 /**
  * **A lot's id is the id of the buy that opened it.**

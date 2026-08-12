@@ -1,5 +1,5 @@
 import { grossValueOf, type AccountId, type Transaction, type TransactionType } from '../ledger';
-import { Money, type Currency } from '../money';
+import { type Money, type Currency } from '../money';
 
 export interface CashBalance {
   readonly accountId: AccountId;
