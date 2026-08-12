@@ -72,6 +72,15 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
    concurrently. Migrations apply from CI on merge to main. (`docs/deployment.md`)
 10. **Next 16 diverges from training data** — `proxy.ts` rather than
     `middleware.ts`, Cache Components, `after()`. Check the docs; do not recall.
+11. **All technical content is English** — code, identifiers, comments, commit
+    messages, PR titles and descriptions, and everything under `docs/`. Talk to
+    the team in Polish; nothing that lands in the repository is.
+12. **`main` is protected.** Every change lands through a pull request,
+    reviewed and explicitly approved by the other teammate, before merge. No
+    direct pushes, no force-pushes, no `--no-verify`.
+13. **Prefer extending an existing file to adding a new one.** A third copy of
+    a pattern is a refactor waiting to happen — propose the refactor instead of
+    writing the copy.
 
 ## When you change a boundary
 
@@ -81,6 +90,29 @@ needs an ADR in the same change. See `docs/decisions/README.md`.
 Docs and code ship together. If a change makes a document wrong, fix the
 document in the same commit — a stale rule is worse than no rule, because it
 teaches everyone that this file can be ignored.
+
+## Definition of done
+
+`pnpm check` green is necessary, not sufficient.
+
+- **Exercise the change** before calling it done — run the dev server or the
+  relevant test, per the phase's checklist in `docs/roadmap.md`'s
+  "Verification" section. A green CI run is not a substitute for having
+  actually run the thing that changed.
+- **Money, auth, and migrations get a second look** for data integrity and
+  security, not just correctness. Run `/security-review` for anything
+  touching auth, money movement, or user data.
+- **A large or user-facing change is described in the PR**, even one that
+  isn't a boundary change and doesn't need an ADR.
+
+## Team & efficiency
+
+Two of us, data engineering and backend/Java backgrounds — technical language
+is fine, do not simplify explanations. This repo runs behind `rtk`: read the
+one doc that matches the task (table above), not all of `docs/`; prefer
+targeted reads and greps over dumping whole files; batch independent tool
+calls; reach for a subagent instead of many serial searches on open-ended
+exploration.
 
 ## Commands
 
