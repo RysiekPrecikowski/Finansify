@@ -40,6 +40,13 @@ just typechecked — CLAUDE.md's Definition of done requires the change to be
 exercised, and this is what makes that possible without a human opening a
 browser.
 
+**`db-migration`** covers a Drizzle schema change end to end: generate the
+migration, what to look for when reading the generated SQL (a rename Drizzle
+can't see becomes `DROP` + `ADD`), and the apply path through
+`.github/workflows/migrate.yml`. It also names the two things that are _not_
+built yet — the preview-branch check and the drift check — so nobody writes a
+PR description implying they ran.
+
 The domain-code skills below **don't exist yet, deliberately.** A skill
 describing how to add a `PriceFeed` adapter, written before `PriceFeed`
 exists, is a guess — and a procedure document that has never been executed is
@@ -48,7 +55,6 @@ the phase that creates the code it describes:
 
 | Skill                 | Lands in | Covers                                                                                       |
 | --------------------- | -------- | -------------------------------------------------------------------------------------------- |
-| `db-migration`        | Phase 0  | generate, review, commit, apply path, preview-branch check, drift check                      |
 | `add-price-provider`  | Phase 2  | Implementing `PriceFeed`: adapter, identifier mapping, TTLs, market calendar, fallback order |
 | `add-bond-family`     | Phase 3  | Family rules entry, resolver expectations, golden test against published tables              |
 | `add-broker-importer` | Phase 4  | New `StatementParser`: sniffing, column mapping, dedup, staging, review UI                   |

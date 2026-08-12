@@ -98,6 +98,12 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
 13. **Prefer extending an existing file to adding a new one.** A third copy of
     a pattern is a refactor waiting to happen — propose the refactor instead of
     writing the copy.
+14. **Finishing work means ticking its box.** If a change completes something
+    tracked in `docs/roadmap.md` — a "Where we are" item or a Feature-backlog
+    entry — tick that checkbox in the same commit. Never tick one for work that
+    is merely planned or partially done; a box that overstates reality is worse
+    than an unticked one. If the work isn't tracked there and should be, add the
+    line, then tick it.
 
 ## When you change a boundary
 

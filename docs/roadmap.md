@@ -17,6 +17,26 @@ package boundaries while there is still little code to move.
 Phase 1 landing before any price feed exists is intentional: it forces the ledger
 and lot matching to be correct on their own, with nothing to hide behind.
 
+## Where we are
+
+Phase 0. Tick a box in the same change that finishes the work — an unticked box
+for shipped work is how this section stops being trusted.
+
+- [x] Docs, ADRs 0001–0012
+- [x] Package skeleton — `core` (`money`, `time`, `ports`), `db`
+- [x] `Money` / `Currency` / Temporal primitives with tests
+- [x] `.env.example`, `vercel.ts`, `next.config.ts`
+- [x] App shell and dashboard on fixture data, PL/EN
+- [x] `users` with the provider indirection — schema, migration, `SessionProvider`, Clerk behind `apps/web/src/lib/auth/`
+- [x] Migration apply path — `.github/workflows/migrate.yml`
+- [ ] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
+- [ ] Clerk provisioned, sign-up set to **restricted**, both users invited
+- [ ] The migration applied against a real database
+- [ ] `/security-review` over the auth, `users`, and migration surface
+
+The first three open boxes are Vercel/Neon/Clerk dashboard work — nothing in the
+repo can close them. The last one is ours to run.
+
 ## Verification
 
 **Every phase**

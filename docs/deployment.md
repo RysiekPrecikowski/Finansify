@@ -30,12 +30,19 @@ The flow instead:
 
 1. `drizzle-kit generate` produces the migration; it is reviewed and committed
    alongside the schema change.
-2. A GitHub Action on merge to main applies it with `drizzle-kit migrate` over
-   the **unpooled** connection string.
+2. `.github/workflows/migrate.yml` applies it with `drizzle-kit migrate` over
+   the **unpooled** connection string. It triggers on CI succeeding on main,
+   not on the push itself — a migration must never apply against a commit that
+   failed `pnpm check` — and checks out the exact SHA that CI validated.
+   Requires the `DATABASE_URL_UNPOOLED` repository secret; until Neon is
+   provisioned and that secret is set, the job fails rather than silently
+   doing nothing.
 3. Preview deployments get their own database branch, so every PR exercises the
    migration against a real copy before it reaches production.
 
-Point 3 is a large part of why ADR 0008 leans the way it does.
+Point 3 is a large part of why ADR 0008 leans the way it does. It is **not yet
+wired**: preview deployments currently share whatever `DATABASE_URL` the Vercel
+project has, so a migration first meets a real database on merge, not on the PR.
 
 ## Environments
 
@@ -53,8 +60,12 @@ migrations.
 
 ## CI
 
-A single job on push to main and on every PR: install with a frozen lockfile,
-then `pnpm check` — build, lint, typecheck, test, and format, cached via Turbo.
+Two workflows:
+
+- **`ci.yml`** — on push to main and on every PR: install with a frozen
+  lockfile, then `pnpm check` (build, lint, typecheck, test, format, cached via
+  Turbo).
+- **`migrate.yml`** — on `ci.yml` succeeding on main. See Migrations above.
 
 To add: a **migration-drift check** that fails if the schema and the generated
 migrations disagree. Without it, a schema edit that never got a migration

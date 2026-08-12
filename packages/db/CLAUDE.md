@@ -21,3 +21,6 @@ for the boundary and `docs/decisions/0008-database-engine.md` for why Neon.
 `pnpm --filter @finansify/db db:generate` after a schema change, reviewed and
 committed alongside it. Migrations never run in a build — see
 `docs/deployment.md` for the CI flow that applies them.
+
+The `db-migration` skill carries the full procedure, including what to look for
+when reading generated SQL.
