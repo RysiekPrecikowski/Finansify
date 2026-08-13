@@ -36,6 +36,18 @@ Three new invariants in `/CLAUDE.md` (rules 11–13):
    review pressure against silently growing the file count instead of
    reusing or refactoring what already exists.
 
+Two later additions in the same family, added as rules 14 and 15 once the
+practice they describe had actually been needed:
+
+4. **Finishing work means ticking its box in `docs/roadmap.md`** — and never
+   ticking one for partial work, because a box that overstates reality costs
+   more than an unticked one.
+5. **One pull request, one change.** A PR carries a single reviewable
+   intention. Unrelated work branches separately even when it is one line and
+   the file is already open. This is what keeps review scoped: a reviewer who
+   opened "chart animation" should not have to reason about transaction
+   encryption to approve it.
+
 Alongside these, `/CLAUDE.md` gained a "Definition of done" section: `pnpm
 check` passing is necessary but not sufficient — the change must actually
 have been exercised, money/auth/migration changes get an explicit second

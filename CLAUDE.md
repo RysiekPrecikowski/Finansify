@@ -104,6 +104,13 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
     is merely planned or partially done; a box that overstates reality is worse
     than an unticked one. If the work isn't tracked there and should be, add the
     line, then tick it.
+15. **One pull request, one change.** A PR carries a single reviewable
+    intention — one feature, one fix, one refactor. Unrelated work goes to its
+    own branch even when it is one line and even when you are already in the
+    file. A reviewer who opened "chart animation" should never find a change to
+    transaction encryption. Prefer several small PRs over one that needs a
+    table of contents; the description says what changed and why in a few
+    paragraphs, not an essay.
 
 ## When you change a boundary
 
