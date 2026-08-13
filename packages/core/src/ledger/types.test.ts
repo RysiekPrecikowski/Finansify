@@ -5,12 +5,14 @@ import { currency, Money } from '../money';
 import { Temporal } from '../time';
 import {
   accountId,
+  accountInputSchema,
   costBasisOf,
   grossValueOf,
   instrumentId,
   netProceedsOf,
   transactionId,
   transactionInputSchemaFor,
+  transactionShapeOf,
   type Transaction,
 } from './types';
 
@@ -150,5 +152,57 @@ describe('transactionInputSchemaFor', () => {
     const result = transactionInputSchemaFor(USD).safeParse({ ...baseInput, currency: 'usd' });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('transactionShapeOf', () => {
+  // Exhaustive over `transactionTypes`, per the table in the ledger use-case
+  // spec: which row governs what a form must collect and how a use case
+  // resolves `instrumentId` and computes the amount to persist.
+  const requiredUnits = [
+    'buy',
+    'sell',
+    'transfer_in',
+    'transfer_out',
+    'bond_purchase',
+    'bond_redemption',
+    'bond_early_redemption',
+    'split',
+  ] as const;
+  const requiredGross = ['dividend', 'coupon'] as const;
+  const noneGross = ['deposit', 'withdrawal', 'fee', 'tax', 'interest'] as const;
+
+  it.each(requiredUnits)('requires an instrument and counts units for %s', (type) => {
+    expect(transactionShapeOf(type)).toEqual({ instrument: 'required', amount: 'units' });
+  });
+
+  it.each(requiredGross)('requires an instrument and counts gross amount for %s', (type) => {
+    expect(transactionShapeOf(type)).toEqual({ instrument: 'required', amount: 'gross' });
+  });
+
+  it.each(noneGross)('takes no instrument and counts gross amount for %s', (type) => {
+    expect(transactionShapeOf(type)).toEqual({ instrument: 'none', amount: 'gross' });
+  });
+});
+
+describe('accountInputSchema currency', () => {
+  const baseAccount = {
+    name: 'XTB brokerage',
+    broker: 'XTB',
+    wrapper: 'brokerage' as const,
+    openedAt: '2024-01-01',
+  };
+
+  it('upper-cases a lower-case three-letter currency code', () => {
+    const result = accountInputSchema.safeParse({ ...baseAccount, currency: 'pln' });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.currency).toBe('PLN');
+  });
+
+  it('rejects a currency that is not a three-letter code', () => {
+    const result = accountInputSchema.safeParse({ ...baseAccount, currency: 'zloty' });
+
+    expect(result.success).toBe(false);
   });
 });
