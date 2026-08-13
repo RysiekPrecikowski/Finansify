@@ -11,6 +11,7 @@ import { Temporal } from '../time';
 export * from './vocabulary';
 import {
   fxRateSources,
+  instrumentKinds,
   transactionTypes,
   wrappers,
   type FxRateSource,
@@ -150,6 +151,19 @@ const decimalString = z
     // the whole point of rule 1.
   }, 'Must be a finite decimal number');
 
+/**
+ * The submitted form of a currency code, before it is branded.
+ *
+ * `currency()` throws on anything that is not ISO 4217-shaped, so the shape is
+ * checked here instead — a mistyped code is a field a user can correct, and a
+ * thrown `ZodError` from deep inside a use case is not.
+ */
+const currencyCodeString = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, 'Must be a 3-letter ISO 4217 code');
+
 const plainDateString = z.string().refine((value) => {
   try {
     Temporal.PlainDate.from(value);
@@ -216,6 +230,53 @@ export function transactionInputSchemaFor(accountCurrency: Currency) {
   });
 }
 
+/**
+ * Which inputs a transaction type actually uses.
+ *
+ * It lives here rather than in the form because `build-positions.ts` and
+ * `build-cash-balances.ts` already hold fragments of the same knowledge, and a
+ * third copy in `apps/web` would be the one that drifts (rule 13). A form asks
+ * this what to render; a use case asks it what to expect.
+ */
+export interface TransactionShape {
+  readonly instrument: 'required' | 'none';
+  /** `units` uses quantity × price; `gross` is an amount with no unit leg. */
+  readonly amount: 'units' | 'gross';
+}
+
+/**
+ * `transfer_in` / `transfer_out` are instrument-required **here** on purpose,
+ * even though `buildCashBalances` also treats them as cash transfers when
+ * `instrumentId` is null. That path stays reachable through the ledger; it is
+ * simply not what a form offers, because a cash transfer between accounts is a
+ * pair of rows and needs its own screen. Do not "fix" this table to match the
+ * cash-balance reader.
+ */
+export function transactionShapeOf(type: TransactionType): TransactionShape {
+  switch (type) {
+    case 'buy':
+    case 'sell':
+    case 'transfer_in':
+    case 'transfer_out':
+    case 'bond_purchase':
+    case 'bond_redemption':
+    case 'bond_early_redemption':
+    case 'split':
+      return { instrument: 'required', amount: 'units' };
+
+    case 'dividend':
+    case 'coupon':
+      return { instrument: 'required', amount: 'gross' };
+
+    case 'deposit':
+    case 'withdrawal':
+    case 'fee':
+    case 'tax':
+    case 'interest':
+      return { instrument: 'none', amount: 'gross' };
+  }
+}
+
 export interface AccountInput {
   readonly name: string;
   readonly broker: string;
@@ -228,6 +289,22 @@ export const accountInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   broker: z.string().trim().min(1).max(120),
   wrapper: z.enum(wrappers),
-  currency: z.string(),
+  currency: currencyCodeString,
   openedAt: plainDateString,
+});
+
+export type AccountInputSubmission = z.input<typeof accountInputSchema>;
+
+/**
+ * What a caller may submit to name an instrument. Instruments are global
+ * (ADR 0010), so these fields are deliberately explicit rather than inferred
+ * from a free-text box: one user's typo is a row every other user then sees.
+ */
+export const instrumentInputSchema = z.object({
+  symbol: z.string().trim().min(1).max(32).toUpperCase(),
+  name: z.string().trim().min(1).max(200),
+  kind: z.enum(instrumentKinds),
+  currency: currencyCodeString,
+  isin: z.string().trim().length(12).nullable().default(null),
+  exchange: z.string().trim().max(32).nullable().default(null),
 });

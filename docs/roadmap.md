@@ -33,6 +33,9 @@ bypass on `.rsc`) found and fixed.
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
 - [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
 - [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
+- [x] `core`: ledger use cases — open an account, record / update / soft-delete a
+      transaction, resolve an instrument; the account-ownership check and rule 6
+      both live here, so no route can skip either
 - [x] `/security-review` over the ledger and the encryption removal — no HIGH or
       MEDIUM findings; the per-user scoping ADR 0009 depends on survived the
       rewrite intact
