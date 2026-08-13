@@ -47,18 +47,21 @@ bypass on `.rsc`) found and fixed.
       screens — no HIGH or MEDIUM findings; the account-ownership check, the
       `forUser` predicate on every mutation, and 404-not-403 on another user's
       row all confirmed by tracing the SQL
-- [ ] `apps/web`: positions view
+- [x] `apps/web`: positions view
 - [ ] CSV/JSON ledger export
 
-**A real transaction can now be entered, listed, edited and deleted.**
-`/accounts` and `/transactions` read and write the real ledger through
+**A real transaction can now be entered, listed, edited and deleted, and
+`/portfolio` shows what it produced.** `/accounts`, `/transactions`, and
+`/portfolio` all read and write the real ledger through
 `scopedLedgerFor(user.id)`; the composition root is wired and the fixture no
-longer stands between the user and their own rows.
+longer stands between the user and their own rows. `/portfolio` shows open and
+closed positions grouped by instrument, cash per `(account, currency)`, and a
+per-instrument lot drill-down — quantity, cost basis, and realized P&L, with no
+market value or unrealized P&L until Phase 2's price feed exists.
 
-`/portfolio` is still a placeholder and the dashboard still renders
-`lib/fixtures/portfolio.ts` — the fixture dies in Phase 2, when there are
-prices to replace it with. What is left in Phase 1 is the positions view and
-CSV/JSON export, both of which read the ledger that now exists.
+The dashboard still renders `lib/fixtures/portfolio.ts` — the fixture dies in
+Phase 2, when there are prices to replace it with. What is left in Phase 1 is
+CSV/JSON export, which reads the same ledger `/portfolio` now does.
 
 **Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
 ledger held a row**: it added a master key, an environment variable, a

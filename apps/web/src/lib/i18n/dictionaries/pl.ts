@@ -166,8 +166,37 @@ export const pl = {
     ikze: 'IKZE',
     ppk: 'PPK',
   },
+  portfolio: {
+    title: 'Portfel',
+    instrument: 'Instrument',
+    quantity: 'Liczba',
+    averageCost: 'Średni koszt',
+    costBasis: 'Koszt nabycia',
+    realized: 'Zrealizowany zysk/strata',
+    accounts: 'Konta',
+    // Pokazywane zamiast średniego kosztu, kiedy ta sama pozycja jest
+    // rozłożona na konta w różnych walutach — nie ma jednego kursu, którym
+    // można by je zsumować przed Fazą 2.
+    multipleCurrencies: 'Kilka walut',
+    closed: {
+      title: 'Zamknięte pozycje',
+    },
+    cash: {
+      title: 'Gotówka',
+      account: 'Konto',
+      note: 'Salda pokazane osobno w walucie każdego konta — wspólna suma pojawi się w Fazie 2 razem z kursami NBP.',
+    },
+    lots: {
+      title: 'Loty',
+      openedOn: 'Otwarto',
+      originalQuantity: 'Pierwotna liczba',
+      remainingQuantity: 'Pozostało',
+      originalCost: 'Pierwotny koszt',
+      remainingCost: 'Pozostały koszt',
+      back: 'Wróć do portfela',
+    },
+  },
   placeholder: {
-    portfolio: 'Pozycje, konta i loty pojawią się w Fazie 1, razem z księgą transakcji.',
     more: 'Ustawienia, import wyciągów i raporty.',
   },
   mock: {
