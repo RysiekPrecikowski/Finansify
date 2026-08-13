@@ -36,7 +36,10 @@ bypass on `.rsc`) found and fixed.
 - [x] `/security-review` over the ledger and the encryption removal — no HIGH or
       MEDIUM findings; the per-user scoping ADR 0009 depends on survived the
       rewrite intact
-- [ ] `apps/web`: wire the composition root, transaction entry, positions view
+- [x] `apps/web`: wire the composition root — `container.ts` exports
+      `getInstruments()` and `scopedLedgerFor(userId)`
+- [ ] `apps/web`: transaction entry
+- [ ] `apps/web`: positions view
 - [ ] CSV/JSON ledger export
 
 **Nothing in Phase 1 is reachable from the running app.** `/transactions` and
