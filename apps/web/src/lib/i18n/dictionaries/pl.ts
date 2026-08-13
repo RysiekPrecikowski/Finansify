@@ -17,6 +17,8 @@ export const pl = {
     changeLanguage: 'Zmień język',
     changeCurrency: 'Zmień walutę prezentacji',
     sort: 'Sortowanie',
+    account: 'Konto',
+    signOut: 'Wyloguj się',
   },
   dashboard: {
     title: 'Pulpit',

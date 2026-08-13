@@ -16,6 +16,8 @@ export const en: Dictionary = {
     changeLanguage: 'Change language',
     changeCurrency: 'Change presentation currency',
     sort: 'Sort',
+    account: 'Account',
+    signOut: 'Sign out',
   },
   dashboard: {
     title: 'Dashboard',

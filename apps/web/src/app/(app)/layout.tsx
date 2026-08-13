@@ -6,7 +6,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, UserMenu } from '@/lib/auth';
 
 // Second layer, not the only one: src/proxy.ts's matcher is the primary gate,
 // but a matcher is routing config, and routing config being the *sole*
@@ -31,6 +31,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
           <div className="ml-auto flex items-center gap-0.5">
             <LocaleSwitcher />
             <ThemeToggle />
+            <UserMenu user={user} />
           </div>
         </header>
         <main className="flex-1 p-4 pb-20 md:p-6 md:pb-6">{children}</main>
