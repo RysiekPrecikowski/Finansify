@@ -107,6 +107,15 @@ const COMMANDS = {
     console.log('resized to', w, 'x', h);
   },
 
+  // The chart tween and any future motion must honour prefers-reduced-motion,
+  // which is otherwise only assertable by reading the source and hoping.
+  async 'reduced-motion'(value) {
+    if (!page) return console.log('ERROR: launch first');
+    const setting = value === 'no-preference' ? 'no-preference' : 'reduce';
+    await page.emulateMedia({ reducedMotion: setting });
+    console.log('prefers-reduced-motion:', setting);
+  },
+
   async 'console-errors'() {
     if (!consoleErrors.length) return console.log('no console errors observed');
     consoleErrors.forEach((e) => console.log('console error:', e));

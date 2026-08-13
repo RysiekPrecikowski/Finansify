@@ -1,6 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 
-import { dashboardHref, type DashboardParams } from '@/lib/dashboard-params';
+import { dashboardHref } from '@/lib/dashboard-params';
+import { useDashboardParams } from '@/lib/use-dashboard-params';
 import { assetClasses, type AssetClass } from '@/lib/fixtures/portfolio';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
 import { cn } from '@/lib/utils';
@@ -19,15 +22,17 @@ function chipClass(selected: boolean): string {
 }
 
 export function AssetClassChips({
-  params,
   present,
   dictionary,
 }: Readonly<{
-  params: DashboardParams;
   /** Only classes actually held get a chip — an empty filter is a dead end. */
   present: readonly AssetClass[];
   dictionary: Dictionary;
 }>) {
+  // Live, not a server snapshot: these links must keep whatever range the user
+  // switched to on the client — see `useDashboardParams`.
+  const params = useDashboardParams();
+
   return (
     <nav
       aria-label={dictionary.dashboard.filterByAssetClass}

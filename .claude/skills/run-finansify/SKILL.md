@@ -93,20 +93,21 @@ defaults to `http://localhost:3000` (override: `BASE_URL`).
 
 ### Commands
 
-| command                       | what it does                                                          |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `launch`                      | launch headless Chromium, open a page, start capturing console errors |
-| `nav <path\|url>`             | navigate — a bare path is resolved against `BASE_URL`                 |
-| `ss [name]`                   | screenshot → `/tmp/shots/<name>.png`                                  |
-| `resize <w,h>`                | set viewport, e.g. `resize 375,812` for iPhone 13 mini                |
-| `click <css-sel>`             | click via DOM `.click()`, not coordinates                             |
-| `click-text <text>`           | click the first `button`/`a`/`[role=button]` matching that text       |
-| `type <text>` / `press <key>` | keyboard input                                                        |
-| `wait <css-sel>`              | wait up to 10s for a selector                                         |
-| `eval <js>`                   | evaluate an expression in the page, print JSON                        |
-| `text [css-sel]`              | print `innerText` of a selector (or `body`)                           |
-| `console-errors`              | print console errors / page errors seen since `launch`                |
-| `quit`                        | close the browser, exit                                               |
+| command                                  | what it does                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| `launch`                                 | launch headless Chromium, open a page, start capturing console errors |
+| `nav <path\|url>`                        | navigate — a bare path is resolved against `BASE_URL`                 |
+| `ss [name]`                              | screenshot → `/tmp/shots/<name>.png`                                  |
+| `resize <w,h>`                           | set viewport, e.g. `resize 375,812` for iPhone 13 mini                |
+| `click <css-sel>`                        | click via DOM `.click()`, not coordinates                             |
+| `click-text <text>`                      | click the first `button`/`a`/`[role=button]` matching that text       |
+| `type <text>` / `press <key>`            | keyboard input                                                        |
+| `wait <css-sel>`                         | wait up to 10s for a selector                                         |
+| `eval <js>`                              | evaluate an expression in the page, print JSON                        |
+| `text [css-sel]`                         | print `innerText` of a selector (or `body`)                           |
+| `reduced-motion [reduce\|no-preference]` | emulate `prefers-reduced-motion` (defaults to `reduce`)               |
+| `console-errors`                         | print console errors / page errors seen since `launch`                |
+| `quit`                                   | close the browser, exit                                               |
 
 ### Stop the dev server
 
@@ -128,14 +129,33 @@ pnpm dev   # → http://localhost:3000, Ctrl-C to stop
 pnpm check   # build, lint, typecheck, test, format — see /ship
 ```
 
-There is no UI to click through beyond the default `create-next-app` landing
-page yet (Phase 0 of `docs/roadmap.md` — the app is proving the workspace/build
-wiring, not shipping features). As real routes land, extend this driver with
-the flow-specific commands the app actually needs (e.g. a `login` helper once
-Clerk auth exists) rather than regenerating it from scratch.
+`/dashboard` is the route worth driving: asset-class chips, the hero chart with
+its range tabs, account tiles and the holdings list, all on fixture data until
+the ledger lands. `/portfolio` and `/transactions` are still placeholders.
+
+Two things that are awkward to assert from a screenshot, and worth reusing:
+
+- **A range switch must not hit the server.** Hook `window.fetch` before
+  clicking a tab and confirm nothing was requested — the whole point of
+  `components/dashboard/chart-card.tsx` is that all six series are already on
+  the client.
+- **The chart tween must land exactly where a server render would.** Hash the
+  `d` attribute of `figure svg path[fill="none"]` after the animation settles
+  and compare it against navigating straight to `?range=…`. Floating-point
+  drift on the final frame is invisible on screen and shows up here.
+
+As real routes land, extend this driver with the flow-specific commands the app
+actually needs (e.g. a `login` helper once Clerk auth exists) rather than
+regenerating it from scratch.
 
 ## Gotchas
 
+- **`requestAnimationFrame` does not fire in a backgrounded tab**, so both
+  chart assertions above give a false negative unless the tab is actually
+  fronted: the tween never advances, the chart keeps drawing the previous
+  range, and it reads exactly like a broken range switch. Check
+  `document.visibilityState` before believing a failure — a screenshot forces
+  a frame and is the cheapest way to unstick it.
 - **`lsof -ti:3000 -sTCP:LISTEN | xargs kill` did not stop the server** in
   this environment. Next 16 + Turbopack runs as a small process tree (`pnpm`
   wrapper → `next dev` → `next-server` → a turbopack worker), and `lsof`'s

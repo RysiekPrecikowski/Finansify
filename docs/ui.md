@@ -22,7 +22,7 @@ All UI lives in `apps/web` — see `architecture.md` for why there is no
 | Numbers               | `Intl.NumberFormat`, currency- and locale-aware                                                        | Formatting never happens inside `core`                                                                                                                                                         |
 | Theme                 | `next-themes`, **dark by default**                                                                     | Financial dashboards read better dark; light theme still supported                                                                                                                             |
 | Language              | **Polish and English**, own dictionaries behind a cookie                                               | One audience, two languages, ~200 strings. `next-intl` and `/[locale]/` routing would double every route and add a dependency for a `Record<Locale, Dictionary>` and one server action.        |
-| View state            | **Range, filter and sort live in the URL**                                                             | The dashboard then renders entirely on the server, every control is a real link, and a view survives a reload and a share. Client-side tab state does none of that.                            |
+| View state            | **Range, filter and sort live in the URL**                                                             | Every control is a real link, and a view survives a reload and a share. Client-side tab state does none of that. Chart range also switches without a navigation — see "The hero chart" below.  |
 
 ## Visual direction
 
@@ -83,18 +83,58 @@ Top to bottom:
 
 Above the headline sits a row of **asset-class filter chips**; the sort order of
 the holdings list is a dropdown of links. Both, and the chart range, are URL
-parameters (`?class=&range=&sort=`), so the dashboard is a server render with no
-view state held anywhere else.
+parameters (`?class=&range=&sort=`), and `class` and `sort` are server renders
+with no view state held anywhere else.
+
+### The hero chart
+
+Inline SVG rather than `lightweight-charts`, which takes over in Phase 2: until
+the series comes from a price feed there is nothing to pan, zoom or inspect.
+
+**All six ranges are prepared on the server and switch on the client.** Six
+series of 64 points is a trivial payload, and asking the server to redraw a line
+the browser is already holding buys nothing but the round trip that makes the
+switch feel slow. The URL stays the single source of truth — the range is read
+from it on the client too, and each switch writes it straight back with
+`history.replaceState` — so reload and share behave exactly as they did when
+this was a plain navigation. The tabs stay real links: cmd-click still opens a
+new tab, and with JavaScript off they navigate.
+
+That guarantee rests on one rule, and breaks quietly without it: **every
+dashboard control builds its href from the live params** (`useDashboardParams`),
+never from one the server passed down. A href rendered before a client-side
+switch still carries the old range, so clicking a chip would drop the range the
+user just picked and the next reload would show a different chart than the
+screen did.
+
+The switch is animated — the line interpolates into its new shape over 350 ms
+and the y-axis travels with it, rather than the reader being handed a different
+chart between blinks. **`prefers-reduced-motion: reduce` snaps instead**, which
+is not optional: a chart that redraws itself is exactly the motion that setting
+exists to turn off.
+
+Range is the only view state safe to lift out this way, because nothing else
+reads it — `class` and `sort` still drive the chips and the holdings list from
+the server.
+
+Two consequences worth knowing:
+
+- Every series is resampled to one fixed width (`lib/chart-series.ts`) so the
+  tween can pair point _i_ with point _i_. That is display geometry only; the
+  high and low labels are formatted from the true series. Resampling is
+  currently always upsampling, so no source point is skipped — real price
+  series in Phase 2 are longer than the target and will need something
+  shape-preserving (LTTB) instead.
+- `lightweight-charts` **does not animate a series swap** either. It is built
+  for pan and zoom over many bars. The tween is the part that will need
+  re-solving inside the canvas, not something the library hands over.
 
 **What exists today** (Phase 0): the layout above, minus allocation (3) and income
 (5), rendered from `src/lib/fixtures/portfolio.ts` — demo data that computes every
 derived figure from a handful of declared inputs, so the headline and the rows
-always agree. The hero chart is inline SVG on the server rather than
-`lightweight-charts`: until the series comes from a price feed there is nothing to
-pan, zoom or inspect, and a canvas library plus a hydration boundary would buy
-nothing. The fixture is single-currency on purpose — there is no FX adapter before
-Phase 2, and the presentation-currency switcher says so instead of converting.
-Delete the fixture when the ledger lands.
+always agree. The fixture is single-currency on purpose — there is no FX adapter
+before Phase 2, and the presentation-currency switcher says so instead of
+converting. Delete the fixture when the ledger lands.
 
 ## Mobile
 
