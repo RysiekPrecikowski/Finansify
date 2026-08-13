@@ -174,6 +174,8 @@ unticked box for shipped work is how this section stops being trusted.
 - [x] App shell and dashboard on fixture data, PL/EN
 - [x] `users` with the provider indirection — schema, migration, `SessionProvider`, Clerk behind `apps/web/src/lib/auth/`
 - [x] Migration apply path — `.github/workflows/ci.yml`'s `migrate` job
+- [x] Migration-drift check — `ci.yml`'s `check` job fails when `src/schema` and
+      `migrations/` disagree
 - [x] `/security-review` over the auth, `users`, and migration surface — found
       and fixed two HIGH findings: a pwn-request in the migration workflow
       (fork PR could run with `DATABASE_URL_UNPOOLED` in scope) and an
