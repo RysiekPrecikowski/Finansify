@@ -1,0 +1,79 @@
+name: Neon branch cleanup
+
+# Neon's free tier allows ten branches. Production holds one, every live preview
+# deployment holds another, and the eleventh does not queue -- it fails the
+# deployment, so a PR arrives without a preview and the symptom reads as a
+# broken build rather than a full account.
+#
+# The Neon-Managed integration does reap preview branches on its own, but only
+# "the next time a preview deployment is created" -- the cleanup is lazy and
+# driven by deployment activity. That is precisely the wrong moment: the account
+# fills up while nothing is deploying, and the deployment that would trigger the
+# reap is the one that fails. This workflow makes the deletion eager and pins it
+# to the event that actually ends a branch's life.
+#
+# Deliberately its own file rather than a job in ci.yml: a different trigger, a
+# different permission model, and ci.yml's workflow-level concurrency group
+# cancels in progress on every new push -- which would cancel a cleanup.
+on:
+  pull_request:
+    types: [closed]
+
+# Nothing here reads or writes the repository; the only credential it needs is
+# the Neon one, passed explicitly below.
+permissions: {}
+
+# Per PR, and never cancelled: a cancelled cleanup is a leaked branch, and the
+# job is idempotent anyway.
+concurrency:
+  group: neon-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  delete-preview-branch:
+    # A pull_request event from a fork cannot see repository secrets, so this
+    # job could only ever fail there. Excluding the class outright keeps the
+    # missing-key check below meaning "misconfigured", not "someone forked us".
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      # Without this the failure surfaces as neonctl complaining about
+      # authentication, several steps removed from the actual cause.
+      - name: Require NEON_API_KEY
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -z "$NEON_API_KEY" ]; then
+            echo "::error::NEON_API_KEY is not set. Add it as a repository secret (docs/deployment.md)."
+            exit 1
+          fi
+
+      # neondatabase/delete-branch-action is a composite action that installs
+      # this exact neonctl version and calls `branches delete` -- and nothing
+      # else. Calling neonctl directly costs one extra line and buys the branch
+      # below: the action treats a missing branch as a failure, and a missing
+      # branch is normal here. A docs-only PR is skipped by turbo-ignore, a PR
+      # closed before its first deployment finished never got a database, and
+      # either would otherwise leave this workflow permanently red -- which is
+      # how a cleanup job stops being read.
+      - name: Delete the preview branch, if one exists
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          # Via the environment, never interpolated into the script: a branch
+          # name is attacker-controlled text on a forked-then-renamed PR, and
+          # ${{ }} inside `run` is textual substitution before bash ever sees it.
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          npm i -g --ignore-scripts neonctl@2.22.0
+
+          # The Neon-Managed integration names preview branches after the git
+          # branch that produced them.
+          branch="preview/$HEAD_REF"
+
+          if neonctl branches get "$branch" --project-id "$NEON_PROJECT_ID" >/dev/null 2>&1; then
+            neonctl branches delete "$branch" --project-id "$NEON_PROJECT_ID"
+            echo "deleted $branch"
+          else
+            echo "no branch named $branch in project $NEON_PROJECT_ID -- nothing to clean"
+          fi
