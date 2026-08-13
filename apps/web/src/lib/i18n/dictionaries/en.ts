@@ -68,6 +68,22 @@ export const en: Dictionary = {
       nameAsc: 'Name (A–Z)',
     },
   },
+  accounts: {
+    title: 'Accounts',
+    add: 'Add account',
+    empty: 'No accounts yet. Add the first one to start recording transactions.',
+    name: 'Name',
+    broker: 'Broker',
+    wrapper: 'Account type',
+    currency: 'Currency',
+    openedAt: 'Opened',
+    save: 'Save',
+    saving: 'Saving…',
+    cancel: 'Cancel',
+    errors: {
+      invalid: 'The account could not be saved — check the values you entered.',
+    },
+  },
   wrappers: {
     brokerage: 'Brokerage account',
     ike: 'IKE',
