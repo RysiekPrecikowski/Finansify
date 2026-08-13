@@ -33,18 +33,23 @@ bypass on `.rsc`) found and fixed.
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
 - [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
 - [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
-- [ ] `apps/web`: transaction entry, positions view
+- [x] `/security-review` over the ledger and the encryption removal — no HIGH or
+      MEDIUM findings; the per-user scoping ADR 0009 depends on survived the
+      rewrite intact
+- [ ] `apps/web`: wire the composition root, transaction entry, positions view
 - [ ] CSV/JSON ledger export
-- [ ] `/security-review` over the whole surface — **not yet run** on the ledger
 
-Nothing in Phase 1 is reachable from the running app: `/transactions` and
-`/portfolio` are still placeholders. The data layer is complete and tested; the
-composition root has not been wired to it.
+**Nothing in Phase 1 is reachable from the running app.** `/transactions` and
+`/portfolio` are placeholders, and the dashboard still renders
+`lib/fixtures/portfolio.ts`. The data layer is complete and tested; the
+composition root has never been wired to it. Everything left in Phase 1 is that
+wiring — and it is the only work between here and entering a real transaction.
 
 **Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
 ledger held a row**: it added a master key, an environment variable, a
 key-escrow procedure and a rotation problem to a product that could not yet
-record a transaction. Dependencies before features is the wrong order.
+record a transaction. Dependencies before features is the wrong order, and this
+is the clearest example of it in the project so far.
 
 ADR 0013's analysis is kept in full — the envelope design, the AAD binding, why
 amounts cannot stay `NUMERIC`, and the honest limit that no web application
@@ -53,6 +58,31 @@ to protect.
 
 Tick a box in the same change that finishes the work. An unticked box for
 shipped work is how this section stops being trusted.
+
+### What Phase 1 added, and what it took back out
+
+Worth recording once, because the shape of it is the lesson rather than the
+detail.
+
+**Added and kept:** the ledger vocabulary and `LedgerRepository` port; the
+position engine (`buildPositions`, `matchLots` across FIFO/LIFO/average/
+specific, `buildCashBalances`) with property tests for the two invariants this
+document names; four tables and their migrations; a user-scoped persistence
+adapter; a migration-drift check in CI. A `decimal.js` precision defect —
+arithmetic running at fewer significant digits than the column storing it —
+found by property testing and fixed.
+
+**Added and then removed:** application-level encryption. AES-256-GCM row
+payloads, a per-user data key, an env-held master key, key escrow, and a
+rotation problem. None of it was ever wired to a code path, so nothing was
+lost — but it consumed most of a phase that had not yet shipped a screen.
+
+**The rule that came out of it:** features before dependencies. A security
+control that protects data the product cannot yet store is not protection, it
+is scope. The analysis keeps, the implementation waits.
+
+Phase 2 onward is features. The next thing that ships is a form that writes a
+transaction.
 
 ## What the upcoming phases contain
 
@@ -118,7 +148,10 @@ not yet.
 storage. Already true, nothing to build.
 
 **Application-level encryption — built, then withdrawn. Phase 1.5.** Amounts
-are plain `NUMERIC(28, 10)` columns today. The encrypted-payload design was
+are plain `NUMERIC(28, 10)` columns today. `/security-review` over the removal
+found no HIGH or MEDIUM issues: nothing was ever wired, so no data became
+unreadable and no key was orphaned, and the per-user query scoping ADR 0009
+depends on came through the rewrite intact. The encrypted-payload design was
 implemented during Phase 1 and removed before the ledger held a single row: it
 added a master key, an environment variable, a key-escrow procedure and a
 rotation problem to a product that could not yet record a transaction.
