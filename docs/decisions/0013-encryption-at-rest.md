@@ -115,6 +115,32 @@ password, which is why a second secret is needed at all).
 layer is already final in Stage 1. This is the whole reason for using an
 envelope rather than encrypting with the master key directly.
 
+### Rotation is not built, and the version prefix does not provide it
+
+Worth stating plainly, because the payload format invites the opposite
+conclusion. Every ciphertext carries a `1:` prefix, but that versions the
+**scheme** — cipher, layout, AAD shape — not the **key**. Nothing in a wrapped
+data key records which master key wrapped it.
+
+The consequence: **changing `LEDGER_MASTER_KEY` makes every wrapped data key
+unopenable, and therefore every row unreadable.** It fails closed rather than
+silently — GCM authentication rejects the unwrap and `DecryptionError` names
+the user whose key failed — so the damage is loud, not corrupting. But there is
+no recovery except restoring the previous key.
+
+Until rotation exists, **the master key is effectively permanent**, which is
+what raises the stakes on escrow below from good practice to the whole safety
+net.
+
+Adding rotation later is bounded work and needs no data migration: give
+`users` a `master_key_id` beside `wrapped_data_key`, turn `masterKeyFrom` into
+a small keyring keyed by that id, and re-wrap each data key under the new
+master key while both are loaded. The rows never move — the same property that
+makes Stage 2 cheap makes rotation cheap.
+
+That work belongs with Stage 2, which replaces the master key anyway and so
+has to solve exactly this problem to migrate the two existing data keys.
+
 ### Key custody
 
 Both the master key (Stage 1) and, later, each ledger passphrase and its

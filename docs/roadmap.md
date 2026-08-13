@@ -22,10 +22,10 @@ lot matching to be correct on their own, with nothing to hide behind.
 
 **Phase 0 — complete.** Docs and ADRs 0001–0012, `core` and `db` packages, the
 money and time primitives, app shell and dashboard on fixture data, `users`
-behind the provider indirection, the CI migration job, Neon and Clerk
-provisioned, and the first migration applied to a real database. Two HIGH
-findings from `/security-review` (a CI pwn-request, an auth bypass on `.rsc`)
-found and fixed.
+behind the provider indirection, the CI migration job and its migration-drift
+check, Neon and Clerk provisioned, and the first migration applied to a real
+database. Two HIGH findings from `/security-review` (a CI pwn-request, an auth
+bypass on `.rsc`) found and fixed.
 
 **Phase 1 — in progress.**
 
@@ -33,10 +33,19 @@ found and fixed.
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
 - [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
 - [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
-- [ ] `apps/web`: transaction entry, positions view, CSV/JSON export
-- [x] Encryption at rest, Stage 1: per-user data key, env-held master key (ADR 0013)
+- [x] `db`: AES-256-GCM row payloads, per-user data key, `crypto.ts` + tests
+- [ ] **Wire the master key.** `LEDGER_MASTER_KEY` is read nowhere: it is
+      absent from `.env.example` and from `server/container.ts`, and
+      `masterKeyFrom` has no caller but its own test. The repository factory is
+      therefore unreachable — the encryption is written and tested, but no code
+      path can use it yet.
+- [ ] `apps/web`: transaction entry, positions view
 - [ ] CSV/JSON ledger export
-- [ ] `/security-review` over the whole surface
+- [ ] `/security-review` over the whole surface — **not yet run** on the ledger
+
+Nothing in Phase 1 is reachable from the running app: `/transactions` and
+`/portfolio` are still placeholders. The data layer is complete and tested; the
+composition root has not been wired to it.
 
 **Phase 1.5 — encryption Stage 2.** Ledger passphrase, browser-side key
 derivation, per-user unlock. This is what actually separates the two users;
@@ -162,30 +171,21 @@ rest of the architecture already argues for.
 after idle pays for the wake-up. Masked with caching and honest loading states
 rather than paid away.
 
-## Where we are
+## Deployment risk, before real data lands
 
-Phase 0 complete. Tick a box in the same change that finishes the work — an
-unticked box for shipped work is how this section stops being trusted.
+Two gaps in `docs/deployment.md` that are cheap now and expensive later. Both
+should close before the ledger holds anything.
 
-- [x] Docs, ADRs 0001–0012
-- [x] Package skeleton — `core` (`money`, `time`, `ports`), `db`
-- [x] `Money` / `Currency` / Temporal primitives with tests
-- [x] `.env.example`, `vercel.ts`, `next.config.ts`
-- [x] App shell and dashboard on fixture data, PL/EN
-- [x] `users` with the provider indirection — schema, migration, `SessionProvider`, Clerk behind `apps/web/src/lib/auth/`
-- [x] Migration apply path — `.github/workflows/ci.yml`'s `migrate` job
-- [x] Migration-drift check — `ci.yml`'s `check` job fails when `src/schema` and
-      `migrations/` disagree
-- [x] `/security-review` over the auth, `users`, and migration surface — found
-      and fixed two HIGH findings: a pwn-request in the migration workflow
-      (fork PR could run with `DATABASE_URL_UNPOOLED` in scope) and an
-      auth-bypass in the proxy matcher (`.rsc` and any dotted path skipped
-      `auth.protect()`)
-- [x] Neon provisioned; `DATABASE_URL_UNPOOLED` set as a repository secret
-- [x] Clerk provisioned, sign-up set to **restricted**, both users invited
-- [x] The migration applied against a real database
+**A migration first meets a real database on merge to `main`.** Preview
+deployments share whatever `DATABASE_URL` the Vercel project has, so the
+per-PR database branch ADR 0008 leans on is _not wired_. Today that is
+harmless — the ledger tables are empty and every migration so far has been a
+clean `CREATE`. The first `ALTER` against real rows is the one that will hurt,
+and there is no rehearsal step between writing it and production.
 
-Phase 0 is complete. Phase 1 (Ledger) is next.
+**No down-migrations.** `drizzle-kit` applies forward only. Recovery from a bad
+migration is a restore, which makes the off-provider backup above load-bearing
+rather than nice to have.
 
 ## Verification
 

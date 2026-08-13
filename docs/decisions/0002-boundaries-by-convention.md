@@ -21,8 +21,29 @@ Enforce both by convention and code review. No lint rules for package boundaries
 or banned globals.
 
 The rules live in `/CLAUDE.md` as numbered invariants and are explained in
-`docs/architecture.md`. `CLAUDE.md` stays under roughly 100 lines so it is read
-in full rather than skimmed.
+`docs/architecture.md`.
+
+`CLAUDE.md` is loaded into every session automatically; nothing under `docs/`
+is. That asymmetry, not a line count, decides what belongs in it:
+
+- **Invariants stay**, however long the list grows. A rule moved somewhere
+  that only loads conditionally is a rule that is followed conditionally,
+  which is a worse failure than a file that is longer than one would like.
+- **Anything with a specific moment of use moves to whatever loads at that
+  moment** — PR and review register into `.claude/commands/pr.md` and
+  `review.md`, Next-version cautions into `apps/web/AGENTS.md`, migration
+  procedure into the `db-migration` skill. Closer to the point of use, and off
+  the always-loaded budget.
+- **Rule numbers are stable identifiers.** They are cited from commit
+  messages, PR descriptions, ADRs, and source comments, none of which can be
+  retroactively corrected. Retire a rule by replacing its text, never by
+  renumbering the ones after it.
+
+This supersedes the original "roughly 100 lines" budget, which was set when the
+repository was a scaffold with thirteen rules and no ledger, auth, or
+encryption. The number was never the point — being read in full was — and a
+line count cannot distinguish an invariant that must always be loaded from
+guidance that belongs elsewhere.
 
 ## Consequences
 

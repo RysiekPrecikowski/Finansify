@@ -36,6 +36,36 @@ Three new invariants in `/CLAUDE.md` (rules 11–13):
    review pressure against silently growing the file count instead of
    reusing or refactoring what already exists.
 
+Two later additions in the same family, added as rules 14 and 15 once the
+practice they describe had actually been needed:
+
+4. **Finishing work means ticking its box in `docs/roadmap.md`** — and never
+   ticking one for partial work, because a box that overstates reality costs
+   more than an unticked one.
+5. **One pull request, one change.** A PR carries a single reviewable
+   intention. Unrelated work branches separately even when it is one line and
+   the file is already open. This is what keeps review scoped: a reviewer who
+   opened "chart animation" should not have to reason about transaction
+   encryption to approve it.
+6. **Nobody writes both an implementation and its tests**, and
+   **`packages/core` is written test-first.** Both exist because of the same
+   observation: an author tests what they meant, not what they wrote. The
+   `decimal.js` precision defect in `matchLots` — arithmetic running at fewer
+   significant digits than the column it was stored in — was found by an agent
+   testing code it had not written, and would not have surfaced otherwise.
+   Test-first works in `core` specifically because its behaviour is specified
+   elsewhere before any code exists (tax treatment, `docs/domain.md`, published
+   bond tables), which makes the test a transcription rather than a guess.
+   Adapters and UI keep the usual order, since their shape is discovered.
+
+Rules 16 and 17 pushed `/CLAUDE.md` past the ~100-line budget this ADR
+originally assumed. ADR 0002 has since replaced that number with a structural
+test — invariants stay in the always-loaded file, anything with a specific
+moment of use moves to whatever loads at that moment — and the "PR and review
+tone" section moved into `.claude/commands/pr.md` and `review.md` under it.
+Working-practice rules stay here: they have no single moment, so a document
+that loads conditionally would have them followed conditionally.
+
 Alongside these, `/CLAUDE.md` gained a "Definition of done" section: `pnpm
 check` passing is necessary but not sufficient — the change must actually
 have been exercised, money/auth/migration changes get an explicit second
