@@ -8,7 +8,6 @@ import {
   transactionId as toTransactionId,
   type Account,
   type AccountInput,
-  type Currency,
   type Instrument,
   type InstrumentInput,
   type InstrumentRepository,
@@ -82,7 +81,7 @@ function toInstrument(row: InstrumentRow): Instrument {
  * The encrypted half of a transaction row (ADR 0013). Every numeric field is a
  * **canonical `Decimal` string** — see `canonical`.
  */
-interface TransactionPayload {
+export interface TransactionPayload {
   readonly quantity: string;
   readonly price: string | null;
   readonly grossAmount: string | null;
@@ -97,16 +96,26 @@ interface TransactionPayload {
  *
  * A `numeric(28, 10)` column used to refuse a value that was not a number; a
  * ciphertext column cannot, so that guarantee has to be reconstructed here. It
- * comes out stronger than the column's was: `Decimal` rejects anything
- * unparseable, and re-serializing its output means the payload can only ever
- * contain a string `Decimal` itself produced. The column would have accepted
- * `1e5` and quietly stored `100000`; this stores exactly one agreed form.
+ * comes out stronger than the column's was: re-serializing `Decimal`'s output
+ * means the payload can only ever contain a string `Decimal` itself produced.
+ * The column would have accepted `1e5` and quietly stored `100000`; this stores
+ * exactly one agreed form.
+ *
+ * `Decimal` parses `NaN` and `Infinity` without complaint, and neither throws
+ * on any later use — `NaN` simply makes every `equals` and `greaterThan` false
+ * forever, which is the one failure a numeric column could never have produced.
+ * Rejecting them mirrors `decimalString` in `core`, so the app edge and this
+ * gate agree on what an amount is.
  */
-function canonical(value: string): string {
-  return new Decimal(value).toFixed();
+export function canonical(value: string): string {
+  const parsed = new Decimal(value);
+  if (!parsed.isFinite()) {
+    throw new Error(`Amount "${value}" is not a finite decimal number`);
+  }
+  return parsed.toFixed();
 }
 
-function canonicalOrNull(value: string | null): string | null {
+export function canonicalOrNull(value: string | null): string | null {
   return value === null ? null : canonical(value);
 }
 
@@ -116,29 +125,49 @@ function canonicalOrNull(value: string | null): string | null {
  * casting it would only defer the failure to some later `Decimal` call with no
  * idea which row it came from.
  */
-function decodePayload(value: unknown, rowId: string): TransactionPayload {
+export function decodePayload(value: unknown, rowId: string): TransactionPayload {
   if (typeof value !== 'object' || value === null) {
     throw new Error(`Transaction ${rowId} decrypted to ${typeof value}, expected an object`);
   }
   const raw = value as Record<string, unknown>;
 
-  const required = (field: keyof TransactionPayload): string => {
-    const candidate = raw[field];
-    if (typeof candidate !== 'string') {
-      throw new Error(`Transaction ${rowId} payload is missing "${field}"`);
+  // Wraps `canonical`'s own error rather than letting it propagate bare: a raw
+  // `DecimalError` says which value was bad but not which row it came from,
+  // and the row id is the one thing a caller actually needs to act on this.
+  // The cause is dropped with it rather than attached: both messages quote the
+  // offending value, which on this path is a decrypted amount, and Node prints
+  // `[cause]` in default error output.
+  const decimal = (field: keyof TransactionPayload, candidate: string): string => {
+    try {
+      return canonical(candidate);
+    } catch {
+      throw new Error(`Transaction ${rowId} payload has an unparseable "${field}"`);
     }
-    // Throws on anything `Decimal` cannot read, which is the read-side half of
-    // the guarantee `canonical` makes on write.
-    return canonical(candidate);
   };
 
-  const optional = (field: keyof TransactionPayload): string | null => {
+  // A field that is present but not a string is a different failure from one
+  // that is absent, and saying "missing" of a number sends whoever reads the
+  // log looking for the wrong thing.
+  const text = (field: keyof TransactionPayload): string | null => {
     const candidate = raw[field];
     if (candidate === null || candidate === undefined) return null;
     if (typeof candidate !== 'string') {
       throw new Error(`Transaction ${rowId} payload has a non-string "${field}"`);
     }
-    return canonical(candidate);
+    return candidate;
+  };
+
+  const required = (field: keyof TransactionPayload): string => {
+    const candidate = text(field);
+    if (candidate === null) {
+      throw new Error(`Transaction ${rowId} payload is missing "${field}"`);
+    }
+    return decimal(field, candidate);
+  };
+
+  const optional = (field: keyof TransactionPayload): string | null => {
+    const candidate = text(field);
+    return candidate === null ? null : decimal(field, candidate);
   };
 
   return {
@@ -148,7 +177,7 @@ function decodePayload(value: unknown, rowId: string): TransactionPayload {
     fee: required('fee'),
     tax: required('tax'),
     fxRate: optional('fxRate'),
-    note: typeof raw.note === 'string' ? raw.note : null,
+    note: text('note'),
   };
 }
 
@@ -198,7 +227,7 @@ function toPortfolio(row: PortfolioRow, memberships: readonly { accountId: strin
  * Postgres, because the AAD binds the payload to it and it therefore has to
  * exist before the encryption happens.
  */
-function toRow(input: TransactionInput, userId: UserId, cipher: RowCipher, id: string) {
+export function toRow(input: TransactionInput, userId: UserId, cipher: RowCipher, id: string) {
   const payload: TransactionPayload = {
     quantity: canonical(input.quantity),
     price: canonicalOrNull(input.price),
@@ -455,5 +484,3 @@ export function instrumentRepository(db: Database): InstrumentRepository {
 function eqOrNull(exchange: string | null) {
   return exchange === null ? isNull(instruments.exchange) : eq(instruments.exchange, exchange);
 }
-
-export type { Currency };
