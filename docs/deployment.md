@@ -60,6 +60,40 @@ Two connection strings are needed and they are not interchangeable: the pooled
 `DATABASE_URL` for the application, and the unpooled `DATABASE_URL_UNPOOLED` for
 migrations.
 
+### Test user
+
+Clerk sign-up is restricted (ADR 0009, rule 4) — nobody can self-register, which
+otherwise blocks a fresh clone at the sign-in screen. Instead of inviting each
+collaborator individually, there is **one shared test account**, created by hand
+in the Clerk Dashboard (Users → Create user) rather than through the sign-up
+flow, so it needs no email verification:
+
+- Email/password are stored as `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` Vercel
+  env vars, scoped to Development and Preview (never Production) — `vercel env
+pull` delivers them to anyone with access to the Vercel project, so the
+  credentials never need to travel over Slack or email.
+- Rotate by creating a new password for the same Clerk user and re-running
+  `vercel env add TEST_USER_PASSWORD development preview` (add `--force` to
+  overwrite); no code change needed.
+- This account exists purely to unblock local/preview testing. It is not a
+  stand-in for real per-user auth testing — invite a real email in the Clerk
+  Dashboard if a change needs verifying against actual sign-up/invite flows.
+
+**`GET /api/dev/test-login`** signs the browser in as this account without a
+password ever being typed anywhere — it mints a Clerk **Agent Task**
+(`clerkClient().agentTasks.create`), Clerk's own mechanism for "agent-driven
+flows where full authentication isn't practical." Visiting the returned URL
+creates a session and redirects back to the app; there is no client-side
+sign-in step, `/sign-in` is untouched. Built for driving the app through
+browser automation (an agent, a screenshot check, a smoke test) where typing a
+credential into a form field isn't an option. Refuses to run when
+`VERCEL_ENV === 'production'`.
+
+This is deliberately unauthenticated on top of that guard: anyone who has (or
+guesses) a dev/preview URL can hit the endpoint and get a session as the test
+user. Acceptable because the account carries no real financial data — do not
+reuse this pattern for an account that does.
+
 ## CI
 
 One workflow, `ci.yml`, on push to main and on every PR:

@@ -56,6 +56,24 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Signing in locally
+
+Clerk sign-up is **restricted** (ADR 0009) — there is no public self-serve path,
+so `/sign-up` alone will not get you in. Use the shared test account instead:
+
+```bash
+vercel env pull
+```
+
+`.env.local` will then contain `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` alongside
+the Clerk keys. Sign in with those at `/sign-in`. See
+[`docs/deployment.md`](docs/deployment.md#test-user) for how that account is
+provisioned and who to ask if the credentials stop working.
+
+For browser automation (an agent, a screenshot check) that can't type a
+password into a form, visit `/api/dev/test-login` instead — it signs the
+browser in as the test account directly.
+
 ## Commands
 
 |                   |                                                                                    |
