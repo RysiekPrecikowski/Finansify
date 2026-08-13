@@ -42,15 +42,23 @@ bypass on `.rsc`) found and fixed.
 - [x] `apps/web`: wire the composition root — `container.ts` exports
       `getInstruments()` and `scopedLedgerFor(userId)`
 - [x] `apps/web`: accounts screen — list and create, reached from `/more`
-- [ ] `apps/web`: transaction entry
+- [x] `apps/web`: transaction entry — create, list, edit, soft delete
+- [x] `/security-review` over the use cases, the server actions and the two
+      screens — no HIGH or MEDIUM findings; the account-ownership check, the
+      `forUser` predicate on every mutation, and 404-not-403 on another user's
+      row all confirmed by tracing the SQL
 - [ ] `apps/web`: positions view
 - [ ] CSV/JSON ledger export
 
-**`/accounts` is the only part of Phase 1 reachable from the running app.**
-`/transactions` and `/portfolio` are still placeholders, and the dashboard still
-renders `lib/fixtures/portfolio.ts`. The data layer is complete and tested;
-everything left in Phase 1 is wiring the composition root to it, and it is the
-only work between here and entering a real transaction.
+**A real transaction can now be entered, listed, edited and deleted.**
+`/accounts` and `/transactions` read and write the real ledger through
+`scopedLedgerFor(user.id)`; the composition root is wired and the fixture no
+longer stands between the user and their own rows.
+
+`/portfolio` is still a placeholder and the dashboard still renders
+`lib/fixtures/portfolio.ts` — the fixture dies in Phase 2, when there are
+prices to replace it with. What is left in Phase 1 is the positions view and
+CSV/JSON export, both of which read the ledger that now exists.
 
 **Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
 ledger held a row**: it added a master key, an environment variable, a

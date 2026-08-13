@@ -1,3 +1,5 @@
+import type { Route } from 'next';
+import Link from 'next/link';
 import { type ReactNode } from 'react';
 
 import {
@@ -45,6 +47,15 @@ export interface DataListProps<TRow> {
   /** An icon or avatar shown before the row in both layouts. */
   readonly leading?: (row: TRow) => ReactNode;
   readonly empty?: ReactNode;
+  /**
+   * Makes the whole phone card a link.
+   *
+   * A column carrying an action button is desktop-only unless it claims one of
+   * the four mobile slots, and those are spoken for by the row's actual data —
+   * so without this there is no way to open a row on a phone at all. The
+   * desktop table keeps its own explicit action column.
+   */
+  readonly rowHref?: (row: TRow) => Route;
   readonly className?: string;
 }
 
@@ -65,6 +76,7 @@ export function DataList<TRow>({
   rowKey,
   leading,
   empty,
+  rowHref,
   className,
 }: DataListProps<TRow>) {
   if (rows.length === 0 && empty !== undefined) {
@@ -80,23 +92,40 @@ export function DataList<TRow>({
     <div className={className}>
       {/* Phone: stacked cards. */}
       <ul className="divide-border divide-y md:hidden">
-        {rows.map((row) => (
-          <li key={rowKey(row)} className="flex items-center gap-3 py-3">
-            {leading?.(row)}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{title?.cell(row)}</div>
-              {subtitle !== undefined && (
-                <div className="text-muted-foreground truncate text-xs tabular-nums">
-                  {subtitle.cell(row)}
-                </div>
+        {rows.map((row) => {
+          const card = (
+            <>
+              {leading?.(row)}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{title?.cell(row)}</div>
+                {subtitle !== undefined && (
+                  <div className="text-muted-foreground truncate text-xs tabular-nums">
+                    {subtitle.cell(row)}
+                  </div>
+                )}
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-sm font-medium tabular-nums">{value?.cell(row)}</div>
+                {meta !== undefined && <div className="text-xs tabular-nums">{meta.cell(row)}</div>}
+              </div>
+            </>
+          );
+
+          return (
+            <li key={rowKey(row)}>
+              {rowHref === undefined ? (
+                <div className="flex items-center gap-3 py-3">{card}</div>
+              ) : (
+                <Link
+                  href={rowHref(row)}
+                  className="hover:bg-muted/50 -mx-2 flex items-center gap-3 rounded-md px-2 py-3"
+                >
+                  {card}
+                </Link>
               )}
-            </div>
-            <div className="shrink-0 text-right">
-              <div className="text-sm font-medium tabular-nums">{value?.cell(row)}</div>
-              {meta !== undefined && <div className="text-xs tabular-nums">{meta.cell(row)}</div>}
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       {/* Tablet and up: the real thing. */}

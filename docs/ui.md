@@ -8,21 +8,21 @@ All UI lives in `apps/web` — see `architecture.md` for why there is no
 
 ## Stack
 
-| Concern               | Choice                                                                                                 | Why, and what else was considered                                                                                                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Styling               | **Tailwind v4**, CSS-first `@theme`                                                                    | Already installed and configured                                                                                                                                                               |
-| Components            | **shadcn/ui**, Vega style (the CLI's current name for what used to be called "new-york"), neutral base | Copy-in, so no runtime dependency and no upgrade treadmill. Works with Tailwind 4 and React 19. Alternatives: Park UI, Mantine — heavier and more lock-in.                                     |
-| Primitives            | **Base UI**, arriving via shadcn (the `render` prop, not `asChild`)                                    | What the Vega preset installs. Radix is the same team's earlier library; the shadcn components we copy in target Base UI, so following them is cheaper than porting them.                      |
-| Dashboard charts      | **Recharts** through shadcn's `<ChartContainer>`                                                       | Allocation donut and treemap, income bars, benchmark comparison. Themed by the same CSS variables as everything else. Alternatives: visx (more control, much more work), Nivo (bigger bundle). |
-| Portfolio value chart | **`lightweight-charts`** (TradingView)                                                                 | ~45 kB, built for exactly this: years of bars, pan and zoom, a 15m/1h/1d granularity toggle. Recharts degrades badly past a few thousand points.                                               |
-| Tables                | **TanStack Table v8** with the shadcn table                                                            | The ledger needs sorting, filtering, column visibility, and virtualization                                                                                                                     |
-| Forms                 | **react-hook-form + zod**                                                                              | zod schemas are shared with `core`'s contracts — one definition, validated on both sides                                                                                                       |
-| Icons                 | **lucide-react**                                                                                       | Ships with shadcn                                                                                                                                                                              |
-| Dates                 | **Temporal** internally, `Intl.DateTimeFormat` at the edge                                             | ADR 0007                                                                                                                                                                                       |
-| Numbers               | `Intl.NumberFormat`, currency- and locale-aware                                                        | Formatting never happens inside `core`                                                                                                                                                         |
-| Theme                 | `next-themes`, **dark by default**                                                                     | Financial dashboards read better dark; light theme still supported                                                                                                                             |
-| Language              | **Polish and English**, own dictionaries behind a cookie                                               | One audience, two languages, ~200 strings. `next-intl` and `/[locale]/` routing would double every route and add a dependency for a `Record<Locale, Dictionary>` and one server action.        |
-| View state            | **Range, filter and sort live in the URL**                                                             | Every control is a real link, and a view survives a reload and a share. Client-side tab state does none of that. Chart range also switches without a navigation — see "The hero chart" below.  |
+| Concern               | Choice                                                                                                 | Why, and what else was considered                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Styling               | **Tailwind v4**, CSS-first `@theme`                                                                    | Already installed and configured                                                                                                                                                                                                                                                                                                                                 |
+| Components            | **shadcn/ui**, Vega style (the CLI's current name for what used to be called "new-york"), neutral base | Copy-in, so no runtime dependency and no upgrade treadmill. Works with Tailwind 4 and React 19. Alternatives: Park UI, Mantine — heavier and more lock-in.                                                                                                                                                                                                       |
+| Primitives            | **Base UI**, arriving via shadcn (the `render` prop, not `asChild`)                                    | What the Vega preset installs. Radix is the same team's earlier library; the shadcn components we copy in target Base UI, so following them is cheaper than porting them.                                                                                                                                                                                        |
+| Dashboard charts      | **Recharts** through shadcn's `<ChartContainer>`                                                       | Allocation donut and treemap, income bars, benchmark comparison. Themed by the same CSS variables as everything else. Alternatives: visx (more control, much more work), Nivo (bigger bundle).                                                                                                                                                                   |
+| Portfolio value chart | **`lightweight-charts`** (TradingView)                                                                 | ~45 kB, built for exactly this: years of bars, pan and zoom, a 15m/1h/1d granularity toggle. Recharts degrades badly past a few thousand points.                                                                                                                                                                                                                 |
+| Tables                | **TanStack Table v8** with the shadcn table                                                            | The ledger needs sorting, filtering, column visibility, and virtualization                                                                                                                                                                                                                                                                                       |
+| Forms                 | **Server Actions + `useActionState`**, zod schemas from `core`                                         | The authoritative validation is `transactionInputSchemaFor(account.currency)`, which needs the account and so runs on the server regardless; a client mirror would be a second copy of the same rule. Progressive enhancement for free, no dependency. react-hook-form comes back for a form that genuinely needs field arrays or cross-field client validation. |
+| Icons                 | **lucide-react**                                                                                       | Ships with shadcn                                                                                                                                                                                                                                                                                                                                                |
+| Dates                 | **Temporal** internally, `Intl.DateTimeFormat` at the edge                                             | ADR 0007                                                                                                                                                                                                                                                                                                                                                         |
+| Numbers               | `Intl.NumberFormat`, currency- and locale-aware                                                        | Formatting never happens inside `core`                                                                                                                                                                                                                                                                                                                           |
+| Theme                 | `next-themes`, **dark by default**                                                                     | Financial dashboards read better dark; light theme still supported                                                                                                                                                                                                                                                                                               |
+| Language              | **Polish and English**, own dictionaries behind a cookie                                               | One audience, two languages, ~200 strings. `next-intl` and `/[locale]/` routing would double every route and add a dependency for a `Record<Locale, Dictionary>` and one server action.                                                                                                                                                                          |
+| View state            | **Range, filter and sort live in the URL**                                                             | Every control is a real link, and a view survives a reload and a share. Client-side tab state does none of that. Chart range also switches without a navigation — see "The hero chart" below.                                                                                                                                                                    |
 
 ## Visual direction
 
@@ -135,6 +135,39 @@ derived figure from a handful of declared inputs, so the headline and the rows
 always agree. The fixture is single-currency on purpose — there is no FX adapter
 before Phase 2, and the presentation-currency switcher says so instead of
 converting. Delete the fixture when the ledger lands.
+
+## The transactions screen
+
+Three routes, all server components reading through `scopedLedgerFor(user.id)`:
+
+| Route                     | Does                                                          |
+| ------------------------- | ------------------------------------------------------------- |
+| `/transactions`           | The ledger through `<DataList>`, newest first                 |
+| `/transactions/new`       | Create; redirects to `/accounts/new` when there is no account |
+| `/transactions/[id]/edit` | Edit, plus soft delete as a `<form>` submit                   |
+
+The form is one client component shared by create and edit. A single
+`useState` on the transaction type drives everything conditional, resolved
+against `transactionShapeOf` — computed on the server and passed down as plain
+data, so `core` (and with it Decimal, zod and Temporal) stays out of the browser
+bundle. `vocabulary.ts` is the only part of `core` the form imports directly,
+which is what that module is for.
+
+Three rules the screen exists to respect:
+
+- **Amounts are `type="text" inputMode="decimal"`, never `type="number"`.** A
+  number input silently discards what the browser considers invalid and invites
+  `valueAsNumber`. `lib/decimal-input.ts` turns `1 234,56` into `1234.56` as a
+  string rewrite that never parses; anything it cannot normalise passes through
+  untouched and is refused by the schema, which is where the message belongs.
+- **A foreign-currency row reveals `fxRate` and `fxRateSource`, and the server
+  refuses it without them** (rule 6, ADR 0006). The client only explains; the
+  refusal is `transactionInputSchemaFor(account.currency)`.
+- **`split` is not offered.** `buildPositions` throws on it by design, so
+  offering it would let someone write a row that breaks their own positions view.
+
+Nothing on this screen is green or red — a transaction is neither a gain nor a
+loss.
 
 ## Mobile
 
