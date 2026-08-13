@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@clerk/testing": "^2.2.22",
     "playwright": "1.62.1"
   }
 }
