@@ -6,3 +6,4 @@ export {
   type AuthIdentity,
   type AuthProvider,
 } from './users';
+export { instrumentRepository, ledgerRepository } from './ledger-repository';

@@ -1,21 +1,166 @@
 # Roadmap
 
-Each phase ends somewhere usable, and the early ones deliberately exercise the
+Each phase ends somewhere usable. The early ones deliberately exercise the
 package boundaries while there is still little code to move.
 
-| Phase                | Deliverable                                                                                                                                                                                                |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0 — Foundations**  | Docs and ADRs · package skeleton with ports · `Money` / `Currency` / Temporal primitives with tests · `.env.example` · `vercel.ts` · database and auth provisioned · `users` with the provider indirection |
-| **1 — Ledger**       | Accounts, portfolios, manual transaction entry, position building, FIFO lot matching. No prices yet — but cost basis is already correct.                                                                   |
-| **2 — Valuation**    | Instruments and identifier mapping · NBP FX · Yahoo and Stooq price feeds · the shared cache with TTLs and a market calendar · dashboard headline, hero chart, allocation                                  |
-| **3 — Polish bonds** | `BondTermsResolver` with lazy auto-population · family rules · the accrual engine with golden tests · bonds on the dashboard · forward cash-flow schedule and redemption-value projection                  |
-| **4 — Imports**      | Blob upload · import staging and review UI · XTB parser · Boś/bossa parser · generic CSV mapper · dedup by `external_id`                                                                                   |
-| **5 — Performance**  | TWR, XIRR, benchmark overlay, the versus-index view                                                                                                                                                        |
-| **6 — Income**       | Dividend and interest analytics over time, yield-on-cost                                                                                                                                                   |
-| **Later**            | OKI (2027) · PPK and TFI · crypto · metals · tax reports · optional daily snapshots via cron · expense/budget tracking (unscoped, see Feature backlog)                                                     |
+| Phase                | Ships                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| **0 — Foundations**  | Docs and ADRs · packages and ports · `Money`/`Currency`/Temporal · auth · database · CI |
+| **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices. |
+| **1.5 — Unlock**     | Encryption Stage 2: ledger passphrase, per-user key, the boundary between the two of us |
+| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo and Stooq · shared cache · dashboard on real data   |
+| **3 — Polish bonds** | `BondTermsResolver` · family rules · accrual engine with golden tests · projections     |
+| **4 — Imports**      | Blob upload · staging and review UI · XTB and Boś parsers · CSV mapper · dedup          |
+| **5 — Performance**  | TWR, XIRR, benchmark overlay, versus-index view                                         |
+| **6 — Income**       | Dividend and interest analytics over time, yield-on-cost                                |
+| **Later**            | OKI (2027) · PPK and TFI · crypto · metals · tax reports · expenses (unscoped)          |
 
-Phase 1 landing before any price feed exists is intentional: it forces the ledger
-and lot matching to be correct on their own, with nothing to hide behind.
+Phase 1 landing before any price feed is intentional: it forces the ledger and
+lot matching to be correct on their own, with nothing to hide behind.
+
+## Where we are
+
+**Phase 0 — complete.** Docs and ADRs 0001–0012, `core` and `db` packages, the
+money and time primitives, app shell and dashboard on fixture data, `users`
+behind the provider indirection, the CI migration job, Neon and Clerk
+provisioned, and the first migration applied to a real database. Two HIGH
+findings from `/security-review` (a CI pwn-request, an auth bypass on `.rsc`)
+found and fixed.
+
+**Phase 1 — in progress.**
+
+- [x] `core`: ledger vocabulary, `LedgerRepository` port, branded ids
+- [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
+- [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
+- [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
+- [ ] `apps/web`: transaction entry, positions view, CSV/JSON export
+- [x] Encryption at rest, Stage 1: per-user data key, env-held master key (ADR 0013)
+- [ ] CSV/JSON ledger export
+- [ ] `/security-review` over the whole surface
+
+**Phase 1.5 — encryption Stage 2.** Ledger passphrase, browser-side key
+derivation, per-user unlock. This is what actually separates the two users;
+Phase 1 does not. See Data protection below.
+
+Tick a box in the same change that finishes the work. An unticked box for
+shipped work is how this section stops being trusted.
+
+## What the upcoming phases contain
+
+### Phase 2 — Valuation
+
+Turns a correct ledger into a portfolio worth looking at.
+
+- `instrument_identifiers` — provider ticker mapping, so `PKN.WA` vs `PKN` vs
+  `BTC-USD` never reaches the domain.
+- `PriceFeed` adapters: Yahoo primary, Stooq fallback for GPW. `FxRateFeed`
+  against NBP table A.
+- The shared cache (`prices`, `fx_rates`) with per-source TTLs, plus a market
+  calendar so we neither refetch all weekend nor label Friday's close as live.
+- Background refresh with `after()`; a per-instrument fetch guard against a
+  thundering herd.
+- Dashboard on real data: headline, hero chart, allocation. The fixture dies here.
+
+Depends on Phase 1's positions. Blocked on nothing external.
+
+### Phase 3 — Polish bonds
+
+The most bespoke code in the project, because no provider prices these.
+
+- Family rules for OTS/ROR/DOR/TOS/COI/ROS/EDO/ROD as versioned config.
+- `BondTermsResolver`: decompose a series code, resolve per-issue parameters,
+  cache in `bond_series_terms` (ADR 0011).
+- `accrueBond()` — the accrual engine, validated to the grosz against the
+  official published interest tables before any bond value reaches a user.
+- Forward cash-flow schedule and redemption-value projection, labelled as
+  projections and never with the certainty of a current valuation.
+- `wrapper_rules` — IKE/IKZE limits per year, so adding OKI in 2027 is rows.
+
+### Phase 4 — Imports
+
+- Raw files to Vercel Blob behind the `FileStore` port, never the database.
+- `import_batches` / `import_rows` staging plus a review UI.
+- `StatementParser` implementations for XTB and Boś, and a generic CSV mapper
+  driven by column-mapping profiles rather than fixed offsets.
+- Dedup on `external_id`; `edited_after_import` surfaces a conflict instead of
+  overwriting a hand correction.
+
+**Blocked**: needs real exported statements from real accounts. Profiles built
+from guesses are worse than no profiles.
+
+### Phase 5 — Performance
+
+TWR (neutralizes deposits, so it is the only fair benchmark comparison) and
+XIRR (what the investor actually earned). Benchmarks are ordinary instruments
+with a price series, so adding one is configuration.
+
+### Phase 6 — Income
+
+Dividends, coupons and interest folded into monthly/quarterly/yearly buckets,
+per instrument and in aggregate, with yield-on-cost and a year-over-year
+overlay. A new income type is one enum member and one fold case.
+
+## Data protection
+
+This is a private financial ledger for two people. What is decided, and what is
+not yet.
+
+**In transit and at rest, by the provider.** TLS everywhere; Neon encrypts
+storage. Already true, nothing to build.
+
+**Private amounts encrypted by the application — Stage 1, in Phase 1.** The
+amounts and the note move into one encrypted payload per row, so a leaked dump
+or the provider itself reveals nothing. Each user has their own data key,
+wrapped by a master key held in the environment. Viable here only because ADR
+0003 already folds the whole transaction list in memory — Postgres never sums
+or sorts an amount. See ADR 0013.
+
+Consequences accepted there: `NUMERIC(28,10)` stops guaranteeing an amount is a
+number (the second backstop given up below the application, after ADR 0009
+declined RLS), and losing a key loses the data it protects.
+
+**Separating the two users from each other — Stage 2, not yet built.**
+
+> Stage 1 protects the ledger from the database, its dumps, its backups and the
+> provider. It does **not** stop either administrator reading the other's
+> ledger, because the master key lives in the shared environment. That is a
+> recorded deferral, not an oversight.
+
+Stage 2 replaces the master key with one derived from each user's own **ledger
+passphrase**, stretched in the browser so the passphrase never reaches the
+server, unwrapping that user's data key into their session only. Because the
+data layer is already final, this **re-wraps two keys and re-encrypts nothing**
+— the whole reason ADR 0013 uses an envelope.
+
+Its honest limit, worth knowing before it is built: no web application can
+protect a user from a co-administrator who deliberately ships malicious code.
+If a boundary without that caveat is ever required, the answer is two separate
+deployments, not a different cipher.
+
+Needs: a passphrase-setup screen, an unlock step, key-in-session handling, and
+a recovery code held in both password managers.
+
+**Backups — the known gap.** Neon's PITR and branching cover an accidental bad
+write, and that is all they cover: the copy shares an account, a provider and a
+billing relationship with the original. Losing the Neon account loses both.
+
+An independent copy — scheduled `pg_dump` over the unpooled connection,
+encrypted with our own key, pushed to a different provider under a different
+account — is **not built**. It needs a scheduler, which `architecture.md`'s
+"no cron" rule does not cover (that rule is about cache freshness), so it needs
+its own ADR note. GitHub Actions is the natural host: already wired, already
+holds secrets, runs outside Vercel.
+
+A backup that has never been restored is not a backup. The restore procedure
+gets written and executed, not just described.
+
+**Export — Phase 1.** CSV and JSON of the full ledger, as soon as the ledger
+exists. It is the user-controlled copy, and it is the anti-lock-in property the
+rest of the architecture already argues for.
+
+**Cold starts accepted.** Neon suspends on the current plan, so the first query
+after idle pays for the wake-up. Masked with caching and honest loading states
+rather than paid away.
 
 ## Where we are
 
@@ -42,80 +187,65 @@ Phase 0 is complete. Phase 1 (Ledger) is next.
 
 ## Verification
 
-**Every phase**
+**Every phase** — `pnpm check`; `core` tested against in-memory port fakes with
+no database and no network.
 
-- `pnpm check` — build, lint, typecheck, test, format.
-- `core` tested against in-memory port fakes. No database, no network.
-- Property-based tests for lot matching: selling everything always returns cost
-  basis to zero; FIFO and specific-lot agree when lots are selected in order.
-- Multi-currency round-trip: a portfolio valued in PLN, then EUR, then back to
-  PLN must be identical, and changing presentation currency must never alter
-  realized P&L.
-- Import idempotency: importing the same statement twice produces zero new
-  transactions; editing an imported row and then re-importing flags a conflict
-  rather than overwriting.
+**Phase 1** — property tests for lot matching: selling everything returns cost
+basis to exactly zero, and FIFO agrees with specific-lot selection when lots are
+chosen in order. A two-user test proving neither can reach the other's rows.
 
-**Phase 3 specifically** — golden tests for the bond engine against the official
-published interest tables. The engine must reproduce them to the grosz before any
-bond value reaches a user.
+**Phase 2** — multi-currency round trip: PLN → EUR → PLN must be identical, and
+changing presentation currency must never alter realized P&L.
 
-**Once the dashboard exists**
+**Phase 3** — golden tests against the official published interest tables. The
+engine reproduces them to the grosz before any bond value reaches a user.
 
-- Drive the real app in a browser: seed a portfolio, check the headline against a
-  hand-computed figure, switch presentation currency, toggle the benchmark,
-  resize to 375 px and confirm the mobile layout and bottom nav.
-- **Verify the private-cache boundary explicitly.** Sign in as user A, load the
-  dashboard, sign in as user B, confirm B sees nothing of A's. This is a failure
-  mode that deserves a test rather than an assumption.
+**Phase 4** — import idempotency: the same statement twice produces zero new
+transactions; an edited imported row re-imports as a conflict, not an overwrite.
+
+**Once the dashboard is on real data**
+
+- Drive it in a browser: seed a portfolio, check the headline against a
+  hand-computed figure, switch presentation currency, resize to 375 px.
+- **Verify the private-cache boundary.** Sign in as A, load the dashboard, sign
+  in as B, confirm B sees nothing of A's. ADR 0009 left no database-level
+  backstop, so this deserves a test rather than an assumption.
 - Confirm sharing works the other way: two users holding the same instrument
   trigger exactly one upstream fetch.
 
-**Before the first real deployment**
-
-- The migration applies cleanly on a fresh database branch.
-- `vercel env pull` produces a working `.env.local` with no manual renaming.
-- Provider failure is graceful: with the Yahoo adapter forced to throw, the
-  dashboard shows stale-with-timestamp rather than an error page or — much worse
-  — a silently wrong number.
+**Before the first real deployment** — the migration applies cleanly to a fresh
+branch; `vercel env pull` produces a working `.env.local`; with the price
+adapter forced to throw, the dashboard shows stale-with-timestamp rather than an
+error page or, far worse, a silently wrong number.
 
 ## Open questions
 
-1. **XTB and Boś export formats.** The parsers need real files exported from real
-   accounts before Phase 4. The importer is deliberately profile-and-column-mapping
-   rather than hardcoded offsets, so a format change is a config edit — but the
-   initial profiles need samples, not guesses.
-2. **Benchmark set.** WIG, an accumulating world ETF, and the S&P 500 are
-   proposed. Worth confirming which comparisons actually matter, since each one
-   becomes a tracked instrument with its own price history.
+1. **XTB and Boś export formats.** Parsers need real files before Phase 4.
+2. **Benchmark set.** WIG, an accumulating world ETF and the S&P 500 are
+   proposed; each becomes a tracked instrument with its own price history.
+3. **KMS choice and key scheme** — see Data protection.
 
 ## Feature backlog
 
-Concrete features not yet assigned a checkpoint above. Pull into a phase once
-scoped rather than left implicit.
+Not yet assigned a phase. Pull one in once scoped rather than leaving it
+implicit.
 
-### Bond forward projection (Phase 3)
+**Off-provider backups** — see Data protection. The highest-value item here.
 
-- [ ] Cash-flow schedule view: full timeline of expected coupons,
-      capitalizations, and the redemption payout for a held series, derived
-      from the resolved `BondTerms` (ADR 0011) — not just the current-day
-      accrued value `accrueBond()` already produces.
-- [ ] Redemption-value projection: value at a future date chosen by the user
-      (next coupon, maturity, or arbitrary date), using family rules where
-      already fixed and the latest known index observation where not —
-      clearly labeled as a projection, never presented with the certainty of
-      a current valuation (`domain.md` principle: no number is silently
-      estimated).
-- [ ] Early-redemption value across a date range, not just "as of today".
+**Bond forward projection (Phase 3)** — cash-flow schedule for a held series;
+redemption value at a user-chosen future date; early-redemption value across a
+date range rather than only as of today.
 
-### Expense tracking (unscoped — needs a product decision first)
+**Splits** — `split` exists in the transaction enum and the position engine
+rejects it explicitly rather than computing a wrong basis quietly. Needs
+ratio handling, fractional results, and application only to lots opened before
+the split date.
 
-Not currently in `product.md` scope. Before any implementation: decide
-whether this extends the ledger (`transactions` gets non-investment types) or
-is a separate `expenses` table, since that changes `domain.md`'s "ledger is
-the product" boundary.
+**Portfolio management UI** — the tables and a default portfolio exist; grouping
+accounts into several portfolios has no screen yet, and earns one when there is
+a reason to group them differently.
 
-- [ ] Manual entry of recurring and one-off expenses, categorized
-- [ ] Monthly/yearly expense view alongside portfolio income — net cash flow,
-      not just investment return
-- [ ] Decide whether expenses count toward XIRR / money-weighted return, or
-      stay entirely separate from performance metrics
+**Expense tracking (unscoped)** — not in `product.md`. Decide first whether it
+extends the ledger or is a separate table, since that moves `domain.md`'s
+"ledger is the product" boundary. Then: manual recurring and one-off entry,
+monthly/yearly view alongside income, and whether expenses touch XIRR at all.

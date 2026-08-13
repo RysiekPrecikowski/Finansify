@@ -13,7 +13,9 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@finansify/core": "workspace:*",
     "@neondatabase/serverless": "1.1.0",
+    "decimal.js": "10.6.0",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {

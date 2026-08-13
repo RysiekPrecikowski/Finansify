@@ -1,6 +1,21 @@
 import Decimal from 'decimal.js';
 import { type Currency } from './currency';
 
+/**
+ * `decimal.js` defaults to 20 significant digits, which is **fewer than the
+ * database keeps**: `NUMERIC(28, 10)` holds 28. Left at the default, a division
+ * — pro-rating a cost basis across a partially sold lot, say — rounds in memory
+ * to a precision the storage would have preserved, and sums stop being exactly
+ * additive at around the thirteenth digit.
+ *
+ * 40 puts the arithmetic comfortably above the storage width, with room for
+ * intermediate products. Cheap here: this is a personal ledger, not a hot loop.
+ *
+ * Set once, on the shared `Decimal` constructor, before any arithmetic runs —
+ * every module in the workspace resolves to this same singleton.
+ */
+Decimal.set({ precision: 40 });
+
 export class CurrencyMismatchError extends Error {
   constructor(operation: string, a: Currency, b: Currency) {
     super(`Cannot ${operation} ${a} and ${b} — mixing currencies is not allowed`);
