@@ -31,6 +31,25 @@ jobs:
       # build, lint, typecheck, test, format:check, all cached and scheduled by turbo.
       - run: pnpm check
 
+      # A schema edit that never got a migration passes every other check in
+      # this job: it typechecks, it tests, and drizzle only notices when
+      # someone next runs generate. Regenerating here must produce nothing --
+      # anything new or modified means src/schema and migrations/ have
+      # diverged, and the divergence would otherwise reach production as a
+      # table that does not match the code reading it.
+      #
+      # `generate` diffs the schema against the migrations already on disk and
+      # needs no database connection (see packages/db/drizzle.config.ts).
+      - name: Schema and migrations must agree
+        run: |
+          pnpm --filter @finansify/db db:generate
+          if [ -n "$(git status --porcelain packages/db/migrations)" ]; then
+            echo "::error::packages/db/src/schema and packages/db/migrations disagree. Run 'pnpm --filter @finansify/db db:generate' and commit the result."
+            git status --short packages/db/migrations
+            git --no-pager diff -- packages/db/migrations
+            exit 1
+          fi
+
   migrate:
     needs: check
     # push-to-main only, never pull_request -- a fork PR produces a
