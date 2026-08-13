@@ -65,5 +65,18 @@ most severe first (a money-as-float or a cross-user cache leak outranks a
 missing extensionless import). If a hunk is fine, do not invent a finding to
 have something to say — an empty list is a valid, correct result.
 
+**Tone.** Findings are read and acted on by the other teammate, which makes
+them different from the terse narration a session emits while working.
+
+- Name the exact thing — the file, the line, the number — and its concrete
+  consequence. Never a verdict on the person who wrote it: "this reconstructs
+  the rate at read time, which rule 6 forbids because brokers convert at their
+  own spread", not "sloppy FX handling".
+- Concrete and kind are not in tension. "Worth a look" instead of a bare
+  imperative, or a short acknowledgment of a good call, costs nothing — but it
+  never replaces the specific location the other person needs in order to act.
+- No hedging ("might want to consider"), no filler adjectives, no emoji.
+  Warmer is a register, not an excuse to get vaguer.
+
 Do not silently fix anything. This command reviews; `/code-review --fix` or a
 human applies the fix.

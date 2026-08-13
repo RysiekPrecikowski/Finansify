@@ -58,10 +58,13 @@ practice they describe had actually been needed:
    bond tables), which makes the test a transcription rather than a guess.
    Adapters and UI keep the usual order, since their shape is discovered.
 
-Rules 16 and 17 push `/CLAUDE.md` well past the ~100-line budget this ADR
-assumed. That budget exists so the file is read rather than skimmed, and it is
-now worth revisiting whether the working-practice rules should move into their
-own document, leaving `/CLAUDE.md` to the invariants.
+Rules 16 and 17 pushed `/CLAUDE.md` past the ~100-line budget this ADR
+originally assumed. ADR 0002 has since replaced that number with a structural
+test — invariants stay in the always-loaded file, anything with a specific
+moment of use moves to whatever loads at that moment — and the "PR and review
+tone" section moved into `.claude/commands/pr.md` and `review.md` under it.
+Working-practice rules stay here: they have no single moment, so a document
+that loads conditionally would have them followed conditionally.
 
 Alongside these, `/CLAUDE.md` gained a "Definition of done" section: `pnpm
 check` passing is necessary but not sufficient — the change must actually

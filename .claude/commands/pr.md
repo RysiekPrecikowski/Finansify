@@ -44,6 +44,17 @@ never pad a section to make it look complete.
 title and body. Base is always `main` — CLAUDE.md rule 12 means this PR is how
 the change is allowed to reach it at all.
 
-No emoji. No filler adjectives ("robust", "powerful", "comprehensive"). A
-reviewer should be able to approve or reject from this text without opening
+**Tone.** This text is read and acted on by the other teammate, which makes it
+different from the terse stage-reporting a session emits while working.
+
+- State the fact and its concrete consequence plainly: what changed, what it
+  affects, what to check. No hedging ("might want to consider").
+- Concrete and kind are not in tension. A short acknowledgment of a good call
+  costs nothing and reads better than a flat instruction — but it never
+  replaces the specific file, line, or number the other person needs to act.
+- No emoji. No filler adjectives ("robust", "powerful", "comprehensive"). No
+  padding a section to look complete. Warmer is a register, not an excuse to
+  get vaguer.
+
+A reviewer should be able to approve or reject from this text without opening
 the diff for anything except the code itself.
