@@ -8,7 +8,6 @@ import {
   transactionId as toTransactionId,
   type Account,
   type AccountInput,
-  type Currency,
   type Instrument,
   type InstrumentInput,
   type InstrumentRepository,
@@ -464,5 +463,3 @@ export function instrumentRepository(db: Database): InstrumentRepository {
 function eqOrNull(exchange: string | null) {
   return exchange === null ? isNull(instruments.exchange) : eq(instruments.exchange, exchange);
 }
-
-export type { Currency };
