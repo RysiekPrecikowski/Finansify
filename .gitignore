@@ -20,6 +20,12 @@ apps/web/next-env.d.ts
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 
+# Scratch git worktrees created when an agent is run in isolation. Parts of
+# `.claude/` are tracked (commands, skills, settings.json), so without this a
+# worktree here is an entire nested checkout one `git add -A` away from being
+# committed.
+.claude/worktrees/
+
 # Vendor reference docs installed by `vercel integration add` -- regenerated locally
 # whenever that command runs, see README.md setup.
 .agents/skills/
