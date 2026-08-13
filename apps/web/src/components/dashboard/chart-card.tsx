@@ -1,52 +1,50 @@
 'use client';
 
-import { useState } from 'react';
-
 import { RangeTabs } from '@/components/dashboard/range-tabs';
 import { ValueChart } from '@/components/dashboard/value-chart';
 import { type ChartSeries } from '@/lib/chart-series';
-import { dashboardUrl, type DashboardHref } from '@/lib/dashboard-params';
+import { dashboardHref, dashboardUrl } from '@/lib/dashboard-params';
+import { useDashboardParams } from '@/lib/use-dashboard-params';
 import { type Range } from '@/lib/fixtures/portfolio';
 
 /**
- * The one piece of dashboard view state the client owns. Every range is already
- * on the client — six series of 64 points — so asking the server to redraw a
- * line the browser is holding would buy nothing but the round trip that makes
- * the switch feel slow.
+ * The chart range switches without a round trip. Every range is already on the
+ * client — six series of 64 points — so asking the server to redraw a line the
+ * browser is holding would buy nothing but the latency that makes the switch
+ * feel slow.
  *
- * The URL still decides what renders on load, and every switch writes it back
- * with `replaceState`, so reload and share behave exactly as they did when this
- * was a plain navigation. Range is safe to lift out this way because nothing
- * else reads it: `class` and `sort` still drive the chips and the holdings list
- * from the server.
+ * **The URL stays the single source of truth**, on the client as much as on the
+ * server: the range is read from it, and a switch writes it straight back with
+ * `replaceState`. Holding it in `useState` instead would fork the truth in two,
+ * and the copies drift the moment anything else navigates — a chip, a sort, or
+ * the back button.
+ *
+ * Range is safe to switch this way because nothing on the server reads it:
+ * `class` and `sort` still drive the chips and the holdings list from there.
  */
 export interface ChartCardProps {
   readonly series: Readonly<Record<Range, ChartSeries>>;
-  readonly hrefs: Readonly<Record<Range, DashboardHref>>;
   readonly rangeLabels: Readonly<Record<Range, string>>;
   readonly navLabel: string;
-  readonly initialRange: Range;
 }
 
-export function ChartCard({ series, hrefs, rangeLabels, navLabel, initialRange }: ChartCardProps) {
-  const [range, setRange] = useState(initialRange);
+export function ChartCard({ series, rangeLabels, navLabel }: ChartCardProps) {
+  const params = useDashboardParams();
 
   function select(next: Range): void {
-    setRange(next);
     // `replaceState`, not `pushState`: a range is a way of looking at the page,
     // not a place you arrived at, and flicking through six of them should not
     // leave six entries to back out through.
-    window.history.replaceState(null, '', dashboardUrl(hrefs[next]));
+    window.history.replaceState(null, '', dashboardUrl(dashboardHref(params, { range: next })));
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <ValueChart {...series[range]} seriesKey={range} />
+      <ValueChart {...series[params.range]} seriesKey={params.range} />
       <RangeTabs
-        hrefs={hrefs}
         labels={rangeLabels}
         navLabel={navLabel}
-        selected={range}
+        selected={params.range}
         onSelect={select}
       />
     </div>

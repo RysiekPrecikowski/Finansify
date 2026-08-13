@@ -84,7 +84,18 @@ function useTweenedPoints(target: readonly number[], seriesKey: string): readonl
   const frame = useRef(0);
 
   useEffect(() => {
-    if (shownKey.current === seriesKey) return;
+    if (shownKey.current === seriesKey) {
+      // Same range, a different array: a server re-render (a chip, a sort), not
+      // a switch. React has already run this effect's cleanup, so returning
+      // here would leave a running tween cancelled and never restarted — and
+      // `displayed` holding values the server has since replaced. Adopt them
+      // instead; there is nothing to animate between two renders of one range.
+      if (from.current !== target) {
+        from.current = target;
+        setDisplayed(target);
+      }
+      return;
+    }
     shownKey.current = seriesKey;
 
     if (reducedMotion) {

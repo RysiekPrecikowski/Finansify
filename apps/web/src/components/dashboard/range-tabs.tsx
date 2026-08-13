@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { type MouseEvent } from 'react';
 
-import { type DashboardHref } from '@/lib/dashboard-params';
+import { dashboardHref } from '@/lib/dashboard-params';
+import { useDashboardParams } from '@/lib/use-dashboard-params';
 import { type Range } from '@/lib/fixtures/portfolio';
 import { ranges } from '@/lib/fixtures/portfolio';
 import { cn } from '@/lib/utils';
 
 export interface RangeTabsProps {
-  readonly hrefs: Readonly<Record<Range, DashboardHref>>;
   readonly labels: Readonly<Record<Range, string>>;
   readonly navLabel: string;
   readonly selected: Range;
@@ -26,13 +26,17 @@ function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 
-export function RangeTabs({ hrefs, labels, navLabel, selected, onSelect }: RangeTabsProps) {
+export function RangeTabs({ labels, navLabel, selected, onSelect }: RangeTabsProps) {
+  // Derived here rather than handed down, so the class and sort a link carries
+  // are the ones in the URL right now — see `useDashboardParams`.
+  const params = useDashboardParams();
+
   return (
     <nav aria-label={navLabel} className="flex justify-between gap-1">
       {ranges.map((range) => (
         <Link
           key={range}
-          href={hrefs[range]}
+          href={dashboardHref(params, { range })}
           aria-current={selected === range ? 'page' : undefined}
           onClick={(event) => {
             if (!isPlainClick(event)) return;

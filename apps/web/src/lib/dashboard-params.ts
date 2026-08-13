@@ -17,6 +17,12 @@ import {
  * a line the browser is holding would only add latency. It writes the same URL
  * back with `history.replaceState`, so reload and share behave identically —
  * see `components/dashboard/chart-card.tsx`.
+ *
+ * That only holds because **every control builds its href from the live params**
+ * (`lib/use-dashboard-params.ts`) rather than from a server-rendered snapshot.
+ * A href baked at render time carries the range as it was *then*, so clicking a
+ * chip after a client-side switch would drop the range the user picked and the
+ * next reload would show something else.
  */
 export interface DashboardParams {
   readonly range: Range;

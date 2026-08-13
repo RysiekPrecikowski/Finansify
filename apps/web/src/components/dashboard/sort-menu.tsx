@@ -11,23 +11,26 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { type SortOrder } from '@/lib/fixtures/portfolio';
-import { type DashboardHref } from '@/lib/dashboard-params';
+import { dashboardHref } from '@/lib/dashboard-params';
+import { useDashboardParams } from '@/lib/use-dashboard-params';
 
 export interface SortOption {
   readonly order: SortOrder;
   readonly label: string;
-  readonly href: DashboardHref;
 }
 
 /**
- * Client only for the popup; the options themselves are links built on the
- * server, so sorting works the same way the rest of the dashboard does.
+ * The options are real links, so sorting works the same way the rest of the
+ * dashboard does. Their hrefs are built here from the live params rather than
+ * handed down from the server: a href baked at render time still carries the
+ * range the user has since switched away from — see `useDashboardParams`.
  */
 export function SortMenu({
   options,
   selected,
   label,
 }: Readonly<{ options: readonly SortOption[]; selected: SortOrder; label: string }>) {
+  const params = useDashboardParams();
   const current = options.find((option) => option.order === selected);
 
   return (
@@ -44,7 +47,7 @@ export function SortMenu({
         {options.map((option) => (
           <DropdownMenuItem
             key={option.order}
-            render={<Link href={option.href} />}
+            render={<Link href={dashboardHref(params, { sort: option.order })} />}
             data-selected={option.order === selected ? '' : undefined}
             className={option.order === selected ? 'font-medium' : undefined}
           >

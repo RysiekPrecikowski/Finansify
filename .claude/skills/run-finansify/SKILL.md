@@ -150,6 +150,12 @@ regenerating it from scratch.
 
 ## Gotchas
 
+- **`requestAnimationFrame` does not fire in a backgrounded tab**, so both
+  chart assertions above give a false negative unless the tab is actually
+  fronted: the tween never advances, the chart keeps drawing the previous
+  range, and it reads exactly like a broken range switch. Check
+  `document.visibilityState` before believing a failure — a screenshot forces
+  a frame and is the cheapest way to unstick it.
 - **`lsof -ti:3000 -sTCP:LISTEN | xargs kill` did not stop the server** in
   this environment. Next 16 + Turbopack runs as a small process tree (`pnpm`
   wrapper → `next dev` → `next-server` → a turbopack worker), and `lsof`'s

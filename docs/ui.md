@@ -94,10 +94,18 @@ the series comes from a price feed there is nothing to pan, zoom or inspect.
 **All six ranges are prepared on the server and switch on the client.** Six
 series of 64 points is a trivial payload, and asking the server to redraw a line
 the browser is already holding buys nothing but the round trip that makes the
-switch feel slow. The URL still decides what renders on load and each switch
-writes it back with `history.replaceState`, so reload and share behave exactly
-as they did when this was a plain navigation. The tabs stay real links:
-cmd-click still opens a new tab, and with JavaScript off they navigate.
+switch feel slow. The URL stays the single source of truth — the range is read
+from it on the client too, and each switch writes it straight back with
+`history.replaceState` — so reload and share behave exactly as they did when
+this was a plain navigation. The tabs stay real links: cmd-click still opens a
+new tab, and with JavaScript off they navigate.
+
+That guarantee rests on one rule, and breaks quietly without it: **every
+dashboard control builds its href from the live params** (`useDashboardParams`),
+never from one the server passed down. A href rendered before a client-side
+switch still carries the old range, so clicking a chip would drop the range the
+user just picked and the next reload would show a different chart than the
+screen did.
 
 The switch is animated — the line interpolates into its new shape over 350 ms
 and the y-axis travels with it, rather than the reader being handed a different

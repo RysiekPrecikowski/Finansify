@@ -5,7 +5,7 @@ import { HoldingsList } from '@/components/dashboard/holdings-list';
 import { PortfolioHeadline } from '@/components/dashboard/portfolio-headline';
 import { SortMenu, type SortOption } from '@/components/dashboard/sort-menu';
 import { chartPointCount, resample, type ChartSeries } from '@/lib/chart-series';
-import { dashboardHref, parseDashboardParams } from '@/lib/dashboard-params';
+import { parseDashboardParams } from '@/lib/dashboard-params';
 import { directionOf, formatMoney } from '@/lib/format';
 import { getLocale } from '@/lib/i18n/server';
 import { type Locale } from '@/lib/i18n/locales';
@@ -90,8 +90,6 @@ export default async function DashboardPage({
       locale,
     ),
   );
-  const rangeHrefs = byRange((range) => dashboardHref(params, { range }));
-
   const present: readonly AssetClass[] = [
     ...new Set(snapshot.holdings.map((holding) => holding.assetClass)),
   ];
@@ -101,10 +99,11 @@ export default async function DashboardPage({
     params.sort,
   );
 
+  // Labels only: each option's href is built on the client from the live params,
+  // so it keeps a range switched to since this render (`lib/use-dashboard-params`).
   const sortOptions: readonly SortOption[] = sortOrders.map((order) => ({
     order,
     label: dictionary.dashboard.sort[order],
-    href: dashboardHref(params, { sort: order }),
   }));
 
   return (
@@ -114,16 +113,14 @@ export default async function DashboardPage({
         <p className="text-muted-foreground text-xs">{dictionary.mock.banner}</p>
       </div>
 
-      <AssetClassChips params={params} present={present} dictionary={dictionary} />
+      <AssetClassChips present={present} dictionary={dictionary} />
 
       <PortfolioHeadline snapshot={snapshot} locale={locale} dictionary={dictionary} />
 
       <ChartCard
         series={chartSeries}
-        hrefs={rangeHrefs}
         rangeLabels={dictionary.dashboard.ranges}
         navLabel={dictionary.dashboard.chartRange}
-        initialRange={params.range}
       />
 
       <AccountTiles accounts={snapshot.accounts} locale={locale} dictionary={dictionary} />
