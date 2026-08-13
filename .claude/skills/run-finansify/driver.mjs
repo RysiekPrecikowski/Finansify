@@ -2,6 +2,7 @@
 // (via the Playwright dependency installed in this directory) against the
 // Next.js dev server. Wrap in tmux; send-keys commands, capture-pane output.
 import { chromium } from 'playwright';
+import { clerk, clerkSetup } from '@clerk/testing/playwright';
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -10,6 +11,25 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const SHOT_DIR = process.env.SCREENSHOT_DIR || '/tmp/shots';
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 
+// Signing in from here does NOT go through /api/dev/test-login. That route
+// redirects to a Clerk-hosted Agent Task URL, so the browser leaves the app's
+// origin and comes back through Clerk's dev-browser handshake — and the dev
+// instance's handshake cookies are SameSite=None without Secure, which recent
+// Chromium rejects over plain http://localhost. The result is a redirect loop
+// that a hand-driven browser never sees. The `login` command below uses
+// Clerk's own Playwright helper instead: it mints a sign-in ticket over the
+// Backend API and redeems it in-page via window.Clerk, with no cross-origin
+// navigation at all. clerkSetup() supplies the Testing Token that gets past
+// bot detection (from the app's own Clerk keys, loaded from
+// apps/web/.env.local — never read directly by this file, only handed to
+// Node's env loader). See docs/deployment.md, "Test user".
+try {
+  process.loadEnvFile(path.resolve(import.meta.dirname, '../../../apps/web/.env.local'));
+} catch {
+  // No .env.local here — CLERK_SECRET_KEY / NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+  // must already be set in the environment, or clerkSetup() below will throw.
+}
+
 let browser = null;
 let page = null;
 let consoleErrors = [];
@@ -17,13 +37,27 @@ let consoleErrors = [];
 const COMMANDS = {
   async launch() {
     if (browser) return console.log('already launched');
+    await clerkSetup();
     browser = await chromium.launch({ args: ['--no-sandbox'] });
-    page = await (await browser.newContext()).newPage();
+    const context = await browser.newContext();
+    page = await context.newPage();
     page.on('console', (msg) => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
     page.on('pageerror', (err) => consoleErrors.push('pageerror: ' + err.message));
     console.log('launched.', browser.version());
+  },
+
+  // Signs in as TEST_USER_EMAIL without a password and without leaving the
+  // app's origin. clerk.signIn() requires the page to already be on a public
+  // route that has loaded Clerk, so land on /sign-in first.
+  async login(email) {
+    if (!page) return console.log('ERROR: launch first');
+    const emailAddress = email || process.env.TEST_USER_EMAIL;
+    if (!emailAddress) return console.log('ERROR: no email — set TEST_USER_EMAIL or pass one');
+    await page.goto(BASE_URL + '/sign-in', { waitUntil: 'load' });
+    await clerk.signIn({ page, emailAddress });
+    console.log('signed in as', emailAddress);
   },
 
   async nav(url) {

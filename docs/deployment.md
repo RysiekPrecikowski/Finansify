@@ -94,6 +94,21 @@ guesses) a dev/preview URL can hit the endpoint and get a session as the test
 user. Acceptable because the account carries no real financial data — do not
 reuse this pattern for an account that does.
 
+**Playwright does not use that route.** It redirects to a Clerk-hosted URL, so
+the browser leaves the app's origin and returns through Clerk's dev-browser
+handshake — and a dev instance sets those handshake cookies `SameSite=None`
+without `Secure`, which recent Chromium refuses over plain `http://localhost`.
+Driven by hand the flow is fine; under Playwright it is a redirect loop.
+
+Automated browsers sign in with **`clerk.signIn({ page, emailAddress })`** from
+`@clerk/testing/playwright` instead, which Clerk supports for exactly this: it
+mints a sign-in ticket over the Backend API and redeems it in-page through
+`window.Clerk`, with no cross-origin navigation, so the handshake never
+happens. It needs `CLERK_SECRET_KEY` in the runner's environment and a
+`clerkSetup()` call at start-up to fetch the Testing Token that gets past bot
+detection — Testing Tokens work on development instances only. The
+`run-finansify` skill's driver wires both up; `login` is the command.
+
 ## CI
 
 One workflow, `ci.yml`, on push to main and on every PR:
