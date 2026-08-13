@@ -189,7 +189,10 @@ export const transactionInputSchema = z.object({
   grossAmount: decimalString.nullable().default(null),
   fee: decimalString.default('0'),
   tax: decimalString.default('0'),
-  currency: z.string(),
+  // The same check `accountInputSchema` uses. Without it a malformed code
+  // reaches `currency()` inside the adapter and throws there — a 500 rather
+  // than a field the user can correct.
+  currency: currencyCodeString,
   fxRate: decimalString.nullable().default(null),
   fxRateSource: z.enum(fxRateSources).nullable().default(null),
   note: z.string().trim().max(500).nullable().default(null),
