@@ -5,6 +5,7 @@ import {
   date,
   index,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -22,20 +23,18 @@ export const fxRateSourceEnum = pgEnum('fx_rate_source', fxRateSources);
 export const transactionSourceEnum = pgEnum('transaction_source', transactionSources);
 
 /**
+ * `NUMERIC(28, 10)` for every amount and quantity, never `double precision`: a
+ * binary float cannot represent 0.1, and a cost basis is a sum of thousands of
+ * them (ADR 0005). Drizzle's `string` mode is kept deliberately so the value
+ * reaches `core` as a string and becomes a `Decimal` there — no `Number()` is
+ * ever in the path.
+ */
+const amount = <TName extends string>(name: TName) =>
+  numeric(name, { precision: 28, scale: 10, mode: 'string' });
+
+/**
  * The ledger: the system of record, from which positions, valuations and P&L are
  * derived on read and never stored (ADR 0003).
- *
- * **Every amount lives in `encrypted`, not in a column of its own** (ADR 0013).
- * `quantity`, `price`, `gross_amount`, `fee`, `tax`, `fx_rate` and the note are
- * one AES-256-GCM payload, bound by its AAD to this row's id and owner so a
- * ciphertext cannot be replayed onto another row. What remains in the clear is
- * only what the database itself has to act on: who owns the row, which account
- * and instrument it belongs to, when it happened, and whether it is deleted.
- *
- * This costs the `NUMERIC(28, 10)` guarantee that an amount is a number —
- * ciphertext is bytes, and a numeric column will not hold bytes. Validity now
- * rests on the adapter, which parses every amount through `Decimal` before
- * sealing it and re-parses on the way out.
  *
  * `trade_date` and `settle_date` are `date`, not `timestamp`. A trade happens on
  * a calendar day; storing it as an instant is how a trade booked late on the
@@ -50,8 +49,6 @@ export const transactionSourceEnum = pgEnum('transaction_source', transactionSou
 export const transactions = pgTable(
   'transactions',
   {
-    // Supplied by the adapter rather than defaulted here: the AAD binds the
-    // payload to this id, so the id has to exist before the row is encrypted.
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id')
       .notNull()
@@ -66,26 +63,26 @@ export const transactions = pgTable(
     type: transactionTypeEnum('type').notNull(),
     tradeDate: date('trade_date', { mode: 'string' }).notNull(),
     settleDate: date('settle_date', { mode: 'string' }),
-    /**
-     * The transaction currency, which is not necessarily the account's. Left in
-     * the clear because every amount in the payload is denominated in it, and
-     * knowing the currency without the figures reveals nothing worth hiding.
-     */
+    quantity: amount('quantity').notNull(),
+    price: amount('price'),
+    grossAmount: amount('gross_amount'),
+    fee: amount('fee').notNull(),
+    tax: amount('tax').notNull(),
+    /** The transaction currency, which is not necessarily the account's. */
     currency: text('currency').notNull(),
+    fxRate: amount('fx_rate'),
     fxRateSource: fxRateSourceEnum('fx_rate_source'),
-    /** `iv || ciphertext || tag`, base64, version-prefixed. See `src/crypto.ts`. */
-    encrypted: text('encrypted').notNull(),
     source: transactionSourceEnum('source').notNull().default('manual'),
     externalId: text('external_id'),
     // No foreign key: `import_batches` does not exist until Phase 4.
     importBatchId: uuid('import_batch_id'),
     editedAfterImport: boolean('edited_after_import').notNull().default(false),
-    /** Specific-lot selection on a sell; null means the strategy default. Ids,
-     * not amounts, so there is nothing here worth encrypting. */
+    /** Specific-lot selection on a sell; null means the strategy default. */
     matchedLotIds: jsonb('matched_lot_ids').$type<string[]>(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    note: text('note'),
   },
   (table) => [
     // Partial, because `external_id` is null for every manually entered row and

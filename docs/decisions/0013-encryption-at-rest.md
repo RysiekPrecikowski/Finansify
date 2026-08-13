@@ -1,7 +1,20 @@
 # 0013. Application-level encryption, with a staged path to per-user keys
 
-**Status:** Proposed
+**Status:** Proposed — implementation withdrawn 2026-08-13, deferred to Phase 1.5
 **Date:** 2026-08-12
+
+> **Nothing in this ADR is currently implemented.** It was built and then
+> removed before the ledger had a single row, because it added a master key, an
+> environment variable, a key-escrow procedure and a rotation problem to a
+> product that could not yet record a transaction. Dependencies before features
+> is the wrong order, and this is the clearest example of it in the project so
+> far.
+>
+> The analysis below stands and is why the ADR is kept rather than deleted: the
+> envelope design, the AAD binding, the reason amounts cannot stay `NUMERIC`,
+> and the honest limits of what encryption can protect between two
+> administrators. Revisit it in Phase 1.5, when there is an application to
+> protect. See `docs/roadmap.md`.
 
 ## Context
 

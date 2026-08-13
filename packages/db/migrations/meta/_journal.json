@@ -15,6 +15,20 @@
       "when": 1786543142638,
       "tag": "0001_furry_timeslip",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786618023229,
+      "tag": "0002_last_shard",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786618032833,
+      "tag": "0003_real_gorilla_man",
+      "breakpoints": true
     }
   ]
 }
