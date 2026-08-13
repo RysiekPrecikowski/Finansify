@@ -42,7 +42,7 @@ bypass on `.rsc`) found and fixed.
 - [x] `apps/web`: wire the composition root — `container.ts` exports
       `getInstruments()` and `scopedLedgerFor(userId)`
 - [x] `apps/web`: accounts screen — list and create, reached from `/more`
-- [ ] `apps/web`: transaction entry
+- [x] `apps/web`: transaction entry — create, list, edit, soft delete
 - [ ] `apps/web`: positions view
 - [ ] CSV/JSON ledger export
 
