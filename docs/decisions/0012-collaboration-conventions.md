@@ -47,6 +47,21 @@ practice they describe had actually been needed:
    the file is already open. This is what keeps review scoped: a reviewer who
    opened "chart animation" should not have to reason about transaction
    encryption to approve it.
+6. **Nobody writes both an implementation and its tests**, and
+   **`packages/core` is written test-first.** Both exist because of the same
+   observation: an author tests what they meant, not what they wrote. The
+   `decimal.js` precision defect in `matchLots` — arithmetic running at fewer
+   significant digits than the column it was stored in — was found by an agent
+   testing code it had not written, and would not have surfaced otherwise.
+   Test-first works in `core` specifically because its behaviour is specified
+   elsewhere before any code exists (tax treatment, `docs/domain.md`, published
+   bond tables), which makes the test a transcription rather than a guess.
+   Adapters and UI keep the usual order, since their shape is discovered.
+
+Rules 16 and 17 push `/CLAUDE.md` well past the ~100-line budget this ADR
+assumed. That budget exists so the file is read rather than skimmed, and it is
+now worth revisiting whether the working-practice rules should move into their
+own document, leaving `/CLAUDE.md` to the invariants.
 
 Alongside these, `/CLAUDE.md` gained a "Definition of done" section: `pnpm
 check` passing is necessary but not sufficient — the change must actually

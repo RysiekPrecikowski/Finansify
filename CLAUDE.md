@@ -111,6 +111,20 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
     transaction encryption. Prefer several small PRs over one that needs a
     table of contents; the description says what changed and why in a few
     paragraphs, not an essay.
+16. **Nobody writes both an implementation and its tests.** Whoever wrote the
+    code cannot be the one who tests it — hand it to the other teammate or to a
+    separate agent, given the source and the spec but not the author's
+    reasoning. An author tests what they meant; a second reader tests what is
+    there. This is not process for its own sake: it is how the `decimal.js`
+    precision bug in `matchLots` was found, and it would not have been found
+    otherwise.
+17. **`packages/core` is written test-first.** Its behaviour is specified
+    before it exists — FIFO by Polish tax treatment, cost basis by
+    `docs/domain.md`, the bond engine by published interest tables — so the
+    test is a transcription, not a guess. Write the test file, then implement
+    against it; handing that file to an agent as the contract removes anything
+    for it to interpret. Adapters and UI are the other way round: their shape
+    is discovered, so tests follow the code.
 
 ## When you change a boundary
 
@@ -131,7 +145,10 @@ teaches everyone that this file can be ignored.
   actually run the thing that changed.
 - **Money, auth, and migrations get a second look** for data integrity and
   security, not just correctness. Run `/security-review` for anything
-  touching auth, money movement, or user data.
+  touching auth, money movement, or user data — **before the PR is merged, not
+  after**. A review that runs once the code is on `main` finds the same things
+  and fixes them in a second PR, which is how a finding gets deferred instead
+  of fixed.
 - **A large or user-facing change is described in the PR**, even one that
   isn't a boundary change and doesn't need an ADR.
 
