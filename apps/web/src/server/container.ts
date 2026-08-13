@@ -1,4 +1,11 @@
-import { createDbClient, type Database } from '@finansify/db';
+import {
+  createDbClient,
+  instrumentRepository,
+  ledgerRepository,
+  type Database,
+} from '@finansify/db';
+import type { InstrumentRepository, ScopedLedgerRepository, UserId } from '@finansify/core';
+import { cache } from 'react';
 
 /**
  * The composition root: the only place adapters get instantiated. Route
@@ -30,3 +37,17 @@ export function getDb(): Database {
   cached ??= createDbClient(requiredEnv('DATABASE_URL'));
   return cached;
 }
+
+export function getInstruments(): InstrumentRepository {
+  return instrumentRepository(getDb());
+}
+
+/**
+ * Memoized with React's `cache()`, keyed on `userId`: callers pass
+ * `getCurrentUser()`'s id rather than reaching for `ledgerRepository` directly,
+ * so every query in a request goes through the same scoped instance instead of
+ * re-deriving it (rule 4, ADR 0009).
+ */
+export const scopedLedgerFor = cache((userId: UserId): ScopedLedgerRepository => {
+  return ledgerRepository(getDb()).forUser(userId);
+});
