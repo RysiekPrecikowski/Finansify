@@ -10,9 +10,22 @@ adapters and wires them into core use cases. It also owns all UI — there is no
 
 ## Composition
 
-Adapters are instantiated once in `src/server/container.ts`, which exports
-ready-made use cases. Route handlers, server components, and server actions call
-those — they do not construct adapters themselves.
+Adapters are instantiated once in `src/server/container.ts`, which exports them
+ready to use: `getDb()`, `getInstruments()`, and `scopedLedgerFor(userId)`.
+Route handlers, server components, and server actions call those — they never
+construct an adapter themselves.
+
+A **use case is composed at the call site**, from those ports:
+
+```ts
+const openAccount = makeOpenAccount({ ledger: scopedLedgerFor(user.id) });
+```
+
+rather than being exported ready-made from the container. Every user-scoped
+port needs the _request's_ user, so a ready-made export would have to take a
+`userId` anyway (rule 4, ADR 0009) — and this way the reader sees which ports a
+route actually depends on. `scopedLedgerFor` is memoized with React's `cache()`,
+so composing per call costs nothing.
 
 Importing `@finansify/db`, `@finansify/providers`, or `@finansify/importers`
 outside the server layer is a boundary violation. The one exception:

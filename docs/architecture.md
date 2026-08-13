@@ -137,8 +137,21 @@ export function makeValuePortfolio(deps: {
 ```
 
 `apps/web/src/server/container.ts` instantiates the adapters once and exports
-ready-made use cases. Swapping Neon for Turso, or Yahoo for Stooq, is an edit in
-one file plus one package — never a change to a calculation.
+them — `getDb()`, `getInstruments()`, `scopedLedgerFor(userId)`. A route composes
+the use case it needs from those ports:
+
+```ts
+const recordTransaction = makeRecordTransaction({ ledger: scopedLedgerFor(user.id) });
+```
+
+The container stops at the ports rather than exporting ready-made use cases
+because every user-scoped port needs the _request's_ user: a ready-made export
+would still have to take a `userId` (rule 4, ADR 0009), and composing at the
+call site keeps a route's real dependencies visible in the route.
+
+Either way the property that matters holds: swapping Neon for Turso, or Yahoo
+for Stooq, is an edit in one file plus one package — never a change to a
+calculation.
 
 Testing follows for free: `core` is tested against in-memory fakes of the ports.
 No database, no network, fast enough to run on every save.
