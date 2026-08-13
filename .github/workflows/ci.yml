@@ -40,13 +40,28 @@ jobs:
       #
       # `generate` diffs the schema against the migrations already on disk and
       # needs no database connection (see packages/db/drizzle.config.ts).
+      #
+      # Deliberately `pnpm exec` in the package directory rather than
+      # `pnpm --filter @finansify/db db:generate`: a filter that matches nothing
+      # prints "No projects matched the filters" and exits 0, and so does a
+      # script name that no longer exists. Either would leave this step passing
+      # forever, with a clean `git status` precisely because generate never ran.
+      # `pnpm exec` exits non-zero when the binary is gone, so a rename breaks
+      # the check loudly instead of disarming it.
       - name: Schema and migrations must agree
+        working-directory: packages/db
         run: |
-          pnpm --filter @finansify/db db:generate
-          if [ -n "$(git status --porcelain packages/db/migrations)" ]; then
+          pnpm exec drizzle-kit generate
+          if [ -n "$(git status --porcelain migrations)" ]; then
             echo "::error::packages/db/src/schema and packages/db/migrations disagree. Run 'pnpm --filter @finansify/db db:generate' and commit the result."
-            git status --short packages/db/migrations
-            git --no-pager diff -- packages/db/migrations
+            git status --short migrations
+            # A missing migration arrives as an untracked file, which `git diff`
+            # ignores, so the log would name the file without ever showing the
+            # statement. Staging the intent to add puts it in the diff; the
+            # pathspec keeps the 700-line snapshot out of it, and `git status`
+            # above has already reported that the snapshot moved.
+            git add --intent-to-add -- migrations
+            git --no-pager diff -- 'migrations/*.sql'
             exit 1
           fi
 
