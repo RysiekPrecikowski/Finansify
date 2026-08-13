@@ -69,6 +69,25 @@ export const pl = {
       nameAsc: 'Nazwa (A–Z)',
     },
   },
+  accounts: {
+    title: 'Konta',
+    add: 'Dodaj konto',
+    empty: 'Nie masz jeszcze żadnego konta. Dodaj pierwsze, żeby zacząć wprowadzać transakcje.',
+    name: 'Nazwa',
+    broker: 'Broker',
+    wrapper: 'Typ rachunku',
+    currency: 'Waluta',
+    openedAt: 'Data otwarcia',
+    save: 'Zapisz',
+    saving: 'Zapisywanie…',
+    cancel: 'Anuluj',
+    // Field-level validation messages come from `accountInputSchema` and are
+    // English; translating zod is its own change. Only what the UI phrases
+    // itself lives here.
+    errors: {
+      invalid: 'Nie udało się zapisać konta — sprawdź wprowadzone dane.',
+    },
+  },
   wrappers: {
     brokerage: 'Rachunek maklerski',
     ike: 'IKE',

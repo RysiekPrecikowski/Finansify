@@ -41,15 +41,16 @@ bypass on `.rsc`) found and fixed.
       rewrite intact
 - [x] `apps/web`: wire the composition root — `container.ts` exports
       `getInstruments()` and `scopedLedgerFor(userId)`
+- [x] `apps/web`: accounts screen — list and create, reached from `/more`
 - [ ] `apps/web`: transaction entry
 - [ ] `apps/web`: positions view
 - [ ] CSV/JSON ledger export
 
-**Nothing in Phase 1 is reachable from the running app.** `/transactions` and
-`/portfolio` are placeholders, and the dashboard still renders
-`lib/fixtures/portfolio.ts`. The data layer is complete and tested; the
-composition root has never been wired to it. Everything left in Phase 1 is that
-wiring — and it is the only work between here and entering a real transaction.
+**`/accounts` is the only part of Phase 1 reachable from the running app.**
+`/transactions` and `/portfolio` are still placeholders, and the dashboard still
+renders `lib/fixtures/portfolio.ts`. The data layer is complete and tested;
+everything left in Phase 1 is wiring the composition root to it, and it is the
+only work between here and entering a real transaction.
 
 **Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
 ledger held a row**: it added a master key, an environment variable, a
