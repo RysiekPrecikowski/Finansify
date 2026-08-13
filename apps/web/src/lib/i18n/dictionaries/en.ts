@@ -154,6 +154,33 @@ export const en: Dictionary = {
       invalid: 'Could not save the transaction — check the values you entered.',
     },
   },
+  portfolio: {
+    title: 'Portfolio',
+    instrument: 'Instrument',
+    quantity: 'Quantity',
+    averageCost: 'Average cost',
+    costBasis: 'Cost basis',
+    realized: 'Realized P&L',
+    accounts: 'Accounts',
+    multipleCurrencies: 'Multiple currencies',
+    closed: {
+      title: 'Closed positions',
+    },
+    cash: {
+      title: 'Cash',
+      account: 'Account',
+      note: "Balances shown separately per account's own currency — a combined total arrives in Phase 2, together with NBP rates.",
+    },
+    lots: {
+      title: 'Lots',
+      openedOn: 'Opened',
+      originalQuantity: 'Original quantity',
+      remainingQuantity: 'Remaining',
+      originalCost: 'Original cost',
+      remainingCost: 'Remaining cost',
+      back: 'Back to portfolio',
+    },
+  },
   wrappers: {
     brokerage: 'Brokerage account',
     ike: 'IKE',
@@ -161,7 +188,6 @@ export const en: Dictionary = {
     ppk: 'PPK',
   },
   placeholder: {
-    portfolio: 'Positions, accounts and lots arrive in Phase 1, with the ledger.',
     more: 'Settings, statement imports and reports.',
   },
   mock: {

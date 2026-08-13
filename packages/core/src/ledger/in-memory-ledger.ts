@@ -3,13 +3,21 @@ import Decimal from 'decimal.js';
 import { Money, currency } from '../money';
 import { type UserId } from '../ports/session';
 import { Temporal } from '../time';
-import { type LedgerRepository, type ScopedLedgerRepository } from './ports';
+import {
+  type InstrumentInput,
+  type InstrumentRepository,
+  type LedgerRepository,
+  type ScopedLedgerRepository,
+} from './ports';
 import {
   accountId,
+  instrumentId,
   portfolioId,
   transactionId,
   type Account,
   type AccountInput,
+  type Instrument,
+  type InstrumentId,
   type Portfolio,
   type Transaction,
   type TransactionId,
@@ -123,6 +131,49 @@ export class InMemoryLedger implements LedgerRepository {
         return Promise.resolve();
       },
     };
+  }
+}
+
+/**
+ * Minimal fake of the real `packages/db` adapter's dedup rule: one row per
+ * `(symbol, exchange)`, where a `null` exchange is its own bucket rather than
+ * a wildcard — mirrors `eqOrNull` in `packages/db/src/ledger-repository.ts`.
+ *
+ * A test double, not production code — same rationale as `InMemoryLedger`
+ * above. Shared by every `usecases` test that needs instruments rather than
+ * copied into each one (rule 13).
+ */
+export class InMemoryInstruments implements InstrumentRepository {
+  private readonly rows: Instrument[] = [];
+  private sequence = 0;
+
+  private nextId(): InstrumentId {
+    this.sequence += 1;
+    return instrumentId(`00000000-0000-4000-9000-${String(this.sequence).padStart(12, '0')}`);
+  }
+
+  findOrCreate(input: InstrumentInput): Promise<Instrument> {
+    const exchange = input.exchange ?? null;
+    const existing = this.rows.find(
+      (row) => row.symbol === input.symbol && row.exchange === exchange,
+    );
+    if (existing !== undefined) return Promise.resolve(existing);
+
+    const instrument: Instrument = {
+      id: this.nextId(),
+      kind: input.kind,
+      isin: input.isin ?? null,
+      symbol: input.symbol,
+      exchange,
+      currency: input.currency,
+      name: input.name,
+    };
+    this.rows.push(instrument);
+    return Promise.resolve(instrument);
+  }
+
+  listAll(): Promise<readonly Instrument[]> {
+    return Promise.resolve([...this.rows]);
   }
 }
 

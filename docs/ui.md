@@ -78,8 +78,11 @@ Top to bottom:
 5. **Income** — stacked monthly bars of dividends and interest with a
    year-over-year overlay.
 6. **Holdings table** — instrument, quantity, average cost, price, value, P&L in
-   absolute and percent terms, portfolio weight, currency. Rows expand to show
-   the individual lots.
+   absolute and percent terms, portfolio weight, currency. A row links to the
+   same per-instrument lot detail as the portfolio screen below — no in-place
+   expansion; `<DataList>` is a server component with no expansion state to
+   hook into. Reconsidered if there is ever a reason a lot needs to be visible
+   without a navigation.
 
 Above the headline sits a row of **asset-class filter chips**; the sort order of
 the holdings list is a dropdown of links. Both, and the chart range, are URL
@@ -168,6 +171,39 @@ Three rules the screen exists to respect:
 
 Nothing on this screen is green or red — a transaction is neither a gain nor a
 loss.
+
+## The portfolio screen
+
+`/portfolio` and `/portfolio/[instrumentId]`, both server components built on
+`makeListPositions({ ledger, instruments })` (`packages/core/src/usecases/list-positions.ts`)
+— the read model that folds `buildPositions`/`buildCashBalances` and joins in
+the `Instrument` and `Account` rows, so the page itself does no aggregation.
+
+There is no price feed before Phase 2, so this screen never shows market value,
+unrealized P&L, or portfolio weight. What it shows instead, all derived from
+the ledger alone:
+
+- **Open positions** — one row per instrument, summing quantity and cost basis
+  across every account that holds it. Realized P&L is the one figure here that
+  is green or red; cost basis never is, because it is not a gain or a loss.
+- **Closed positions** — an instrument whose summed quantity across accounts has
+  returned to exactly zero, with only its realized P&L still worth showing.
+- **Cash** — per `(account, currency)`, exactly what `buildCashBalances`
+  produces, with a note explaining why there is no combined total yet.
+
+**Cross-currency is refused, not converted.** When the same instrument is held
+in accounts of different currencies, quantity still sums (same units), but cost
+basis and realized P&L render one `Money` per currency rather than a blended
+figure — inventing an exchange rate here is exactly what rule 6/7 forbid before
+Phase 2's FX feed exists. `averageCost` is `null` whenever more than one
+currency contributes, and the row shows a "multiple currencies" badge instead
+of a number that would otherwise look precise and be wrong.
+
+A row links to `/portfolio/[instrumentId]`, which re-runs the same read model
+and renders the position's open lots per account (opened date, original and
+remaining quantity, original and remaining cost) — the FIFO/LIFO/average/
+specific-lot detail `matchLots` actually produces, and the most interesting
+part of Phase 1 to have invisible.
 
 ## Mobile
 
