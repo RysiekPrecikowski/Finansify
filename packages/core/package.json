@@ -5,7 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./vocabulary": "./src/ledger/vocabulary.ts"
+    "./vocabulary": "./src/vocabulary.ts"
   },
   "scripts": {
     "transit": "exit 0",
