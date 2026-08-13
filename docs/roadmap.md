@@ -22,10 +22,10 @@ lot matching to be correct on their own, with nothing to hide behind.
 
 **Phase 0 — complete.** Docs and ADRs 0001–0012, `core` and `db` packages, the
 money and time primitives, app shell and dashboard on fixture data, `users`
-behind the provider indirection, the CI migration job, Neon and Clerk
-provisioned, and the first migration applied to a real database. Two HIGH
-findings from `/security-review` (a CI pwn-request, an auth bypass on `.rsc`)
-found and fixed.
+behind the provider indirection, the CI migration job and its migration-drift
+check, Neon and Clerk provisioned, and the first migration applied to a real
+database. Two HIGH findings from `/security-review` (a CI pwn-request, an auth
+bypass on `.rsc`) found and fixed.
 
 **Phase 1 — in progress.**
 
@@ -182,9 +182,6 @@ per-PR database branch ADR 0008 leans on is _not wired_. Today that is
 harmless — the ledger tables are empty and every migration so far has been a
 clean `CREATE`. The first `ALTER` against real rows is the one that will hurt,
 and there is no rehearsal step between writing it and production.
-
-**No migration-drift check.** A schema edit that never got a migration passes
-CI and diverges silently. `deployment.md` already names this as "to add".
 
 **No down-migrations.** `drizzle-kit` applies forward only. Recovery from a bad
 migration is a restore, which makes the off-provider backup above load-bearing

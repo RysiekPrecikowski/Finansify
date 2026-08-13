@@ -1,20 +1,23 @@
 import { AccountTiles } from '@/components/dashboard/account-tiles';
 import { AssetClassChips } from '@/components/dashboard/asset-class-chips';
+import { ChartCard } from '@/components/dashboard/chart-card';
 import { HoldingsList } from '@/components/dashboard/holdings-list';
 import { PortfolioHeadline } from '@/components/dashboard/portfolio-headline';
-import { RangeTabs } from '@/components/dashboard/range-tabs';
 import { SortMenu, type SortOption } from '@/components/dashboard/sort-menu';
-import { ValueChart } from '@/components/dashboard/value-chart';
-import { dashboardHref, parseDashboardParams } from '@/lib/dashboard-params';
+import { chartPointCount, resample, type ChartSeries } from '@/lib/chart-series';
+import { parseDashboardParams } from '@/lib/dashboard-params';
 import { directionOf, formatMoney } from '@/lib/format';
 import { getLocale } from '@/lib/i18n/server';
+import { type Locale } from '@/lib/i18n/locales';
 import { dictionaryFor } from '@/lib/i18n/dictionaries';
 import {
   demoPortfolio,
   filterByAssetClass,
+  ranges,
   sortHoldings,
   sortOrders,
   type AssetClass,
+  type Range,
   type ValuePoint,
 } from '@/lib/fixtures/portfolio';
 import { type Money } from '@finansify/core';
@@ -29,6 +32,47 @@ function extremes(points: readonly ValuePoint[]): { high: Money; low: Money } {
   );
 }
 
+/**
+ * `Object.fromEntries` widens to a string index signature, and the six ranges
+ * are exactly known — the assertion restores what the input already guarantees.
+ */
+function byRange<T>(build: (range: Range) => T): Record<Range, T> {
+  return Object.fromEntries(ranges.map((range) => [range, build(range)])) as Record<Range, T>;
+}
+
+/**
+ * Every range is prepared on the server so the client can switch between them
+ * without a round trip. `Money` and `Intl` stay on this side: the client
+ * receives finished strings and pixel geometry, never a currency value.
+ *
+ * The high and low labels come from the **true** series, not the resampled one
+ * — resampling is for the tween's benefit and must not reach a figure the user
+ * reads.
+ */
+function chartSeriesFor(
+  points: readonly ValuePoint[],
+  rangeLabel: string,
+  valueLabel: string,
+  locale: Locale,
+): ChartSeries {
+  const { high, low } = extremes(points);
+  const first = points[0]!.value;
+  const last = points[points.length - 1]!.value;
+
+  return {
+    // Money becomes plain numbers only here, and only for pixel geometry —
+    // every figure the user reads is formatted from `Money` above.
+    points: resample(
+      points.map((point) => point.value.amount.toNumber()),
+      chartPointCount,
+    ),
+    direction: directionOf(last.minus(first)),
+    highLabel: formatMoney(high, locale, { bare: true }),
+    lowLabel: formatMoney(low, locale, { bare: true }),
+    label: `${valueLabel} — ${rangeLabel}`,
+  };
+}
+
 export default async function DashboardPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
@@ -37,11 +81,15 @@ export default async function DashboardPage({
   const params = parseDashboardParams(raw);
 
   const snapshot = demoPortfolio;
-  const series = snapshot.series[params.range];
-  const { high, low } = extremes(series);
-  const first = series[0]!.value;
-  const last = series[series.length - 1]!.value;
 
+  const chartSeries = byRange((range) =>
+    chartSeriesFor(
+      snapshot.series[range],
+      dictionary.dashboard.ranges[range],
+      dictionary.dashboard.totalValue,
+      locale,
+    ),
+  );
   const present: readonly AssetClass[] = [
     ...new Set(snapshot.holdings.map((holding) => holding.assetClass)),
   ];
@@ -51,10 +99,11 @@ export default async function DashboardPage({
     params.sort,
   );
 
+  // Labels only: each option's href is built on the client from the live params,
+  // so it keeps a range switched to since this render (`lib/use-dashboard-params`).
   const sortOptions: readonly SortOption[] = sortOrders.map((order) => ({
     order,
     label: dictionary.dashboard.sort[order],
-    href: dashboardHref(params, { sort: order }),
   }));
 
   return (
@@ -64,22 +113,15 @@ export default async function DashboardPage({
         <p className="text-muted-foreground text-xs">{dictionary.mock.banner}</p>
       </div>
 
-      <AssetClassChips params={params} present={present} dictionary={dictionary} />
+      <AssetClassChips present={present} dictionary={dictionary} />
 
       <PortfolioHeadline snapshot={snapshot} locale={locale} dictionary={dictionary} />
 
-      <div className="flex flex-col gap-2">
-        {/* Money becomes plain numbers only here, and only for pixel geometry —
-            every figure the user reads is formatted from `Money`. */}
-        <ValueChart
-          points={series.map((point) => point.value.amount.toNumber())}
-          direction={directionOf(last.minus(first))}
-          highLabel={formatMoney(high, locale, { bare: true })}
-          lowLabel={formatMoney(low, locale, { bare: true })}
-          label={`${dictionary.dashboard.totalValue} — ${dictionary.dashboard.ranges[params.range]}`}
-        />
-        <RangeTabs params={params} dictionary={dictionary} />
-      </div>
+      <ChartCard
+        series={chartSeries}
+        rangeLabels={dictionary.dashboard.ranges}
+        navLabel={dictionary.dashboard.chartRange}
+      />
 
       <AccountTiles accounts={snapshot.accounts} locale={locale} dictionary={dictionary} />
 

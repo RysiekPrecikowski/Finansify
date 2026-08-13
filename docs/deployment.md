@@ -65,13 +65,18 @@ migrations.
 One workflow, `ci.yml`, on push to main and on every PR:
 
 - **`check`** — install with a frozen lockfile, then `pnpm check` (build, lint,
-  typecheck, test, format, cached via Turbo). Runs for both events.
+  typecheck, test, format, cached via Turbo), then the **migration-drift check**:
+  `drizzle-kit generate` must produce nothing, or `src/schema` and `migrations/`
+  have diverged and the divergence would reach production as a table that does
+  not match the code reading it. Runs for both events, and needs no database —
+  `generate` diffs the schema against the migrations already on disk.
 - **`migrate`** — `needs: check`, and only on `push` to `main`. See Migrations
   above.
 
-To add: a **migration-drift check** that fails if the schema and the generated
-migrations disagree. Without it, a schema edit that never got a migration
-generated passes CI and breaks on deploy.
+The drift check is deliberately not part of `pnpm check`: that command runs
+before every commit and must not write files. A locally green `pnpm check`
+therefore no longer implies green CI — run `pnpm --filter @finansify/db
+db:generate` after any schema edit, which the `db-migration` skill already does.
 
 Vercel's own Git integration handles deployment; CI does not deploy.
 
