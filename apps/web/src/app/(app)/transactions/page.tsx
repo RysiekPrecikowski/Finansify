@@ -156,6 +156,10 @@ export default async function TransactionsPage() {
         rows={newestFirst}
         columns={columns}
         rowKey={(transaction) => transaction.id}
+        // The edit column below is desktop-only — it claims no mobile slot,
+        // and all four are spoken for by the row's data. Without this the
+        // phone layout has no way to open a transaction at all.
+        rowHref={(transaction) => `/transactions/${transaction.id}/edit` as Route}
         empty={empty}
       />
     </div>

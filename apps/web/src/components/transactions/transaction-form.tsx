@@ -183,7 +183,13 @@ export function TransactionForm({
       <input
         type="hidden"
         name="instrumentMode"
-        value={creatingInstrument ? NEW_INSTRUMENT : 'existing'}
+        // Only when this type actually takes an instrument. A gross-shaped row
+        // hides the instrument fields entirely, so leaving this at `new` would
+        // make the action try to resolve an instrument from inputs that were
+        // never rendered — and attach the resulting errors to fields nobody can
+        // see. On a database with no instruments yet that is the *default*
+        // state, which makes a first deposit fail with nothing on screen.
+        value={shape.instrument === 'required' && creatingInstrument ? NEW_INSTRUMENT : 'existing'}
       />
 
       <Field name="type" label={strings.type} errors={state.fieldErrors.type}>
