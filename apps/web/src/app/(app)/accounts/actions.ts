@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { getCurrentUser } from '@/lib/auth';
-import { byField, type FormState } from '@/lib/form-state';
+import { byField, submittedValues, type FormState } from '@/lib/form-state';
 import { getDictionary } from '@/lib/i18n/server';
 import { scopedLedgerFor } from '@/server/container';
 
@@ -42,13 +42,22 @@ export async function createAccountAction(
 
   if (!result.ok) {
     const fieldErrors = byField(result.issues);
+    // Echoed back so the rejected form re-renders with what was typed: React
+    // resets an uncontrolled input when the action re-renders, and one bad
+    // field would otherwise empty every good one.
+    const values = submittedValues(formData);
     // `byField` drops issues that belong to no field. If that leaves nothing,
     // the form would render as though the submit had silently done nothing, so
     // the failure gets said out loud instead.
-    if (Object.keys(fieldErrors).length > 0) return { status: 'error', fieldErrors };
+    if (Object.keys(fieldErrors).length > 0) return { status: 'error', fieldErrors, values };
 
     const dictionary = await getDictionary();
-    return { status: 'error', fieldErrors, formError: dictionary.accounts.errors.invalid };
+    return {
+      status: 'error',
+      fieldErrors,
+      values,
+      formError: dictionary.accounts.errors.invalid,
+    };
   }
 
   revalidatePath('/accounts');

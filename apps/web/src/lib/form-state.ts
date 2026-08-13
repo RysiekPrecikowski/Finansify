@@ -13,11 +13,39 @@ export interface FormState {
   readonly status: 'idle' | 'error';
   /** Keyed by field name, matching the `name` attributes of the inputs. */
   readonly fieldErrors: Readonly<Record<string, readonly string[]>>;
+  /**
+   * What was submitted, echoed back so a rejected form can re-render with the
+   * user's own values still in it.
+   *
+   * React resets an uncontrolled input when the action re-renders the form, so
+   * without this a single validation error empties every other field — fill in
+   * a transaction, mistype the rate, and lose the lot. The form reads these in
+   * preference to its initial values.
+   */
+  readonly values: Readonly<Record<string, string>>;
   /** For a failure that belongs to no single field. */
   readonly formError?: string;
 }
 
-export const idleFormState: FormState = { status: 'idle', fieldErrors: {} };
+export const idleFormState: FormState = { status: 'idle', fieldErrors: {}, values: {} };
+
+/**
+ * The submitted values, as strings, for echoing back on a rejected submit.
+ *
+ * `File` entries are dropped rather than coerced: they are not something a text
+ * input can be re-populated from, and `String(file)` would put "[object File]"
+ * in the box. Nothing on these forms is a secret — if a password ever reaches
+ * one, it must be excluded here before this is reused.
+ */
+export function submittedValues(formData: FormData): Readonly<Record<string, string>> {
+  const values: Record<string, string> = {};
+
+  for (const [name, value] of formData.entries()) {
+    if (typeof value === 'string') values[name] = value;
+  }
+
+  return values;
+}
 
 /**
  * Folds `FieldIssue[]` into the record a form renders against.

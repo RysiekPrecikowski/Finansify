@@ -66,6 +66,11 @@ export function AccountForm({ today }: Readonly<{ today: string }>) {
   const strings = dictionary.accounts;
   const [state, formAction, isPending] = useActionState(createAccountAction, idleFormState);
 
+  // React resets an uncontrolled input when the action re-renders the form, so
+  // a rejected submit would otherwise clear every field the user got right.
+  // The action echoes what was submitted; prefer it over the initial value.
+  const submitted = (field: string, fallback = '') => state.values[field] ?? fallback;
+
   // `undefined` rather than `false`: React drops the attribute entirely, so a
   // valid field carries no `aria-invalid="false"` noise.
   const invalid = (field: string) => (state.fieldErrors[field] === undefined ? undefined : true);
@@ -86,6 +91,7 @@ export function AccountForm({ today }: Readonly<{ today: string }>) {
           name="name"
           type="text"
           autoComplete="off"
+          defaultValue={submitted('name')}
           aria-invalid={invalid('name')}
           aria-describedby={describedBy('name')}
         />
@@ -97,13 +103,18 @@ export function AccountForm({ today }: Readonly<{ today: string }>) {
           name="broker"
           type="text"
           autoComplete="off"
+          defaultValue={submitted('broker')}
           aria-invalid={invalid('broker')}
           aria-describedby={describedBy('broker')}
         />
       </Field>
 
       <Field name="wrapper" label={strings.wrapper} errors={state.fieldErrors.wrapper}>
-        <Select name="wrapper" defaultValue={wrappers[0]} items={wrapperItems}>
+        <Select
+          name="wrapper"
+          defaultValue={submitted('wrapper', wrappers[0])}
+          items={wrapperItems}
+        >
           <SelectTrigger
             id="wrapper"
             className="w-full"
@@ -123,7 +134,11 @@ export function AccountForm({ today }: Readonly<{ today: string }>) {
       </Field>
 
       <Field name="currency" label={strings.currency} errors={state.fieldErrors.currency}>
-        <Select name="currency" defaultValue={currencies[0]} items={currencyItems}>
+        <Select
+          name="currency"
+          defaultValue={submitted('currency', currencies[0])}
+          items={currencyItems}
+        >
           <SelectTrigger
             id="currency"
             className="w-full"
@@ -149,7 +164,7 @@ export function AccountForm({ today }: Readonly<{ today: string }>) {
           id="openedAt"
           name="openedAt"
           type="date"
-          defaultValue={today}
+          defaultValue={submitted('openedAt', today)}
           aria-invalid={invalid('openedAt')}
           aria-describedby={describedBy('openedAt')}
         />
