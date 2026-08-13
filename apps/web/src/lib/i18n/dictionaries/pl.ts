@@ -178,13 +178,20 @@ export const pl = {
     // rozłożona na konta w różnych walutach — nie ma jednego kursu, którym
     // można by je zsumować przed Fazą 2.
     multipleCurrencies: 'Kilka walut',
+    marketValue: 'Wartość rynkowa',
+    unrealized: 'Niezrealizowany zysk/strata',
+    totalValue: 'Wartość portfela',
+    totalValueNote:
+      'Tylko otwarte pozycje, przeliczone na PLN po ostatnim kursie NBP. Gotówka nie jest jeszcze wliczona.',
+    unavailableNeverFetched: 'cena się ładuje…',
+    unavailableUnmapped: 'jeszcze niezmapowane do dostawcy',
     closed: {
       title: 'Zamknięte pozycje',
     },
     cash: {
       title: 'Gotówka',
       account: 'Konto',
-      note: 'Salda pokazane osobno w walucie każdego konta — wspólna suma pojawi się w Fazie 2 razem z kursami NBP.',
+      note: 'Salda pokazane osobno w walucie każdego konta — gotówka nie jest jeszcze wliczona do sumy powyżej.',
     },
     lots: {
       title: 'Loty',
