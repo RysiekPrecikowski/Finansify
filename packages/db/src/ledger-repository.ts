@@ -346,4 +346,3 @@ export function instrumentRepository(db: Database): InstrumentRepository {
 function eqOrNull(exchange: string | null) {
   return exchange === null ? isNull(instruments.exchange) : eq(instruments.exchange, exchange);
 }
-
