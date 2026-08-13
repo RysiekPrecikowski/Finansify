@@ -7,7 +7,7 @@ package boundaries while there is still little code to move.
 | -------------------- | --------------------------------------------------------------------------------------- |
 | **0 — Foundations**  | Docs and ADRs · packages and ports · `Money`/`Currency`/Temporal · auth · database · CI |
 | **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices. |
-| **1.5 — Unlock**     | Encryption Stage 2: ledger passphrase, per-user key, the boundary between the two of us |
+| **1.5 — Encryption** | Encryption at rest, once there is an application to protect. See ADR 0013.              |
 | **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo and Stooq · shared cache · dashboard on real data   |
 | **3 — Polish bonds** | `BondTermsResolver` · family rules · accrual engine with golden tests · projections     |
 | **4 — Imports**      | Blob upload · staging and review UI · XTB and Boś parsers · CSV mapper · dedup          |
@@ -33,26 +33,56 @@ bypass on `.rsc`) found and fixed.
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
 - [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
 - [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
-- [x] `db`: AES-256-GCM row payloads, per-user data key, `crypto.ts` + tests
-- [ ] **Wire the master key.** `LEDGER_MASTER_KEY` is read nowhere: it is
-      absent from `.env.example` and from `server/container.ts`, and
-      `masterKeyFrom` has no caller but its own test. The repository factory is
-      therefore unreachable — the encryption is written and tested, but no code
-      path can use it yet.
-- [ ] `apps/web`: transaction entry, positions view
+- [x] `/security-review` over the ledger and the encryption removal — no HIGH or
+      MEDIUM findings; the per-user scoping ADR 0009 depends on survived the
+      rewrite intact
+- [ ] `apps/web`: wire the composition root, transaction entry, positions view
 - [ ] CSV/JSON ledger export
-- [ ] `/security-review` over the whole surface — **not yet run** on the ledger
 
-Nothing in Phase 1 is reachable from the running app: `/transactions` and
-`/portfolio` are still placeholders. The data layer is complete and tested; the
-composition root has not been wired to it.
+**Nothing in Phase 1 is reachable from the running app.** `/transactions` and
+`/portfolio` are placeholders, and the dashboard still renders
+`lib/fixtures/portfolio.ts`. The data layer is complete and tested; the
+composition root has never been wired to it. Everything left in Phase 1 is that
+wiring — and it is the only work between here and entering a real transaction.
 
-**Phase 1.5 — encryption Stage 2.** Ledger passphrase, browser-side key
-derivation, per-user unlock. This is what actually separates the two users;
-Phase 1 does not. See Data protection below.
+**Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
+ledger held a row**: it added a master key, an environment variable, a
+key-escrow procedure and a rotation problem to a product that could not yet
+record a transaction. Dependencies before features is the wrong order, and this
+is the clearest example of it in the project so far.
+
+ADR 0013's analysis is kept in full — the envelope design, the AAD binding, why
+amounts cannot stay `NUMERIC`, and the honest limit that no web application
+protects one administrator from another. Revisit when there is an application
+to protect.
 
 Tick a box in the same change that finishes the work. An unticked box for
 shipped work is how this section stops being trusted.
+
+### What Phase 1 added, and what it took back out
+
+Worth recording once, because the shape of it is the lesson rather than the
+detail.
+
+**Added and kept:** the ledger vocabulary and `LedgerRepository` port; the
+position engine (`buildPositions`, `matchLots` across FIFO/LIFO/average/
+specific, `buildCashBalances`) with property tests for the two invariants this
+document names; four tables and their migrations; a user-scoped persistence
+adapter; a migration-drift check in CI. A `decimal.js` precision defect —
+arithmetic running at fewer significant digits than the column storing it —
+found by property testing and fixed.
+
+**Added and then removed:** application-level encryption. AES-256-GCM row
+payloads, a per-user data key, an env-held master key, key escrow, and a
+rotation problem. None of it was ever wired to a code path, so nothing was
+lost — but it consumed most of a phase that had not yet shipped a screen.
+
+**The rule that came out of it:** features before dependencies. A security
+control that protects data the product cannot yet store is not protection, it
+is scope. The analysis keeps, the implementation waits.
+
+Phase 2 onward is features. The next thing that ships is a form that writes a
+transaction.
 
 ## What the upcoming phases contain
 
@@ -117,37 +147,33 @@ not yet.
 **In transit and at rest, by the provider.** TLS everywhere; Neon encrypts
 storage. Already true, nothing to build.
 
-**Private amounts encrypted by the application — Stage 1, in Phase 1.** The
-amounts and the note move into one encrypted payload per row, so a leaked dump
-or the provider itself reveals nothing. Each user has their own data key,
-wrapped by a master key held in the environment. Viable here only because ADR
-0003 already folds the whole transaction list in memory — Postgres never sums
-or sorts an amount. See ADR 0013.
+**Application-level encryption — built, then withdrawn. Phase 1.5.** Amounts
+are plain `NUMERIC(28, 10)` columns today. `/security-review` over the removal
+found no HIGH or MEDIUM issues: nothing was ever wired, so no data became
+unreadable and no key was orphaned, and the per-user query scoping ADR 0009
+depends on came through the rewrite intact. The encrypted-payload design was
+implemented during Phase 1 and removed before the ledger held a single row: it
+added a master key, an environment variable, a key-escrow procedure and a
+rotation problem to a product that could not yet record a transaction.
+Dependencies before features is the wrong order.
 
-Consequences accepted there: `NUMERIC(28,10)` stops guaranteeing an amount is a
-number (the second backstop given up below the application, after ADR 0009
-declined RLS), and losing a key loses the data it protects.
+ADR 0013 is kept in full rather than deleted. Its analysis holds — the envelope
+that makes re-keying cheap, the AAD binding that stops a ciphertext being
+replayed onto another row, why ciphertext cannot live in a `NUMERIC` column,
+and the limit that no web application protects one administrator from another.
+Pick it up when there is an application worth protecting.
 
-**Separating the two users from each other — Stage 2, not yet built.**
+What that means in the meantime, stated plainly so nobody assumes otherwise:
+**a database dump reveals every amount.** Provider-level encryption and TLS
+still apply, so this is a question of who can read the database, not of traffic
+on the wire.
 
-> Stage 1 protects the ledger from the database, its dumps, its backups and the
-> provider. It does **not** stop either administrator reading the other's
-> ledger, because the master key lives in the shared environment. That is a
-> recorded deferral, not an oversight.
-
-Stage 2 replaces the master key with one derived from each user's own **ledger
-passphrase**, stretched in the browser so the passphrase never reaches the
-server, unwrapping that user's data key into their session only. Because the
-data layer is already final, this **re-wraps two keys and re-encrypts nothing**
-— the whole reason ADR 0013 uses an envelope.
-
-Its honest limit, worth knowing before it is built: no web application can
-protect a user from a co-administrator who deliberately ships malicious code.
-If a boundary without that caveat is ever required, the answer is two separate
-deployments, not a different cipher.
-
-Needs: a passphrase-setup screen, an unlock step, key-in-session handling, and
-a recovery code held in both password managers.
+One thing worth knowing before that work restarts: `instrument_id` and the
+global `instruments` table were never going to be encrypted, because positions
+cannot be built without filtering on them. So even the withdrawn design leaked
+_which_ instruments a user holds and how often they trade — only the amounts
+were hidden. If hiding portfolio composition is also a goal, that is a
+different design and a separate decision.
 
 **Backups — the known gap.** Neon's PITR and branching cover an accidental bad
 write, and that is all they cover: the copy shares an account, a provider and a

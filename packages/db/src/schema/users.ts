@@ -13,13 +13,6 @@ export const users = pgTable(
     authProvider: text('auth_provider').notNull(),
     authSubject: text('auth_subject').notNull(),
     email: text('email').notNull(),
-    /**
-     * This user's data key, wrapped by the master key and bound to their id
-     * (ADR 0013). Nullable because it is generated lazily on first ledger
-     * access, like the row itself — a user who has never opened the ledger has
-     * nothing to encrypt. The key material is never stored unwrapped.
-     */
-    wrappedDataKey: text('wrapped_data_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

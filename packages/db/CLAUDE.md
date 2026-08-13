@@ -12,13 +12,9 @@ for the boundary and `docs/decisions/0008-database-engine.md` for why Neon.
 - **Every user-scoped domain query is exposed through a repository bound to a
   user id at construction** — `repository.forUser(userId)`, never a free
   function that takes `userId` as a plain parameter (rule 4, root CLAUDE.md;
-  ADR 0009). `users.ts` has two exceptions: the identity lookup, which
-  necessarily takes the auth-provider identity rather than a `userId`, since
-  that is how a `userId` gets discovered in the first place; and
-  `ensureDataKey`, called only from inside `ledger-repository.ts`'s
-  `scopedTo` with the `userId` `forUser` already captured, to resolve the
-  encryption key a scoped repository needs before it can serve its first
-  query (ADR 0013).
+  ADR 0009). `users.ts` is the one exception: the identity lookup necessarily
+  takes the auth-provider identity rather than a `userId`, since that is how a
+  `userId` gets discovered in the first place.
 - Schema lives in `src/schema/`, one file per table or tight cluster of tables.
   `src/client.ts` builds the Drizzle instance from a connection string; nothing
   in this package reads `process.env` directly — the caller (`apps/web`'s

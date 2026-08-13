@@ -17,19 +17,21 @@ constraint six months from now.
 
 ## Index
 
-| #    | Title                                                | Status   |
-| ---- | ---------------------------------------------------- | -------- |
-| 0001 | Hexagonal architecture with four packages            | Accepted |
-| 0002 | Boundaries enforced by convention, not tooling       | Accepted |
-| 0003 | Ledger-first, everything derived on read             | Accepted |
-| 0004 | Mutable ledger with soft delete, not event sourcing  | Accepted |
-| 0005 | Exact-decimal money                                  | Accepted |
-| 0006 | Four currencies, and the executed FX rate is stored  | Accepted |
-| 0007 | Temporal for internal time handling                  | Accepted |
-| 0008 | Database engine                                      | Accepted |
-| 0009 | Auth behind a port, with our own user identity       | Accepted |
-| 0010 | Market data shared globally, portfolio data isolated | Accepted |
-| 0011 | Bond terms resolved on first use                     | Accepted |
+| #    | Title                                                   | Status                           |
+| ---- | ------------------------------------------------------- | -------------------------------- |
+| 0001 | Hexagonal architecture with four packages               | Accepted                         |
+| 0002 | Boundaries enforced by convention, not tooling          | Accepted                         |
+| 0003 | Ledger-first, everything derived on read                | Accepted                         |
+| 0004 | Mutable ledger with soft delete, not event sourcing     | Accepted                         |
+| 0005 | Exact-decimal money                                     | Accepted                         |
+| 0006 | Four currencies, and the executed FX rate is stored     | Accepted                         |
+| 0007 | Temporal for internal time handling                     | Accepted                         |
+| 0008 | Database engine                                         | Accepted                         |
+| 0009 | Auth behind a port, with our own user identity          | Accepted                         |
+| 0010 | Market data shared globally, portfolio data isolated    | Accepted                         |
+| 0011 | Bond terms resolved on first use                        | Accepted                         |
+| 0012 | Repository language, branch protection, file minimalism | Accepted                         |
+| 0013 | Application-level encryption at rest                    | Withdrawn, deferred to Phase 1.5 |
 
 ## Template
 
