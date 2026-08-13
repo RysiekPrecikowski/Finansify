@@ -82,7 +82,7 @@ function toInstrument(row: InstrumentRow): Instrument {
  * The encrypted half of a transaction row (ADR 0013). Every numeric field is a
  * **canonical `Decimal` string** — see `canonical`.
  */
-interface TransactionPayload {
+export interface TransactionPayload {
   readonly quantity: string;
   readonly price: string | null;
   readonly grossAmount: string | null;
@@ -102,11 +102,11 @@ interface TransactionPayload {
  * contain a string `Decimal` itself produced. The column would have accepted
  * `1e5` and quietly stored `100000`; this stores exactly one agreed form.
  */
-function canonical(value: string): string {
+export function canonical(value: string): string {
   return new Decimal(value).toFixed();
 }
 
-function canonicalOrNull(value: string | null): string | null {
+export function canonicalOrNull(value: string | null): string | null {
   return value === null ? null : canonical(value);
 }
 
@@ -116,20 +116,29 @@ function canonicalOrNull(value: string | null): string | null {
  * casting it would only defer the failure to some later `Decimal` call with no
  * idea which row it came from.
  */
-function decodePayload(value: unknown, rowId: string): TransactionPayload {
+export function decodePayload(value: unknown, rowId: string): TransactionPayload {
   if (typeof value !== 'object' || value === null) {
     throw new Error(`Transaction ${rowId} decrypted to ${typeof value}, expected an object`);
   }
   const raw = value as Record<string, unknown>;
+
+  // Wraps `canonical`'s own error rather than letting it propagate bare: a raw
+  // `DecimalError` says which value was bad but not which row it came from,
+  // and the row id is the one thing a caller actually needs to act on this.
+  const decimal = (field: keyof TransactionPayload, candidate: string): string => {
+    try {
+      return canonical(candidate);
+    } catch (cause) {
+      throw new Error(`Transaction ${rowId} payload has an unparseable "${field}"`, { cause });
+    }
+  };
 
   const required = (field: keyof TransactionPayload): string => {
     const candidate = raw[field];
     if (typeof candidate !== 'string') {
       throw new Error(`Transaction ${rowId} payload is missing "${field}"`);
     }
-    // Throws on anything `Decimal` cannot read, which is the read-side half of
-    // the guarantee `canonical` makes on write.
-    return canonical(candidate);
+    return decimal(field, candidate);
   };
 
   const optional = (field: keyof TransactionPayload): string | null => {
@@ -138,7 +147,7 @@ function decodePayload(value: unknown, rowId: string): TransactionPayload {
     if (typeof candidate !== 'string') {
       throw new Error(`Transaction ${rowId} payload has a non-string "${field}"`);
     }
-    return canonical(candidate);
+    return decimal(field, candidate);
   };
 
   return {

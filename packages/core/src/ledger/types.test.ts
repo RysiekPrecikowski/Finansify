@@ -1,0 +1,154 @@
+import Decimal from 'decimal.js';
+import { describe, expect, it } from 'vitest';
+
+import { currency, Money } from '../money';
+import { Temporal } from '../time';
+import {
+  accountId,
+  costBasisOf,
+  grossValueOf,
+  instrumentId,
+  netProceedsOf,
+  transactionId,
+  transactionInputSchemaFor,
+  type Transaction,
+} from './types';
+
+const PLN = currency('PLN');
+const USD = currency('USD');
+
+function moneyOf(amount: string, ccy = PLN) {
+  return Money.of(amount, ccy);
+}
+
+// A minimal, fully-specified transaction so each test only overrides what it's
+// actually exercising — a partial builder here would hide which field a test
+// depends on.
+function transaction(overrides: Partial<Transaction> = {}): Transaction {
+  return {
+    id: transactionId('11111111-1111-4111-8111-111111111111'),
+    accountId: accountId('22222222-2222-4222-8222-222222222222'),
+    instrumentId: instrumentId('33333333-3333-4333-8333-333333333333'),
+    type: 'buy',
+    tradeDate: Temporal.PlainDate.from('2026-01-15'),
+    settleDate: null,
+    quantity: new Decimal('100'),
+    price: null,
+    grossAmount: null,
+    fee: moneyOf('0'),
+    tax: moneyOf('0'),
+    currency: PLN,
+    fxRate: null,
+    fxRateSource: null,
+    source: 'manual',
+    externalId: null,
+    importBatchId: null,
+    editedAfterImport: false,
+    matchedLotIds: null,
+    note: null,
+    ...overrides,
+  };
+}
+
+describe('grossValueOf', () => {
+  it('prefers grossAmount over quantity × price when both are present', () => {
+    // A broker-rounded gross that deliberately disagrees with quantity × price,
+    // so a wrong precedence shows up as a wrong assertion, not a coincidence.
+    const t = transaction({
+      quantity: new Decimal('100'),
+      price: moneyOf('10.00'),
+      grossAmount: moneyOf('999.99'),
+    });
+
+    expect(grossValueOf(t).equals(moneyOf('999.99'))).toBe(true);
+  });
+
+  it('falls back to quantity × price when grossAmount is absent', () => {
+    const t = transaction({ quantity: new Decimal('12.5'), price: moneyOf('4.40') });
+
+    expect(grossValueOf(t).equals(moneyOf('55.00'))).toBe(true);
+  });
+
+  it('is zero for a row with neither, such as a deposit', () => {
+    const t = transaction({ type: 'deposit', instrumentId: null, quantity: new Decimal('0') });
+
+    expect(grossValueOf(t).isZero()).toBe(true);
+  });
+});
+
+describe('costBasisOf', () => {
+  it('adds the fee to the gross value', () => {
+    const t = transaction({ grossAmount: moneyOf('1000.00'), fee: moneyOf('9.99') });
+
+    expect(costBasisOf(t).equals(moneyOf('1009.99'))).toBe(true);
+  });
+
+  it('excludes tax — Polish investment tax settles on realized gains, not the basis', () => {
+    const t = transaction({
+      grossAmount: moneyOf('1000.00'),
+      fee: moneyOf('9.99'),
+      tax: moneyOf('50.00'),
+    });
+
+    expect(costBasisOf(t).equals(moneyOf('1009.99'))).toBe(true);
+  });
+});
+
+describe('netProceedsOf', () => {
+  it('subtracts both fee and tax from the gross value', () => {
+    const t = transaction({
+      type: 'sell',
+      grossAmount: moneyOf('1000.00'),
+      fee: moneyOf('9.99'),
+      tax: moneyOf('190.01'),
+    });
+
+    expect(netProceedsOf(t).equals(moneyOf('800.00'))).toBe(true);
+  });
+});
+
+describe('transactionInputSchemaFor', () => {
+  const baseInput = {
+    accountId: '22222222-2222-4222-8222-222222222222',
+    instrumentId: '33333333-3333-4333-8333-333333333333',
+    type: 'buy' as const,
+    tradeDate: '2026-01-15',
+    quantity: '100',
+    currency: 'PLN',
+  };
+
+  it('accepts a transaction in the account currency with no rate', () => {
+    const result = transactionInputSchemaFor(PLN).safeParse(baseInput);
+
+    expect(result.success).toBe(true);
+  });
+
+  // Rule 6 / ADR 0006: a broker converts at its own spread, so the rate must be
+  // the one actually executed. There is no defensible default to fall back to,
+  // which is exactly why this has to be a hard refusal, not a soft one.
+  it('refuses a foreign-currency transaction with no executed rate', () => {
+    const result = transactionInputSchemaFor(PLN).safeParse({ ...baseInput, currency: 'USD' });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('fxRate');
+    expect(paths).toContain('fxRateSource');
+  });
+
+  it('accepts a foreign-currency transaction once both the rate and its source are given', () => {
+    const result = transactionInputSchemaFor(PLN).safeParse({
+      ...baseInput,
+      currency: 'USD',
+      fxRate: '4.05',
+      fxRateSource: 'broker',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('is case-insensitive when comparing the transaction currency to the account currency', () => {
+    const result = transactionInputSchemaFor(USD).safeParse({ ...baseInput, currency: 'usd' });
+
+    expect(result.success).toBe(true);
+  });
+});
