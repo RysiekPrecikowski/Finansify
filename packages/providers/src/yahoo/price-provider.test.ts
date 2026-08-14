@@ -35,6 +35,35 @@ describe('yahooPriceProvider', () => {
     expect(bars[0]!.date.toString()).toBe('2026-08-13');
   });
 
+  it('refuses the response when priceHint is absent rather than skipping rounding', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/Warsaw' },
+      quotes: [{ date: new Date('2026-08-13T14:00:00Z'), close: 155.67999267578125 }],
+    } as never);
+
+    await expect(
+      yahooPriceProvider.fetchDailyBars(ref, Temporal.PlainDate.from('2026-08-08')),
+    ).rejects.toThrow(/priceHint/);
+  });
+
+  it('skips a bar with an absent close and keeps the rest of the batch', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/Warsaw', priceHint: 2 },
+      quotes: [
+        { date: new Date('2026-08-12T14:00:00Z'), close: undefined },
+        { date: new Date('2026-08-13T14:00:00Z'), close: 155.68 },
+      ],
+    } as never);
+
+    const bars = await yahooPriceProvider.fetchDailyBars(
+      ref,
+      Temporal.PlainDate.from('2026-08-08'),
+    );
+
+    expect(bars).toHaveLength(1);
+    expect(bars[0]!.date.toString()).toBe('2026-08-13');
+  });
+
   it('drops a bar with a null or non-positive close instead of saving garbage', async () => {
     vi.mocked(yahooFinance.chart).mockResolvedValue({
       meta: { exchangeTimezoneName: 'Europe/Warsaw', priceHint: 2 },
