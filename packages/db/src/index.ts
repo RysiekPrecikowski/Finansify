@@ -7,3 +7,4 @@ export {
   type AuthProvider,
 } from './users';
 export { instrumentRepository, ledgerRepository } from './ledger-repository';
+export { fxRateRepository, marketPriceRepository, symbolRepository } from './price-repository';
