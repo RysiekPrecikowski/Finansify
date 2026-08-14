@@ -18,24 +18,31 @@ Do not read all of `docs/` — each file is written to stand on its own.
 | Vercel, environments, migrations, CI                       | `docs/deployment.md`   |
 | What we are building and for whom                          | `docs/product.md`      |
 | What ships when                                            | `docs/roadmap.md`      |
+| Tickets, statuses, branch and commit naming                | `docs/clickup.md`      |
 | Why something is the way it is                             | `docs/decisions/`      |
 
 ## How to work
 
 Applies to every task in this repo, by default, without being asked.
 
-1. **Plan before touching anything.** Anything beyond a one-file edit gets a plan
+1. **Start from a ticket.** Every change belongs to a ClickUp ticket, and the
+   ticket's status and assignee follow the work as it happens — `in progress`
+   when you start, `in review` with no assignee when the PR is open,
+   `complete` on merge. Branch, commit and PR carry the task id. The whole
+   contract, including the board ids, is `docs/clickup.md`; read it before
+   starting work, not before finishing it.
+2. **Plan before touching anything.** Anything beyond a one-file edit gets a plan
    first — what changes, in which files, in what order, and what verifies it.
    Read the code the plan depends on before writing the plan, not after.
-2. **While working, report only the stage.** One short line per stage
+3. **While working, report only the stage.** One short line per stage
    (`Stage 2/4 — schema + migration`), not a narration of each edit, not a
    preview of what you are about to type. The diff is the record; prose about the
    diff is noise.
-3. **Final output is short, factual, technical.** What changed, what it verifies
+4. **Final output is short, factual, technical.** What changed, what it verifies
    against, what is left. No summaries of your own reasoning, no restating the
    request, no congratulating the result. Prefer a list of paths and one clause
    each over paragraphs.
-4. **Ask only when something genuinely needs a decision** — an ambiguity that
+5. **Ask only when something genuinely needs a decision** — an ambiguity that
    would send the work in materially different directions, a boundary that needs
    an ADR, a destructive or outward-facing action. Otherwise pick the
    defensible option, state the assumption in one line, and continue. A question

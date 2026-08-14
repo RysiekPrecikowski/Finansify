@@ -80,3 +80,10 @@ them different from the terse narration a session emits while working.
 
 Do not silently fix anything. This command reviews; `/code-review --fix` or a
 human applies the fix.
+
+**Take the ticket while reviewing.** When reviewing a PR that carries a ClickUp
+id (branch or title, `CU-<id>`), assign the reviewer to that ticket and leave
+its status at `in review` — an unassigned `in review` ticket means nobody has
+picked the review up. Do not touch the `Implementer` field; it names the author
+and stays that way. Never review a ticket whose `Implementer` is you
+(`docs/clickup.md`, CLAUDE.md rule 12).

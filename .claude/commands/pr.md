@@ -18,7 +18,10 @@ common here. If the working tree is dirty or `pnpm check` hasn't been run on
 this branch yet, stop and say so; run `/ship` first.
 
 **2. Title.** Conventional-commit prefix matching this repo's history
-(`feat:`, `fix:`, `chore:`, `docs:`, ...), imperative mood, under 70 characters.
+(`feat:`, `fix:`, `chore:`, `docs:`, ...), imperative mood, under 70 characters,
+ending with the ClickUp id in parentheses — `feat(web): positions view
+(CU-869ej7nzv)`. Take the id from the branch name; if the branch carries no id,
+stop and resolve the ticket first (`docs/clickup.md`).
 
 **3. Body.** Four sections, each one either has real content or is omitted —
 never pad a section to make it look complete.
@@ -43,6 +46,16 @@ never pad a section to make it look complete.
 `gh pr create` (or `gh pr edit $ARGUMENTS` if a PR number was given) with that
 title and body. Base is always `main` — CLAUDE.md rule 12 means this PR is how
 the change is allowed to reach it at all.
+
+**5. Wait for CI, then hand the ticket over.** Run `gh pr checks --watch`. If a
+check fails, stop and report it — do not touch the ticket while CI is red.
+Once every check passes: set the ClickUp ticket to `in review`, clear its
+assignee (`assignees: []`), leave its `Implementer` field alone, and comment
+the PR link on it. An unassigned `in review` ticket is
+what "waiting for a reviewer" looks like; `Implementer` is what restores the
+assignee at merge — see `docs/clickup.md`. If `Implementer` is empty because
+the ticket was started outside this flow, set it to yourself here. Report the
+ticket id and its new status in the final line.
 
 **Tone.** This text is read and acted on by the other teammate, which makes it
 different from the terse stage-reporting a session emits while working.
