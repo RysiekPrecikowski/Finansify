@@ -54,7 +54,8 @@ export interface PositionsView {
   readonly cash: readonly CashBalanceLine[];
 }
 
-function groupByCurrency(amounts: readonly Money[]): readonly Money[] {
+/** Exported for `valuation/value-positions.ts`, which groups market value and unrealized P&L the same way. */
+export function groupByCurrency(amounts: readonly Money[]): readonly Money[] {
   const totals = new Map<string, Money>();
   for (const amount of amounts) {
     const running = totals.get(amount.currency);

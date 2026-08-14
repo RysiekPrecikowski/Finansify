@@ -3,6 +3,7 @@ import {
   type Account,
   type AccountInput,
   type Instrument,
+  type InstrumentId,
   type InstrumentKind,
   type Portfolio,
   type Transaction,
@@ -61,5 +62,8 @@ export interface InstrumentInput {
  */
 export interface InstrumentRepository {
   findOrCreate(input: InstrumentInput): Promise<Instrument>;
+  findById(id: InstrumentId): Promise<Instrument | null>;
   listAll(): Promise<readonly Instrument[]>;
+  /** Local-first match on symbol or name, case-insensitive. `searchInstruments` only calls this with a non-empty, trimmed query. */
+  search(query: string): Promise<readonly Instrument[]>;
 }

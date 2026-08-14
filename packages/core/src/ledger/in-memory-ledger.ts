@@ -172,8 +172,22 @@ export class InMemoryInstruments implements InstrumentRepository {
     return Promise.resolve(instrument);
   }
 
+  findById(id: InstrumentId): Promise<Instrument | null> {
+    return Promise.resolve(this.rows.find((row) => row.id === id) ?? null);
+  }
+
   listAll(): Promise<readonly Instrument[]> {
     return Promise.resolve([...this.rows]);
+  }
+
+  search(query: string): Promise<readonly Instrument[]> {
+    const needle = query.toLowerCase();
+    return Promise.resolve(
+      this.rows.filter(
+        (row) =>
+          row.symbol.toLowerCase().includes(needle) || row.name.toLowerCase().includes(needle),
+      ),
+    );
   }
 }
 
