@@ -13,7 +13,8 @@
   "dependencies": {
     "@finansify/core": "workspace:*",
     "decimal.js": "10.6.0",
-    "yahoo-finance2": "4.0.2"
+    "yahoo-finance2": "4.0.2",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "26.2.0"
