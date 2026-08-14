@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { type InstrumentRepository } from '../ledger/ports';
 import { instrumentIdSchema, instrumentKinds, type Instrument } from '../ledger/types';
-import { currency } from '../money';
 import { type InstrumentSearchProvider, type SymbolRepository } from '../valuation/ports';
 import { providerNames } from '../valuation/vocabulary';
 import { failure, issuesOf, success, type UseCaseResult } from './result';
@@ -10,9 +9,11 @@ import { failure, issuesOf, success, type UseCaseResult } from './result';
 /**
  * What a caller may submit to pick an instrument — never free-text fields a
  * human typed by hand. `existing` names a row already in our database by id;
- * `candidate` names one search surfaced from a provider and is re-confirmed
- * (currency, exchange) before anything is persisted. There is no third case
- * that saves something unresolvable — see `makeSelectInstrument`.
+ * `candidate` names one search hit from a provider, identified by its own
+ * `symbol` — never a currency or exchange the client asserts, since a search
+ * result doesn't carry those (`InstrumentCandidate`). `confirm()` is what
+ * looks them up, on the live listing, before anything is persisted. There is
+ * no third case that saves something unresolvable — see `makeSelectInstrument`.
  */
 export const instrumentSelectionSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -25,7 +26,6 @@ export const instrumentSelectionSchema = z.discriminatedUnion('kind', [
     symbol: z.string().trim().min(1).max(32),
     name: z.string().trim().min(1).max(200),
     instrumentKind: z.enum(instrumentKinds),
-    currency: z.string().trim().length(3),
     isin: z.string().trim().length(12).nullable().default(null),
     exchange: z.string().trim().max(32).nullable().default(null),
   }),
@@ -65,7 +65,7 @@ export function makeSelectInstrument(deps: {
       symbol: parsed.data.symbol,
       name: parsed.data.name,
       kind: parsed.data.instrumentKind,
-      currency: currency(parsed.data.currency),
+      currency: null,
       isin: parsed.data.isin,
       exchange: parsed.data.exchange,
     });
