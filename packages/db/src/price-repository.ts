@@ -66,19 +66,19 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
   return {
     async latestFor(ids: readonly InstrumentId[]) {
       if (ids.length === 0) return new Map();
+      // `DISTINCT ON` returns one row per instrument — its newest bar — rather
+      // than the whole price history for a JS loop to discard. This runs on
+      // every `/portfolio` valuation, and `instrument_prices` gains a row per
+      // instrument per session day, so pulling history here would get slower
+      // without bound.
       const rows = await db
-        .select()
+        .selectDistinctOn([instrumentPrices.instrumentId])
         .from(instrumentPrices)
         .where(inArray(instrumentPrices.instrumentId, [...ids]))
-        .orderBy(desc(instrumentPrices.date));
+        .orderBy(instrumentPrices.instrumentId, desc(instrumentPrices.date));
 
       const result = new Map<InstrumentId, StoredBar>();
-      for (const row of rows) {
-        const id = toInstrumentId(row.instrumentId);
-        // Rows arrive ordered newest date first — the first row seen per
-        // instrument is its latest bar, later ones are ignored.
-        if (!result.has(id)) result.set(id, toStoredBar(row));
-      }
+      for (const row of rows) result.set(toInstrumentId(row.instrumentId), toStoredBar(row));
       return result;
     },
 
@@ -127,12 +127,22 @@ export function symbolRepository(db: Database): SymbolRepository {
         })
         .from(instrumentIdentifiers)
         .innerJoin(instruments, eq(instruments.id, instrumentIdentifiers.instrumentId))
-        .where(inArray(instrumentIdentifiers.instrumentId, [...ids]));
+        .where(inArray(instrumentIdentifiers.instrumentId, [...ids]))
+        // The primary key is `(instrument_id, provider)`, so the schema permits
+        // several provider rows per instrument while this port's return type
+        // admits exactly one. ADR 0014 commits to a single price provider, so
+        // that case is unreachable today — ordering by provider makes the
+        // choice deterministic rather than whatever order Postgres returns, if
+        // a second one is ever added. It is a tie-break, not a priority: a real
+        // second provider needs a stated preference here.
+        .orderBy(instrumentIdentifiers.provider);
 
       const result = new Map<InstrumentId, ResolvedSymbol>();
       for (const row of rows) {
-        result.set(toInstrumentId(row.instrumentId), {
-          instrumentId: toInstrumentId(row.instrumentId),
+        const id = toInstrumentId(row.instrumentId);
+        if (result.has(id)) continue;
+        result.set(id, {
+          instrumentId: id,
           provider: row.provider,
           symbol: row.symbol,
           currency: toCurrency(row.currency),
@@ -162,17 +172,16 @@ export function fxRateRepository(db: Database): FxRateRepository {
   return {
     async latestFor(currencies: readonly Currency[]) {
       if (currencies.length === 0) return new Map();
+      // One row per currency, newest first — same reasoning as `latestFor` on
+      // prices: `fx_rates` gains 32 rows per NBP publication day.
       const rows = await db
-        .select()
+        .selectDistinctOn([fxRates.currency])
         .from(fxRates)
         .where(inArray(fxRates.currency, [...currencies]))
-        .orderBy(desc(fxRates.date));
+        .orderBy(fxRates.currency, desc(fxRates.date));
 
       const result = new Map<Currency, StoredFxRate>();
-      for (const row of rows) {
-        const code = toCurrency(row.currency);
-        if (!result.has(code)) result.set(code, toStoredFxRate(row));
-      }
+      for (const row of rows) result.set(toCurrency(row.currency), toStoredFxRate(row));
       return result;
     },
 
