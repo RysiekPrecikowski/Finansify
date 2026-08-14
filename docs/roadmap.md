@@ -217,15 +217,15 @@ rather than paid away.
 
 ## Deployment risk, before real data lands
 
-Two gaps in `docs/deployment.md` that are cheap now and expensive later. Both
+One gap in `docs/deployment.md` that is cheap now and expensive later, and
 should close before the ledger holds anything.
 
-**A migration first meets a real database on merge to `main`.** Preview
-deployments share whatever `DATABASE_URL` the Vercel project has, so the
-per-PR database branch ADR 0008 leans on is _not wired_. Today that is
-harmless — the ledger tables are empty and every migration so far has been a
-clean `CREATE`. The first `ALTER` against real rows is the one that will hurt,
-and there is no rehearsal step between writing it and production.
+**~~A migration first meets a real database on merge to `main`.~~** Closed. The
+Neon-Managed integration creates a `preview/<git-branch>` database per preview
+deployment, so a migration is rehearsed against a real copy on the PR rather
+than meeting production first. The cost is a branch budget of ten on the free
+tier, kept by `.github/workflows/neon-cleanup.yml` — see "The Neon branch
+budget" in `docs/deployment.md`.
 
 **No down-migrations.** `drizzle-kit` applies forward only. Recovery from a bad
 migration is a restore, which makes the off-provider backup above load-bearing

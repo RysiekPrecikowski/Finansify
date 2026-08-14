@@ -42,9 +42,10 @@ The flow instead:
 3. Preview deployments get their own database branch, so every PR exercises the
    migration against a real copy before it reaches production.
 
-Point 3 is a large part of why ADR 0008 leans the way it does. It is **not yet
-wired**: preview deployments currently share whatever `DATABASE_URL` the Vercel
-project has, so a migration first meets a real database on merge, not on the PR.
+Point 3 is a large part of why ADR 0008 leans the way it does, and it is now
+live: the Neon-Managed integration creates a `preview/<git-branch>` database per
+preview deployment. That is also what makes the branch budget below a real
+constraint rather than a theoretical one.
 
 ## Environments
 
@@ -109,9 +110,66 @@ happens. It needs `CLERK_SECRET_KEY` in the runner's environment and a
 detection — Testing Tokens work on development instances only. The
 `run-finansify` skill's driver wires both up; `login` is the command.
 
+## The Neon branch budget
+
+**Neon's free tier allows 10 branches, and the integration spends them without
+asking.** Production holds one. Every preview deployment takes another, for as
+long as the git branch it was built from exists. That leaves nine slots shared
+between everyone's open work, and the eleventh branch does not queue — it fails
+the deployment, so a PR that would otherwise be reviewable arrives without a
+preview.
+
+### Why deleting the git branch is not enough
+
+Two mechanisms already point at this problem and neither solves it, which is
+worth knowing before reaching for a third:
+
+- **GitHub's "Automatically delete head branches" is on.** A merged PR removes
+  its own head branch, so the remote holds `main` and nothing else. This is
+  necessary and does not touch Neon.
+- **The Neon-Managed integration reaps preview branches whose git branch is
+  gone** — but only _"the next time a preview deployment is created"_. The
+  cleanup is lazy and driven by deployment activity, which is exactly the wrong
+  trigger: branches accumulate while nothing is deploying, and the deployment
+  that would trigger the reap is the one that fails for want of a slot.
+
+So the account fills up during quiet periods and the bill arrives on the next
+PR, looking like a broken build.
+
+### What actually keeps the budget
+
+`.github/workflows/neon-cleanup.yml`, on `pull_request: closed` — merged or
+abandoned, both end a branch's life. It deletes `preview/<head-ref>` through
+`neonctl`, immediately, without waiting for anyone's deployment. It needs
+`NEON_API_KEY` (repository secret, project-scoped) and `NEON_PROJECT_ID`
+(repository variable — a project id is not a secret).
+
+The job tolerates a missing branch rather than failing on it: a docs-only PR is
+skipped by `turbo-ignore` and never gets a database, and a PR closed before its
+first deployment finished never got one either. A cleanup job that goes red on
+ordinary PRs is a cleanup job nobody reads.
+
+It does **not** cover two cases, which stay manual:
+
+- **Branches created by hand in the console.** Nothing links them to a PR, so
+  nothing reaps them. Keep none.
+- **Archived branches** — Neon archives a branch after 24 hours idle once it is
+  more than 14 days old, and archived branches still count against the ten.
+
+For those, and for a one-off unblocking:
+
+```bash
+npx neonctl branches list --project-id <id>
+npx neonctl branches delete <branch> --project-id <id>
+```
+
+Deleting a preview branch that belongs to an open PR is safe — its next
+deployment provisions a fresh one from production. Deleting the default branch
+is not, and nothing in this flow ever needs to.
+
 ## CI
 
-One workflow, `ci.yml`, on push to main and on every PR:
+`ci.yml`, on push to main and on every PR:
 
 - **`check`** — install with a frozen lockfile, then `pnpm check` (build, lint,
   typecheck, test, format, cached via Turbo), then the **migration-drift check**:
@@ -126,6 +184,9 @@ The drift check is deliberately not part of `pnpm check`: that command runs
 before every commit and must not write files. A locally green `pnpm check`
 therefore no longer implies green CI — run `pnpm --filter @finansify/db
 db:generate` after any schema edit, which the `db-migration` skill already does.
+
+`neon-cleanup.yml` is the second workflow, on `pull_request: closed` only — see
+"The Neon branch budget" above for why it is separate.
 
 Vercel's own Git integration handles deployment; CI does not deploy.
 
