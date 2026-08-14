@@ -12,7 +12,11 @@ const NBP_TABLE_A_URL = 'https://api.nbp.pl/api/exchangerates/tables/a/?format=j
 
 const tableSchema = z.object({
   effectiveDate: z.string(),
-  rates: z.array(z.object({ code: z.string().length(3), mid: z.number() })),
+  // `mid` is a raw JSON number here, not a `Money`/`Decimal` value — rule 1
+  // governs arithmetic inside `core`, and this is `z.number()` parsing NBP's
+  // own response shape one line before `new Decimal(entry.mid)` converts it,
+  // never a value this adapter computes with.
+  rates: z.array(z.object({ code: z.string().length(3), mid: z.number() })).min(1),
 });
 
 /** One documented, unauthenticated endpoint — a library buys nothing here (ADR 0014). */

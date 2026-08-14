@@ -40,6 +40,23 @@ describe('nbpFxRateProvider', () => {
     await expect(nbpFxRateProvider.fetchTableTo(currency('PLN'))).rejects.toThrow('503');
   });
 
+  it('rejects a table with an empty rates array rather than returning no rates', async () => {
+    const body = [
+      {
+        table: 'A',
+        no: '156/A/NBP/2026',
+        effectiveDate: '2026-08-13',
+        rates: [],
+      },
+    ];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) }),
+    );
+
+    await expect(nbpFxRateProvider.fetchTableTo(currency('PLN'))).rejects.toThrow();
+  });
+
   it('refuses a base other than PLN — table A has no other base', async () => {
     await expect(nbpFxRateProvider.fetchTableTo(currency('USD'))).rejects.toThrow();
   });
