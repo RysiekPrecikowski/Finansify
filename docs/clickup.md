@@ -8,12 +8,18 @@ Read this before starting any piece of work, not after finishing it.
 
 ## The board
 
-| Thing     | Name            | Id             |
-| --------- | --------------- | -------------- |
-| Workspace | Workspace       | `90121969080`  |
-| Space     | Finansify space | `90128806607`  |
-| Folder    | hidden          | `901213038300` |
-| List      | Project 1       | `901220376152` |
+| Thing     | Id             |
+| --------- | -------------- |
+| Workspace | `90121969080`  |
+| Space     | `90128806607`  |
+| Folder    | `901213038300` |
+| List      | `901220376152` |
+
+These ids are what every tool call actually needs (`list_ids` in
+`clickup_filter_tasks`, etc.); names are not load-bearing and drift — the list
+above has already been renamed once. Resolve a current name with
+`clickup_get_list({list_id: "901220376152"})` rather than trusting a name
+written here.
 
 Members: Rysiek Pręcikowski (`105625477`), Filip Adamiak (`105625478`). Each of
 us has our own ClickUp user, so `me` in any tool call resolves to whoever is
