@@ -1,5 +1,4 @@
 import {
-  makeMapInstrument,
   makeReadFxRates,
   makeReadPrices,
   makeRefreshFxRates,
@@ -27,7 +26,6 @@ import {
   getFxRates,
   getMarketPrices,
   getPriceProvider,
-  getSymbolResolver,
   getSymbols,
 } from '@/server/container';
 
@@ -79,15 +77,12 @@ export async function OpenPositions({
   const fxDue = currencies.some((code) => fxLookups.get(code)?.status !== 'fresh');
 
   if (pricesDue) {
-    // A never-before-seen instrument has no row in `instrument_identifiers`
-    // yet, and `refreshPrices` skips anything unmapped rather than guessing —
-    // so mapping runs first. Already-mapped instruments cost one cheap DB
-    // read here and nothing else (`makeMapInstrument` never re-resolves).
-    // A refusal (currency/exchange mismatch, no MIC on file) is not an error
-    // to surface here — it's exactly what queues an instrument for PR 6's
-    // manual mapping screen.
-    await resolveMissingSymbols(positions);
-
+    // No mapping pass runs here anymore: `selectInstrument` confirms and
+    // saves the provider symbol at the moment an instrument is created
+    // (ADR 0014), so every instrument this page can show is already
+    // resolved. `refreshPrices`'s `unmapped` report exists for the read
+    // path to distinguish from a merely-slow fetch, not because a mapping
+    // gap is expected here.
     const refreshPrices = makeRefreshPrices({
       prices: getMarketPrices(),
       symbols: getSymbols(),
@@ -286,25 +281,5 @@ export async function OpenPositions({
         rowHref={rowHref}
       />
     </div>
-  );
-}
-
-/**
- * Auto-maps whatever isn't mapped yet; a refusal from the resolver is not an
- * error here. Each instrument resolves independently — one provider hiccup
- * (a timeout, a delisted symbol) must not blank the whole page, so a failure
- * is logged and that instrument simply stays `never-fetched` rather than
- * throwing out of the render path.
- */
-async function resolveMissingSymbols(positions: readonly InstrumentPosition[]): Promise<void> {
-  const mapInstrument = makeMapInstrument({ symbols: getSymbols(), resolver: getSymbolResolver() });
-  await Promise.all(
-    positions.map(async (position) => {
-      try {
-        await mapInstrument(position.instrument);
-      } catch (error) {
-        console.error(`Failed to map ${position.instrument.symbol} to a provider symbol:`, error);
-      }
-    }),
   );
 }

@@ -1,4 +1,4 @@
-import { type InstrumentId, type Instrument } from '../ledger/types';
+import { type InstrumentId } from '../ledger/types';
 import { type Currency } from '../money';
 import { type Temporal } from '../time';
 import {
@@ -41,18 +41,6 @@ export interface InstrumentSearchProvider {
    * nothing is persisted without it succeeding.
    */
   confirm(candidate: InstrumentCandidate): Promise<ConfirmedCandidate | null>;
-}
-
-/**
- * Phase 1's original resolver shape — given our own instrument record, decide
- * which provider symbol it is, or refuse. Kept only until PR 6 rewires
- * `apps/web`'s transaction form onto `InstrumentSearchProvider` above and
- * deletes this alongside `map-instrument.ts` and `resolve-instrument.ts`;
- * nothing new should be built against it.
- */
-export interface SymbolResolver {
-  readonly name: ProviderName;
-  resolve(instrument: Instrument): Promise<ResolvedSymbol | null>;
 }
 
 export interface MarketPriceRepository {

@@ -1,17 +1,11 @@
 'use client';
 
-import {
-  fxRateSources,
-  instrumentKinds,
-  transactionTypes,
-  type TransactionType,
-} from '@finansify/core/vocabulary';
+import { fxRateSources, transactionTypes, type TransactionType } from '@finansify/core/vocabulary';
 import Link from 'next/link';
-import { useActionState, useState, type ReactNode } from 'react';
+import { useActionState, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -20,6 +14,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { errorId, Field } from '@/components/form-field';
+import {
+  InstrumentCombobox,
+  type InstrumentComboboxInitial,
+} from '@/components/instruments/instrument-combobox';
 import { idleFormState, type FormState } from '@/lib/form-state';
 import { useI18n } from '@/lib/i18n/client';
 
@@ -33,10 +32,8 @@ import { useI18n } from '@/lib/i18n/client';
  */
 const offeredTypes = transactionTypes.filter((type) => type !== 'split');
 
-/** Matches the account form's list: what a Polish investor's broker settles in. */
+/** The currencies a Polish broker's account or transaction can be denominated in. */
 const currencies = ['PLN', 'USD', 'EUR', 'GBP', 'CHF'] as const;
-
-const NEW_INSTRUMENT = 'new';
 
 export interface TransactionShapeOfType {
   readonly instrument: 'required' | 'none';
@@ -49,12 +46,6 @@ export interface TransactionFormAccount {
   readonly currency: string;
 }
 
-export interface TransactionFormInstrument {
-  readonly id: string;
-  readonly symbol: string;
-  readonly name: string;
-}
-
 /**
  * Every value a string, because that is what an `<input>` produces and what
  * `transactionInputSchema` parses. Nothing here is a `number` — a `Money` or a
@@ -65,7 +56,14 @@ export interface TransactionFormValues {
   readonly id?: string;
   readonly accountId: string;
   readonly type: TransactionType;
-  readonly instrumentId: string;
+  /**
+   * `null` for a new transaction or one with no instrument leg. Editing a
+   * transaction that already has one carries its id and display label —
+   * resolved server-side (`form-options.ts`) so the combobox opens already
+   * showing what's selected, without ever loading every instrument in the
+   * database to find it.
+   */
+  readonly instrument: { readonly id: string; readonly label: string } | null;
   readonly tradeDate: string;
   readonly settleDate: string;
   readonly quantity: string;
@@ -79,50 +77,16 @@ export interface TransactionFormValues {
   readonly note: string;
 }
 
-function errorId(field: string): string {
-  return `${field}-error`;
-}
-
-function Field({
-  name,
-  label,
-  hint,
-  errors,
-  children,
-}: Readonly<{
-  name: string;
-  label: string;
-  hint?: string;
-  errors: readonly string[] | undefined;
-  children: ReactNode;
-}>) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={name}>{label}</Label>
-      {children}
-      {hint !== undefined && <p className="text-muted-foreground text-xs">{hint}</p>}
-      {errors !== undefined &&
-        errors.map((message) => (
-          <p key={message} id={errorId(name)} role="alert" className="text-destructive text-xs">
-            {message}
-          </p>
-        ))}
-    </div>
-  );
-}
-
 export function TransactionForm({
   action,
   values,
   accounts,
-  instruments,
   shapes,
   submitLabel,
 }: Readonly<{
   action: (previous: FormState, formData: FormData) => Promise<FormState>;
   values: TransactionFormValues;
   accounts: readonly TransactionFormAccount[];
-  instruments: readonly TransactionFormInstrument[];
   /** Computed on the server from `transactionShapeOf`, so `core` stays server-side. */
   shapes: Readonly<Record<string, TransactionShapeOfType>>;
   submitLabel: string;
@@ -142,7 +106,6 @@ export function TransactionForm({
   );
   const [accountId, setAccountId] = useState(submitted('accountId', values.accountId));
   const [currency, setCurrency] = useState(submitted('currency', values.currency));
-  const [instrumentId, setInstrumentId] = useState(submitted('instrumentId', values.instrumentId));
 
   // Conditional visibility is convenience only. The server re-validates every
   // submission through `transactionInputSchemaFor(account.currency)`, so what the
@@ -150,7 +113,6 @@ export function TransactionForm({
   const shape = shapes[type] ?? { instrument: 'none', amount: 'gross' };
   const accountCurrency = accounts.find((account) => account.id === accountId)?.currency;
   const needsRate = accountCurrency !== undefined && currency !== accountCurrency;
-  const creatingInstrument = instrumentId === NEW_INSTRUMENT;
 
   const invalid = (field: string) => (state.fieldErrors[field] === undefined ? undefined : true);
   const describedBy = (field: string) =>
@@ -161,36 +123,25 @@ export function TransactionForm({
     value: account.id,
     label: `${account.name} · ${account.currency}`,
   }));
-  const instrumentItems = [
-    ...instruments.map((instrument) => ({
-      value: instrument.id,
-      label: `${instrument.symbol} · ${instrument.name}`,
-    })),
-    { value: NEW_INSTRUMENT, label: strings.newInstrument },
-  ];
   const currencyItems = currencies.map((code) => ({ value: code, label: code }));
-  const kindItems = instrumentKinds.map((kind) => ({ value: kind, label: strings.kinds[kind] }));
   const sourceItems = fxRateSources.map((source) => ({
     value: source,
     label: strings.fxRateSources[source],
   }));
 
+  // Search results, from `<InstrumentCombobox>`, are the only source of
+  // `instrumentId`/`instrument*` fields on submit — nothing here echoes a
+  // rejected candidate's fields back into an initial selection, since the
+  // combobox's own state (a client component, not remounted by the action)
+  // already survives a failed submit on its own.
+  const instrumentInitial: InstrumentComboboxInitial =
+    values.instrument === null
+      ? null
+      : { kind: 'existing', instrumentId: values.instrument.id, label: values.instrument.label };
+
   return (
     <form action={formAction} className="flex max-w-md flex-col gap-5">
       {values.id !== undefined && <input type="hidden" name="id" value={values.id} />}
-      {/* Tells the action whether to resolve a new instrument or take the
-          selected one; the select's own value cannot say both. */}
-      <input
-        type="hidden"
-        name="instrumentMode"
-        // Only when this type actually takes an instrument. A gross-shaped row
-        // hides the instrument fields entirely, so leaving this at `new` would
-        // make the action try to resolve an instrument from inputs that were
-        // never rendered — and attach the resulting errors to fields nobody can
-        // see. On a database with no instruments yet that is the *default*
-        // state, which makes a first deposit fail with nothing on screen.
-        value={shape.instrument === 'required' && creatingInstrument ? NEW_INSTRUMENT : 'existing'}
-      />
 
       <Field name="type" label={strings.type} errors={state.fieldErrors.type}>
         <Select
@@ -241,124 +192,14 @@ export function TransactionForm({
       </Field>
 
       {shape.instrument === 'required' && (
-        <>
-          <Field
-            name="instrumentId"
-            label={strings.instrument}
-            errors={state.fieldErrors.instrumentId}
-          >
-            <Select
-              name="instrumentId"
-              value={instrumentId}
-              onValueChange={(value) => setInstrumentId(value as string)}
-              items={instrumentItems}
-            >
-              <SelectTrigger
-                id="instrumentId"
-                className="w-full"
-                aria-invalid={invalid('instrumentId')}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {instrumentItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          {creatingInstrument && (
-            /* Instruments are global and shared between users (ADR 0010): one
-               person's typo is a row the other one sees. Hence four explicit
-               fields rather than creating something from a free-text box. */
-            <fieldset className="border-border flex flex-col gap-5 rounded-md border p-4">
-              <legend className="text-muted-foreground px-1 text-xs">
-                {strings.newInstrument}
-              </legend>
-
-              <Field
-                name="instrumentSymbol"
-                label={strings.symbol}
-                errors={state.fieldErrors.instrumentSymbol}
-              >
-                <Input
-                  id="instrumentSymbol"
-                  name="instrumentSymbol"
-                  type="text"
-                  autoComplete="off"
-                  defaultValue={submitted('instrumentSymbol')}
-                  aria-invalid={invalid('instrumentSymbol')}
-                  aria-describedby={describedBy('instrumentSymbol')}
-                />
-              </Field>
-
-              <Field
-                name="instrumentName"
-                label={strings.instrumentName}
-                errors={state.fieldErrors.instrumentName}
-              >
-                <Input
-                  id="instrumentName"
-                  name="instrumentName"
-                  type="text"
-                  autoComplete="off"
-                  defaultValue={submitted('instrumentName')}
-                  aria-invalid={invalid('instrumentName')}
-                  aria-describedby={describedBy('instrumentName')}
-                />
-              </Field>
-
-              <Field
-                name="instrumentKind"
-                label={strings.kind}
-                errors={state.fieldErrors.instrumentKind}
-              >
-                <Select
-                  name="instrumentKind"
-                  defaultValue={submitted('instrumentKind', instrumentKinds[0])}
-                  items={kindItems}
-                >
-                  <SelectTrigger id="instrumentKind" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kindItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field
-                name="instrumentCurrency"
-                label={strings.instrumentCurrency}
-                errors={state.fieldErrors.instrumentCurrency}
-              >
-                <Select
-                  name="instrumentCurrency"
-                  defaultValue={submitted('instrumentCurrency', currency)}
-                  items={currencyItems}
-                >
-                  <SelectTrigger id="instrumentCurrency" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currencyItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </fieldset>
-          )}
-        </>
+        <InstrumentCombobox
+          initial={instrumentInitial}
+          errors={
+            state.fieldErrors.instrumentId ??
+            state.fieldErrors.instrumentSymbol ??
+            state.fieldErrors.instrumentSearch
+          }
+        />
       )}
 
       {shape.amount === 'units' && (

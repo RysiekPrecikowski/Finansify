@@ -80,4 +80,34 @@ describe('yahooPriceProvider', () => {
 
     expect(bars).toHaveLength(0);
   });
+
+  it('divides a GBp (pence) close by 100 before storing it as GBP', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/London', priceHint: 2, currency: 'GBp' },
+      quotes: [{ date: new Date('2026-08-13T14:00:00Z'), close: 10530.5 }],
+    } as never);
+
+    const bars = await yahooPriceProvider.fetchDailyBars(
+      { ...ref, currency: currency('GBP') },
+      Temporal.PlainDate.from('2026-08-08'),
+    );
+
+    expect(bars).toHaveLength(1);
+    expect(bars[0]!.close.amount.toFixed(4)).toBe('105.3050');
+    expect(bars[0]!.close.currency).toBe(currency('GBP'));
+  });
+
+  it('leaves a non-GBp bar unaffected', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/Warsaw', priceHint: 2, currency: 'PLN' },
+      quotes: [{ date: new Date('2026-08-13T14:00:00Z'), close: 155.68 }],
+    } as never);
+
+    const bars = await yahooPriceProvider.fetchDailyBars(
+      ref,
+      Temporal.PlainDate.from('2026-08-08'),
+    );
+
+    expect(bars[0]!.close.amount.toFixed(2)).toBe('155.68');
+  });
 });

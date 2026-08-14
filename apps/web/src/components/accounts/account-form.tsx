@@ -2,12 +2,12 @@
 
 import { wrappers } from '@finansify/core/vocabulary';
 import Link from 'next/link';
-import { useActionState, type ReactNode } from 'react';
+import { useActionState } from 'react';
 
 import { createAccountAction } from '@/app/(app)/accounts/actions';
+import { errorId, Field } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -25,41 +25,6 @@ import { useI18n } from '@/lib/i18n/client';
  * of whatever arrives. Grow it when a real account needs one that is missing.
  */
 const currencies = ['PLN', 'USD', 'EUR', 'GBP', 'CHF'] as const;
-
-function errorId(field: string): string {
-  return `${field}-error`;
-}
-
-/**
- * One field's label, control and errors. The wiring — `htmlFor`, `aria-invalid`,
- * `aria-describedby` — is the whole reason this exists: done per-field by hand it
- * is done inconsistently, and a validation message no screen reader announces is
- * not a validation message.
- */
-function Field({
-  name,
-  label,
-  errors,
-  children,
-}: Readonly<{
-  name: string;
-  label: string;
-  errors: readonly string[] | undefined;
-  children: ReactNode;
-}>) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={name}>{label}</Label>
-      {children}
-      {errors !== undefined &&
-        errors.map((message) => (
-          <p key={message} id={errorId(name)} role="alert" className="text-destructive text-xs">
-            {message}
-          </p>
-        ))}
-    </div>
-  );
-}
 
 export function AccountForm({ today }: Readonly<{ today: string }>) {
   const { dictionary } = useI18n();

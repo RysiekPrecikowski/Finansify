@@ -13,14 +13,14 @@ import {
   type FxRateProvider,
   type FxRateRepository,
   type InstrumentRepository,
+  type InstrumentSearchProvider,
   type MarketPriceRepository,
   type PriceProvider,
   type ScopedLedgerRepository,
   type SymbolRepository,
-  type SymbolResolver,
   type UserId,
 } from '@finansify/core';
-import { nbpFxRateProvider, yahooPriceProvider, yahooSymbolResolver } from '@finansify/providers';
+import { nbpFxRateProvider, yahooInstrumentSearch, yahooPriceProvider } from '@finansify/providers';
 import { cache } from 'react';
 
 /**
@@ -80,8 +80,8 @@ export function getPriceProvider(): PriceProvider {
   return yahooPriceProvider;
 }
 
-export function getSymbolResolver(): SymbolResolver {
-  return yahooSymbolResolver;
+export function getInstrumentSearchProvider(): InstrumentSearchProvider {
+  return yahooInstrumentSearch;
 }
 
 export function getFxProvider(): FxRateProvider {
