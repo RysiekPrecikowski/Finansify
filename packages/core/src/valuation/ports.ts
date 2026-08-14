@@ -43,7 +43,7 @@ export interface SymbolRepository {
   save(ref: ResolvedSymbol): Promise<void>;
 }
 
-/** Kursy do PLN; cross rates are computed by `core` (`convertViaPln`), never stored. */
+/** Rates to PLN; cross rates are computed by `core` (`convertViaPln`), never stored. */
 export interface FxRateProvider {
   readonly name: ProviderName;
   fetchTableTo(base: Currency): Promise<readonly FxRate[]>;
