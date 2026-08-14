@@ -24,9 +24,26 @@ async function throttle(): Promise<void> {
   if (wait > 0) await sleep(wait);
 }
 
+function statusOf(error: unknown): unknown {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const shape = error as { code?: unknown; status?: unknown };
+  return shape.code ?? shape.status;
+}
+
+/**
+ * `yahoo-finance2` throws `HTTPError(responseText || response.statusText)` and
+ * puts the numeric status on `error.code` — a property its own type
+ * declaration omits (`lib/errors.d.ts` declares only `name`). The status digits
+ * therefore never reach `error.message`, so matching the message for '429'
+ * does not fire on a real rate limit and the backoff below never runs. Read
+ * the status; the message check is only a fallback for a layer that reports it
+ * in words rather than a code.
+ */
 function is429(error: unknown): boolean {
+  const status = statusOf(error);
+  if (status === 429 || status === '429') return true;
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes('429');
+  return /too many requests/i.test(message);
 }
 
 /**
