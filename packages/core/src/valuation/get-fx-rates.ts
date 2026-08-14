@@ -36,8 +36,15 @@ export function makeReadFxRates(deps: { fx: FxRateRepository; clock: Clock }) {
   };
 }
 
+/**
+ * Same gate as `get-prices.ts`'s: a non-positive rate or one dated in the
+ * future is a provider bug, not a rate. `greaterThan(0)` rather than
+ * `isPositive()` — `Decimal.isPositive()` treats zero as positive (which is
+ * why `Money` overrides it), and a zero mid saved as `fresh` makes every later
+ * `convertViaPln` divide by it and yield `Infinity` instead of throwing.
+ */
 function isUsable(rate: FxRate, now: Temporal.Instant): boolean {
-  if (!rate.mid.isPositive()) return false;
+  if (!rate.mid.greaterThan(0)) return false;
   const today = now.toZonedDateTimeISO('UTC').toPlainDate();
   return Temporal.PlainDate.compare(rate.date, today) <= 0;
 }

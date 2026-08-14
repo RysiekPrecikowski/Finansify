@@ -47,6 +47,17 @@ reads only `instrument_prices`/`fx_rates`, streams in updates as they land,
 and stays correct if the provider is down or slow. `apps/web/AGENTS.md`
 already states "there is no cron"; this is that rule applied to prices.
 
+**One TTL — 15 minutes — for every instrument and every currency.** A stored
+bar or rate older than that is due for a refresh; anything newer is served as
+`fresh` without touching a provider. There is no market calendar and no
+per-exchange or per-asset-class tuning: after a session closes this refetches
+the same unchanged close every 15 minutes, which costs one throttled request
+and is always correct, where a calendar that is wrong about a holiday or a
+half-day silently serves a stale number as live. `PRICE_TTL_MINUTES` in
+`packages/core/src/valuation/get-prices.ts` is the single definition, and
+`get-fx-rates.ts` imports it rather than declaring a second one — the two
+freshness windows are the same decision, not two that happen to coincide.
+
 **One provider, deliberately.** Yahoo (`yahoo-finance2`) for global and GPW
 equity/ETF prices, NBP table A for FX. There is no free, working second source
 for prices today, so resilience comes from the storage layer — a stale bar
