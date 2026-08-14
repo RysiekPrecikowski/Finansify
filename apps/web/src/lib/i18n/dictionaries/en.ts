@@ -168,6 +168,8 @@ export const en: Dictionary = {
     totalValue: 'Total value',
     totalValueNote:
       'Open positions only, converted to PLN at the latest NBP rate. Cash is not included yet.',
+    totalValueIncomplete:
+      'Some positions have no price or exchange rate yet — this total is partial.',
     unavailableNeverFetched: 'price loading…',
     unavailableUnmapped: 'not mapped to a provider yet',
     closed: {

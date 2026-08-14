@@ -183,6 +183,8 @@ export const pl = {
     totalValue: 'Wartość portfela',
     totalValueNote:
       'Tylko otwarte pozycje, przeliczone na PLN po ostatnim kursie NBP. Gotówka nie jest jeszcze wliczona.',
+    totalValueIncomplete:
+      'Część pozycji nie ma jeszcze ceny lub kursu wymiany — ta suma jest niepełna.',
     unavailableNeverFetched: 'cena się ładuje…',
     unavailableUnmapped: 'jeszcze niezmapowane do dostawcy',
     closed: {

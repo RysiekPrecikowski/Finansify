@@ -1,15 +1,15 @@
 import {
-  convertViaPln,
   makeMapInstrument,
   makeReadFxRates,
   makeReadPrices,
   makeRefreshFxRates,
   makeRefreshPrices,
   Money,
-  UnknownFxRateError,
+  valuePositions,
   currency as toCurrency,
   type Currency,
   type InstrumentPosition,
+  type ValuedPosition,
 } from '@finansify/core';
 import type { Route } from 'next';
 import type Decimal from 'decimal.js';
@@ -56,7 +56,18 @@ export async function OpenPositions({
   dictionary: Dictionary;
 }>) {
   const instrumentIds = positions.map((position) => position.instrument.id);
-  const currencies = [...new Set(positions.map((position) => position.instrument.currency))];
+  // Instrument currencies (for pricing) union cost-basis currencies (for
+  // unrealized P&L), minus PLN: NBP table A has no PLN row, so including it
+  // here made `fxDue` permanently true and re-fetched the table on every
+  // `/portfolio` render regardless of what was actually stale.
+  const currencies = [
+    ...new Set([
+      ...positions.map((position) => position.instrument.currency),
+      ...positions.flatMap((position) =>
+        position.costBasisByCurrency.map((amount) => amount.currency),
+      ),
+    ]),
+  ].filter((code) => code !== PLN);
 
   const readPrices = makeReadPrices({ prices: getMarketPrices(), clock });
   const readFxRates = makeReadFxRates({ fx: getFxRates(), clock });
@@ -112,43 +123,16 @@ export async function OpenPositions({
     if (lookup.status !== 'unavailable') ratesToPln.set(code, lookup.mid);
   }
 
-  let total = Money.zero(PLN);
-  let totalIncomplete = false;
+  // All the Money arithmetic — market value, unrealized P&L, the PLN total —
+  // lives in `core`'s `valuePositions`, tested against fakes there. This
+  // component only formats what it returns.
+  const {
+    positions: valued,
+    totalMarketValuePln,
+    totalIsComplete,
+  } = valuePositions(positions, priceLookups, ratesToPln);
 
-  const marketValueOf = (position: InstrumentPosition): Money | null => {
-    const lookup = priceLookups.get(position.instrument.id);
-    if (lookup === undefined || lookup.status === 'unavailable') return null;
-    return lookup.close.times(position.quantity);
-  };
-
-  for (const position of positions) {
-    const value = marketValueOf(position);
-    if (value === null) {
-      totalIncomplete = true;
-      continue;
-    }
-    try {
-      total = total.plus(convertViaPln(value, PLN, ratesToPln));
-    } catch (error) {
-      if (error instanceof UnknownFxRateError) totalIncomplete = true;
-      else throw error;
-    }
-  }
-
-  const unrealizedOf = (position: InstrumentPosition): Money | null => {
-    const value = marketValueOf(position);
-    if (value === null) return null;
-    // Only computed when cost basis is single-currency and matches the
-    // instrument's own currency — a cost basis split across accounts in
-    // different currencies has no single number to subtract from (rule 6/7,
-    // same reasoning as `averageCost`).
-    if (position.costBasisByCurrency.length !== 1) return null;
-    const costBasis = position.costBasisByCurrency[0]!;
-    if (costBasis.currency !== value.currency) return null;
-    return value.minus(costBasis);
-  };
-
-  const averageCostCell = (position: InstrumentPosition) =>
+  const averageCostCell = (position: ValuedPosition) =>
     position.averageCost === null ? (
       <Badge variant="outline" className="font-normal">
         {strings.multipleCurrencies}
@@ -157,16 +141,15 @@ export async function OpenPositions({
       formatMoney(Money.of(position.averageCost, position.costBasisByCurrency[0]!.currency), locale)
     );
 
-  const accountsHeldIn = (position: InstrumentPosition) =>
+  const accountsHeldIn = (position: ValuedPosition) =>
     [...new Set(position.lines.map((line) => line.account.name))].join(', ');
 
-  const rowHref = (position: InstrumentPosition) => `/portfolio/${position.instrument.id}` as Route;
+  const rowHref = (position: ValuedPosition) => `/portfolio/${position.instrument.id}` as Route;
 
-  const marketValueCell = (position: InstrumentPosition) => {
-    const value = marketValueOf(position);
+  const marketValueCell = (position: ValuedPosition) => {
     const lookup = priceLookups.get(position.instrument.id);
 
-    if (value === null) {
+    if (position.marketValueByCurrency.length === 0) {
       const reason = lookup?.status === 'unavailable' ? lookup.reason : 'never-fetched';
       return (
         <span className="text-muted-foreground text-xs">
@@ -177,7 +160,7 @@ export async function OpenPositions({
 
     return (
       <span className="flex flex-col items-end">
-        <span className="tabular-nums">{formatMoney(value, locale)}</span>
+        <MoneyLines amounts={position.marketValueByCurrency} locale={locale} />
         {lookup?.status === 'stale' && (
           <span className="text-muted-foreground text-[0.7rem]">
             {dictionary.dashboard.asOf} {formatPlainDate(lookup.asOf, locale)} ·{' '}
@@ -188,16 +171,14 @@ export async function OpenPositions({
     );
   };
 
-  const unrealizedCell = (position: InstrumentPosition) => {
-    const value = unrealizedOf(position);
-    return value === null ? (
+  const unrealizedCell = (position: ValuedPosition) =>
+    position.unrealizedByCurrency.length === 0 ? (
       <span className="text-muted-foreground text-xs">—</span>
     ) : (
-      <MoneyLines amounts={[value]} locale={locale} colored />
+      <MoneyLines amounts={position.unrealizedByCurrency} locale={locale} colored />
     );
-  };
 
-  const openLotsColumn: DataListColumn<InstrumentPosition> = {
+  const openLotsColumn: DataListColumn<ValuedPosition> = {
     id: 'lots',
     header: '',
     align: 'end',
@@ -213,7 +194,7 @@ export async function OpenPositions({
     ),
   };
 
-  const columns: readonly DataListColumn<InstrumentPosition>[] = [
+  const columns: readonly DataListColumn<ValuedPosition>[] = [
     {
       id: 'instrument',
       header: strings.instrument,
@@ -286,14 +267,19 @@ export async function OpenPositions({
           {strings.totalValue}
         </span>
         <span className="flex flex-col items-end">
-          <span className="text-lg font-semibold tabular-nums">{formatMoney(total, locale)}</span>
-          {totalIncomplete && (
-            <span className="text-muted-foreground text-[0.7rem]">{strings.totalValueNote}</span>
+          <span className="text-lg font-semibold tabular-nums">
+            {formatMoney(totalMarketValuePln, locale)}
+          </span>
+          <span className="text-muted-foreground text-[0.7rem]">{strings.totalValueNote}</span>
+          {!totalIsComplete && (
+            <span className="text-muted-foreground text-[0.7rem]">
+              {strings.totalValueIncomplete}
+            </span>
           )}
         </span>
       </div>
       <DataList
-        rows={positions}
+        rows={valued}
         columns={columns}
         rowKey={(position) => position.instrument.id}
         leading={(position) => <Monogram symbol={position.instrument.symbol} />}
@@ -303,10 +289,22 @@ export async function OpenPositions({
   );
 }
 
-/** Auto-maps whatever isn't mapped yet; a refusal from the resolver is not an error here. */
+/**
+ * Auto-maps whatever isn't mapped yet; a refusal from the resolver is not an
+ * error here. Each instrument resolves independently — one provider hiccup
+ * (a timeout, a delisted symbol) must not blank the whole page, so a failure
+ * is logged and that instrument simply stays `never-fetched` rather than
+ * throwing out of the render path.
+ */
 async function resolveMissingSymbols(positions: readonly InstrumentPosition[]): Promise<void> {
   const mapInstrument = makeMapInstrument({ symbols: getSymbols(), resolver: getSymbolResolver() });
-  for (const position of positions) {
-    await mapInstrument(position.instrument);
-  }
+  await Promise.all(
+    positions.map(async (position) => {
+      try {
+        await mapInstrument(position.instrument);
+      } catch (error) {
+        console.error(`Failed to map ${position.instrument.symbol} to a provider symbol:`, error);
+      }
+    }),
+  );
 }
