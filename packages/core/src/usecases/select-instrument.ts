@@ -1,19 +1,26 @@
 import { z } from 'zod';
 
 import { type InstrumentRepository } from '../ledger/ports';
-import { instrumentIdSchema, instrumentKinds, type Instrument } from '../ledger/types';
+import { instrumentIdSchema, type Instrument } from '../ledger/types';
 import { type InstrumentSearchProvider, type SymbolRepository } from '../valuation/ports';
 import { providerNames } from '../valuation/vocabulary';
 import { failure, issuesOf, success, type UseCaseResult } from './result';
 
 /**
- * What a caller may submit to pick an instrument — never free-text fields a
- * human typed by hand. `existing` names a row already in our database by id;
- * `candidate` names one search hit from a provider, identified by its own
- * `symbol` — never a currency or exchange the client asserts, since a search
- * result doesn't carry those (`InstrumentCandidate`). `confirm()` is what
- * looks them up, on the live listing, before anything is persisted. There is
- * no third case that saves something unresolvable — see `makeSelectInstrument`.
+ * What a caller may submit to pick an instrument. `existing` names a row
+ * already in our database by id; `candidate` names *which listing was picked*
+ * and nothing else — `provider` and `symbol`, plus a `name` used only as a
+ * fallback label.
+ *
+ * Everything descriptive is deliberately absent. `instruments` is global
+ * (ADR 0010) and `findOrCreate` returns the existing row on `(symbol,
+ * exchange)` without correcting its fields, so a descriptive field the client
+ * asserts is written once and then served to every other user forever. Kind,
+ * currency and exchange therefore come from `confirm()`, which is the only
+ * thing that has looked at the live listing. ISIN has no source at all —
+ * neither `search()` nor `quote()` returns one, and ADR 0014 demoted it to a
+ * soft cross-check — so accepting it would be attack surface for a field
+ * nothing can fill.
  */
 export const instrumentSelectionSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -25,9 +32,6 @@ export const instrumentSelectionSchema = z.discriminatedUnion('kind', [
     provider: z.enum(providerNames),
     symbol: z.string().trim().min(1).max(32),
     name: z.string().trim().min(1).max(200),
-    instrumentKind: z.enum(instrumentKinds),
-    isin: z.string().trim().length(12).nullable().default(null),
-    exchange: z.string().trim().max(32).nullable().default(null),
   }),
 ]);
 
@@ -64,13 +68,23 @@ export function makeSelectInstrument(deps: {
       provider: parsed.data.provider,
       symbol: parsed.data.symbol,
       name: parsed.data.name,
-      kind: parsed.data.instrumentKind,
+      kind: null,
       currency: null,
-      isin: parsed.data.isin,
-      exchange: parsed.data.exchange,
+      isin: null,
+      exchange: null,
     });
 
     if (confirmed === null) {
+      return failure([
+        { path: 'symbol', message: 'Could not confirm this instrument with the provider' },
+      ]);
+    }
+
+    // `ConfirmedCandidate` narrows these at compile time, which an adapter can
+    // satisfy by assertion. They decide what every later price fetch is
+    // compared against, and a null reaching `instruments` would be persisted
+    // globally, so they are checked here too rather than trusted.
+    if (confirmed.currency === null || confirmed.kind === null) {
       return failure([
         { path: 'symbol', message: 'Could not confirm this instrument with the provider' },
       ]);

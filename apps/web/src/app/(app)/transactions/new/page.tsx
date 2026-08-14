@@ -33,12 +33,14 @@ export default async function NewTransactionPage() {
         action={createTransactionAction}
         submitLabel={dictionary.transactions.save}
         accounts={options.accounts}
-        instruments={options.instruments}
         shapes={options.shapes}
         values={{
           accountId: firstAccount.id,
           type: 'buy',
-          instrumentId: options.instruments[0]?.id ?? 'new',
+          // Nothing pre-selected: the user searches and picks, they don't
+          // start from whatever instrument happens to sort first in the
+          // database — that was never a meaningful default.
+          instrument: null,
           tradeDate: today,
           settleDate: '',
           quantity: '',

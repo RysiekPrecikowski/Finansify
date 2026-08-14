@@ -28,6 +28,13 @@ export const yahooPriceProvider: PriceProvider = {
 
     const zone = result.meta.exchangeTimezoneName;
     const priceHint = result.meta.priceHint;
+    // LSE pence-denominated instruments report `meta.currency === 'GBp'`
+    // (same raw string `quote.currency` carries in resolve-symbol.ts). We
+    // store `ref.currency: 'GBP'` for these, so divide by 100 after rounding
+    // to `priceHint` — priceHint describes pence-scale precision here, and
+    // re-rounding after dividing would reintroduce the precision loss it
+    // exists to prevent. An exact unit conversion, not an estimate.
+    const isPence = result.meta.currency === 'GBp';
 
     // `yahoo-finance2` types `priceHint` as required, but its own source notes
     // that other "required" meta fields are absent for real instruments, and
@@ -61,7 +68,8 @@ export const yahooPriceProvider: PriceProvider = {
       // (`155.67999267578125`); `priceHint` is the instrument's own decimal
       // precision, so rounding to it here is what keeps that artifact out of
       // `NUMERIC` (rule 1, section 08).
-      const close = new Decimal(quote.close).toDecimalPlaces(priceHint);
+      let close = new Decimal(quote.close).toDecimalPlaces(priceHint);
+      if (isPence) close = close.dividedBy(100);
 
       bars.push({ instrumentId: ref.instrumentId, date, close: Money.of(close, ref.currency) });
     }

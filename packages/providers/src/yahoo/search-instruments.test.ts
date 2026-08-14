@@ -1,266 +1,132 @@
-import { currency } from '@finansify/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { currency, type InstrumentCandidate } from '@finansify/core';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./client', () => ({
-  yahooFinance: { quote: vi.fn(), search: vi.fn() },
+  yahooFinance: { search: vi.fn(), quote: vi.fn() },
   callYahoo: (fn: () => Promise<unknown>) => fn(),
 }));
 
 import { yahooFinance } from './client';
 import { yahooInstrumentSearch } from './search-instruments';
 
-describe('yahooInstrumentSearch.search', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('maps an EQUITY hit to a candidate with kind "equity" and currency null', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          symbol: 'AAPL',
-          isYahooFinance: true,
-          exchange: 'NMS',
-          quoteType: 'EQUITY',
-          longname: 'Apple Inc.',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('apple');
-
-    expect(result).toEqual([
-      {
-        provider: 'yahoo',
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        exchange: 'NMS',
-        currency: null,
-        kind: 'equity',
-        isin: null,
-      },
-    ]);
-  });
-
-  it('maps an ETF hit to kind "etf"', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          symbol: 'SXR8.DE',
-          isYahooFinance: true,
-          exchange: 'GER',
-          quoteType: 'ETF',
-          longname: 'iShares Core S&P 500 UCITS ETF',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('sp500');
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.kind).toBe('etf');
-    expect(result[0]!.currency).toBeNull();
-  });
-
-  it('maps a MUTUALFUND hit to kind "fund"', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          symbol: 'VTSAX',
-          isYahooFinance: true,
-          exchange: 'NAS',
-          quoteType: 'MUTUALFUND',
-          longname: 'Vanguard Total Stock Market Index Fund',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('vanguard');
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.kind).toBe('fund');
-    expect(result[0]!.currency).toBeNull();
-  });
-
-  it('filters out quote types this app has no vocabulary for', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        { symbol: '^GSPC', isYahooFinance: true, exchange: 'SNP', quoteType: 'INDEX' },
-        { symbol: 'EURUSD=X', isYahooFinance: true, exchange: 'CCY', quoteType: 'CURRENCY' },
-        { symbol: 'BTC-USD', isYahooFinance: true, exchange: 'CCC', quoteType: 'CRYPTOCURRENCY' },
-        {
-          symbol: 'AAPL240119C00150000',
-          isYahooFinance: true,
-          exchange: 'OPR',
-          quoteType: 'OPTION',
-        },
-        {
-          symbol: 'AAPL',
-          isYahooFinance: true,
-          exchange: 'NMS',
-          quoteType: 'EQUITY',
-          longname: 'Apple Inc.',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('apple');
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.symbol).toBe('AAPL');
-  });
-
-  it('filters out non-Yahoo search hits, which lack quoteType entirely', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          index: 'crunchbase_1',
-          name: 'Some Startup Inc.',
-          permalink: 'some-startup',
-          isYahooFinance: false,
-        },
-        {
-          symbol: 'AAPL',
-          isYahooFinance: true,
-          exchange: 'NMS',
-          quoteType: 'EQUITY',
-          longname: 'Apple Inc.',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('apple');
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.symbol).toBe('AAPL');
-  });
-
-  it('prefers longname over shortname for the candidate name', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          symbol: 'AAPL',
-          isYahooFinance: true,
-          exchange: 'NMS',
-          quoteType: 'EQUITY',
-          shortname: 'Apple',
-          longname: 'Apple Inc.',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('apple');
-
-    expect(result[0]!.name).toBe('Apple Inc.');
-  });
-
-  it('falls back to shortname when longname is absent', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          symbol: 'AAPL',
-          isYahooFinance: true,
-          exchange: 'NMS',
-          quoteType: 'EQUITY',
-          shortname: 'Apple',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('apple');
-
-    expect(result[0]!.name).toBe('Apple');
-  });
-
-  it('falls back to the symbol when neither longname nor shortname is present', async () => {
-    vi.mocked(yahooFinance.search).mockResolvedValue({
-      quotes: [
-        {
-          symbol: 'AAPL',
-          isYahooFinance: true,
-          exchange: 'NMS',
-          quoteType: 'EQUITY',
-        },
-      ],
-    } as never);
-
-    const result = await yahooInstrumentSearch.search('apple');
-
-    expect(result[0]!.name).toBe('AAPL');
-  });
-});
+/** What `select-instrument` hands over: which listing, and nothing else. */
+const selection: InstrumentCandidate = {
+  provider: 'yahoo',
+  symbol: 'IWDA.AS',
+  name: 'submitted name',
+  exchange: null,
+  currency: null,
+  kind: null,
+  isin: null,
+};
 
 describe('yahooInstrumentSearch.confirm', () => {
-  const candidate = {
-    provider: 'yahoo' as const,
-    symbol: 'AAPL',
-    name: 'Apple Inc.',
-    exchange: 'NMS',
-    currency: null,
-    kind: 'equity' as const,
-    isin: null,
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns a ConfirmedCandidate with currency and exchange refreshed from the quote', async () => {
+  it('answers from the quote, not from the candidate', async () => {
     vi.mocked(yahooFinance.quote).mockResolvedValue({
-      currency: 'USD',
-      exchange: 'NMS',
-      longName: 'Apple Inc.',
+      symbol: 'IWDA.AS',
+      quoteType: 'ETF',
+      currency: 'EUR',
+      exchange: 'AMS',
+      longName: 'iShares Core MSCI World UCITS ETF',
     } as never);
 
-    const result = await yahooInstrumentSearch.confirm(candidate);
+    const confirmed = await yahooInstrumentSearch.confirm(selection);
 
-    expect(result).toEqual({
-      ...candidate,
-      name: 'Apple Inc.',
-      exchange: 'NMS',
-      currency: currency('USD'),
+    expect(confirmed).not.toBeNull();
+    expect(confirmed?.kind).toBe('etf');
+    expect(confirmed?.currency).toBe(currency('EUR'));
+    expect(confirmed?.exchange).toBe('AMS');
+    expect(confirmed?.name).toBe('iShares Core MSCI World UCITS ETF');
+    expect(confirmed?.isin).toBeNull();
+  });
+
+  it('refuses when the quote is for a different listing than the one picked', async () => {
+    // Yahoo normalizing or repointing the symbol. Accepting this would marry
+    // the picked symbol to another listing's currency — ADR 0014's wrong
+    // listing, reached without anyone typing anything unusual.
+    vi.mocked(yahooFinance.quote).mockResolvedValue({
+      symbol: 'IWDA.L',
+      quoteType: 'ETF',
+      currency: 'USD',
+      exchange: 'LSE',
+    } as never);
+
+    expect(await yahooInstrumentSearch.confirm(selection)).toBeNull();
+  });
+
+  it('refuses a quoteType this app cannot hold a position in', async () => {
+    // `^GSPC` submitted as an equity: an index has both a currency and an
+    // exchange, so presence checks alone would confirm it and write it into
+    // the global instruments table.
+    vi.mocked(yahooFinance.quote).mockResolvedValue({
+      symbol: '^GSPC',
+      quoteType: 'INDEX',
+      currency: 'USD',
+      exchange: 'SNP',
+    } as never);
+
+    const confirmed = await yahooInstrumentSearch.confirm({
+      ...selection,
+      symbol: '^GSPC',
+      kind: 'equity',
     });
-    expect(yahooFinance.quote).toHaveBeenCalledWith('AAPL');
+
+    expect(confirmed).toBeNull();
   });
 
-  it('refreshes the name from the quote, preferring longName over shortName', async () => {
+  it('refuses an FX pair the same way', async () => {
     vi.mocked(yahooFinance.quote).mockResolvedValue({
-      currency: 'USD',
-      exchange: 'NMS',
-      shortName: 'Apple',
-      longName: 'Apple Inc. (refreshed)',
+      symbol: 'EURPLN=X',
+      quoteType: 'CURRENCY',
+      currency: 'PLN',
+      exchange: 'CCY',
     } as never);
 
-    const result = await yahooInstrumentSearch.confirm(candidate);
-
-    expect(result?.name).toBe('Apple Inc. (refreshed)');
+    expect(
+      await yahooInstrumentSearch.confirm({ ...selection, symbol: 'EURPLN=X', kind: 'equity' }),
+    ).toBeNull();
   });
 
-  it('returns null when quote() throws, e.g. a delisted or not-found symbol', async () => {
-    vi.mocked(yahooFinance.quote).mockRejectedValue(new Error('Not Found'));
-
-    const result = await yahooInstrumentSearch.confirm(candidate);
-
-    expect(result).toBeNull();
-  });
-
-  it('returns null when the quote is missing currency', async () => {
+  it('refuses when the quote carries no currency or no exchange', async () => {
     vi.mocked(yahooFinance.quote).mockResolvedValue({
-      exchange: 'NMS',
+      symbol: 'IWDA.AS',
+      quoteType: 'ETF',
+      exchange: 'AMS',
+    } as never);
+    expect(await yahooInstrumentSearch.confirm(selection)).toBeNull();
+
+    vi.mocked(yahooFinance.quote).mockResolvedValue({
+      symbol: 'IWDA.AS',
+      quoteType: 'ETF',
+      currency: 'EUR',
+    } as never);
+    expect(await yahooInstrumentSearch.confirm(selection)).toBeNull();
+  });
+
+  it('refuses when the quote call itself fails', async () => {
+    vi.mocked(yahooFinance.quote).mockRejectedValue(new Error('upstream down'));
+
+    expect(await yahooInstrumentSearch.confirm(selection)).toBeNull();
+  });
+
+  it('refuses when the symbol is unknown and quote() resolves undefined', async () => {
+    // yahoo-finance2 filters `quoteType: 'NONE'` and returns results[0], so an
+    // unknown or delisted symbol resolves undefined rather than throwing.
+    vi.mocked(yahooFinance.quote).mockResolvedValue(undefined as never);
+
+    expect(await yahooInstrumentSearch.confirm({ ...selection, symbol: 'ZZZZZ' })).toBeNull();
+  });
+
+  it('falls back to the quote symbol, never the submitted name', async () => {
+    vi.mocked(yahooFinance.quote).mockResolvedValue({
+      symbol: 'IWDA.AS',
+      quoteType: 'ETF',
+      currency: 'EUR',
+      exchange: 'AMS',
     } as never);
 
-    const result = await yahooInstrumentSearch.confirm(candidate);
+    const confirmed = await yahooInstrumentSearch.confirm(selection);
 
-    expect(result).toBeNull();
-  });
-
-  it('returns null when the quote is missing exchange', async () => {
-    vi.mocked(yahooFinance.quote).mockResolvedValue({
-      currency: 'USD',
-    } as never);
-
-    const result = await yahooInstrumentSearch.confirm(candidate);
-
-    expect(result).toBeNull();
+    expect(confirmed?.name).toBe('IWDA.AS');
   });
 });

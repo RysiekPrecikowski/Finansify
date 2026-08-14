@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getDictionary } from '@/lib/i18n/server';
 import { scopedLedgerFor } from '@/server/container';
 import { deleteTransactionAction, updateTransactionAction } from '../../actions';
-import { loadTransactionFormOptions } from '../../form-options';
+import { loadSelectedInstrument, loadTransactionFormOptions } from '../../form-options';
 
 /**
  * `getTransaction` resolves through the caller's own scoped repository, so a
@@ -26,13 +26,14 @@ export default async function EditTransactionPage({
   const parsedId = transactionIdSchema.safeParse(id);
   if (!parsedId.success) notFound();
 
-  const [transaction, options, dictionary] = await Promise.all([
-    scopedLedgerFor(user.id).getTransaction(parsedId.data),
+  const transaction = await scopedLedgerFor(user.id).getTransaction(parsedId.data);
+  if (transaction === null) notFound();
+
+  const [options, instrument, dictionary] = await Promise.all([
     loadTransactionFormOptions(user.id),
+    loadSelectedInstrument(transaction.instrumentId),
     getDictionary(),
   ]);
-
-  if (transaction === null) notFound();
 
   const strings = dictionary.transactions;
 
@@ -44,13 +45,12 @@ export default async function EditTransactionPage({
         action={updateTransactionAction}
         submitLabel={strings.save}
         accounts={options.accounts}
-        instruments={options.instruments}
         shapes={options.shapes}
         values={{
           id: transaction.id,
           accountId: transaction.accountId,
           type: transaction.type,
-          instrumentId: transaction.instrumentId ?? 'new',
+          instrument,
           tradeDate: transaction.tradeDate.toString(),
           settleDate: transaction.settleDate?.toString() ?? '',
           // `toFixed()` with no argument renders the stored decimal in full:

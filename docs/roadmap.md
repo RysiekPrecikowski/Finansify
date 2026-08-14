@@ -106,15 +106,17 @@ transaction.
 
 - [x] ADR 0014 — lazy ingestion, single provider, exchange as a mandatory
       resolution coordinate; corrects `docs/data-sources.md`'s Stooq entries
-- [x] `core`: `valuation` domain — `PriceLookup`/`FxRateLookup`, the five
-      valuation ports, `readPrices`/`refreshPrices`,
-      `readFxRates`/`refreshFxRates`, `convertViaPln`, `mapInstrument`
+- [x] `core`: `valuation` domain — `PriceLookup`/`FxRateLookup`, the valuation
+      ports, `readPrices`/`refreshPrices`, `readFxRates`/`refreshFxRates`,
+      `convertViaPln`, `valuePositions`; `searchInstruments`/`selectInstrument`
+      resolve and confirm an instrument at creation time, so there is no
+      separate mapping pass to run later
 - [x] `db`: `instrument_identifiers`, `instrument_prices`, `fx_rates` +
       migration; `marketPriceRepository`, `symbolRepository`, `fxRateRepository`
-- [x] `providers` (new package): Yahoo adapter — symbol resolution (section 06
-      of the ingestion plan: MIC first, ISIN as a soft cross-check only,
-      currency/exchange as the hard gate), daily bars with float32 rounding
-      and exchange-timezone dating, throttling and 429 backoff; NBP adapter for
+- [x] `providers` (new package): Yahoo adapter — instrument search and
+      confirm (ADR 0014, revised: the provider names the listing, this app
+      never constructs a ticker), daily bars with float32 rounding and
+      exchange-timezone dating, throttling and 429 backoff; NBP adapter for
       table A
 - [x] `apps/web`: `/portfolio` open positions carry market value, unrealized
       P&L, and a portfolio total in PLN, streamed in by a `<Suspense>`
@@ -123,8 +125,13 @@ transaction.
 - [ ] Dashboard on real data — still renders `lib/fixtures/portfolio.ts`;
       deferred rather than done in the same change, since it touches every
       dashboard component and deserves its own PR
-- [ ] Instrument mapping screen (PR 6 of the ingestion plan) — an instrument
-      the resolver refuses currently has no UI path to a manual fix
+- [x] Instrument selection by search — the user searches by ticker or name and
+      picks a result; local database first, the provider as a fallback, and
+      the selected candidate is re-confirmed against a live quote before it's
+      persisted (ADR 0014, revised). Replaces the earlier MIC-dropdown /
+      dry-run-check flow: there is no longer a way to create an instrument the
+      resolver hasn't already confirmed, so there is no manual mapping screen
+      to build
 - [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
       ADR 0014 and the ingestion plan's "poza zakresem" section
 

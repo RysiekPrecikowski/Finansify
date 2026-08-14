@@ -74,13 +74,28 @@ export interface InstrumentCandidate {
   readonly name: string;
   readonly exchange: string | null;
   readonly currency: Currency | null;
-  readonly kind: InstrumentKind;
+  /**
+   * Null when the candidate was rebuilt from a selection rather than produced
+   * by `search()` — a client can name a symbol but cannot be trusted to say
+   * what kind of thing it is, and `instruments` is global (ADR 0010), so an
+   * unverified kind would be persisted once and then served to every user.
+   * `confirm()` derives it from the live listing.
+   */
+  readonly kind: InstrumentKind | null;
   readonly isin: string | null;
 }
 
-/** An `InstrumentCandidate` that has been through `confirm()` — currency is no longer in question. */
+/**
+ * An `InstrumentCandidate` that has been through `confirm()`: the provider has
+ * seen this exact listing and answered for it, so currency and kind are no
+ * longer in question. Both are narrowed here only — `makeSelectInstrument`
+ * still checks them at runtime, because an adapter can satisfy a narrowing by
+ * assertion and these two fields decide what every later price is compared
+ * against.
+ */
 export interface ConfirmedCandidate extends InstrumentCandidate {
   readonly currency: Currency;
+  readonly kind: InstrumentKind;
 }
 
 /** One currency's mid rate to PLN on one day, from one provider — NBP table A. */
