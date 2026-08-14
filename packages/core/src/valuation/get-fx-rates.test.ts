@@ -67,6 +67,38 @@ describe('makeRefreshFxRates', () => {
     expect(stored.get(USD)?.mid.toString()).toBe('3.7362');
   });
 
+  it('refuses a zero mid rather than storing one that later divides to Infinity', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    const provider: FxRateProvider = {
+      name: 'nbp',
+      fetchTableTo: () =>
+        Promise.resolve([rate(USD, '2026-08-13', '0'), rate(EUR, '2026-08-13', '4.3058')]),
+    };
+
+    const refreshFxRates = makeRefreshFxRates({ fx, provider, clock });
+    const report = await refreshFxRates([USD, EUR]);
+
+    expect(report.failed).toEqual([USD]);
+    expect(report.refreshed).toEqual([EUR]);
+    expect((await fx.latestFor([USD])).get(USD)).toBeUndefined();
+  });
+
+  it('refuses a negative mid', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    const provider: FxRateProvider = {
+      name: 'nbp',
+      fetchTableTo: () => Promise.resolve([rate(USD, '2026-08-13', '-3.7362')]),
+    };
+
+    const refreshFxRates = makeRefreshFxRates({ fx, provider, clock });
+    const report = await refreshFxRates([USD]);
+
+    expect(report.failed).toEqual([USD]);
+    expect((await fx.latestFor([USD])).get(USD)).toBeUndefined();
+  });
+
   it('does not call the provider when every requested currency is already fresh', async () => {
     const clock = new FakeClock(NOW);
     const fx = new InMemoryFxRates(clock);
