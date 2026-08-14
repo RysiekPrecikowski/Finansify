@@ -111,11 +111,12 @@ id for `https://app.clickup.com/t/869ej7nzv` is `869ej7nzv`.
 
 Existing repo conventions stay; the id is added to them.
 
-- **Branch** — `<type>/<taskId>-<slug>`, e.g.
-  `feat/869ej7nzv-positions-view`, `fix/869ej7nzv-cost-basis-rounding`,
-  `docs/869ej7nzv-clickup-workflow`. Types as in commits: `feat`, `fix`,
+- **Branch** — `<type>/<slug>-<taskId>`, e.g.
+  `feat/positions-view-869ej7nzv`, `fix/cost-basis-rounding-869ej7nzv`,
+  `docs/clickup-workflow-869ej7nzv`. Types as in commits: `feat`, `fix`,
   `chore`, `docs`, `refactor`. The slug is English (rule 11) even when the
-  ticket title is Polish.
+  ticket title is Polish. Id last, same as the commit trailer and the PR
+  title — the readable part comes first.
 - **Commit** — conventional subject unchanged, with the id as a trailer:
 
   ```
