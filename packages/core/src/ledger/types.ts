@@ -302,6 +302,10 @@ export type AccountInputSubmission = z.input<typeof accountInputSchema>;
  * What a caller may submit to name an instrument. Instruments are global
  * (ADR 0010), so these fields are deliberately explicit rather than inferred
  * from a free-text box: one user's typo is a row every other user then sees.
+ *
+ * This is Phase 1's original instrument-creation path, kept working until
+ * PR 6 rewires `apps/web`'s transaction form onto `selectInstrument`
+ * (`usecases/select-instrument.ts`) — the search-first flow that replaces it.
  */
 export const instrumentInputSchema = z.object({
   symbol: z.string().trim().min(1).max(32).toUpperCase(),
