@@ -1,6 +1,6 @@
 import type Decimal from 'decimal.js';
 
-import { type InstrumentId, type Instrument } from '../ledger/types';
+import { type InstrumentId, type Instrument, type InstrumentKind } from '../ledger/types';
 import { type Money, type Currency } from '../money';
 import { type Temporal } from '../time';
 
@@ -54,6 +54,23 @@ export interface ResolvedSymbol {
   readonly symbol: string;
   /** Expected currency — the adapter compares its response against this and refuses on mismatch. */
   readonly currency: Currency;
+}
+
+/**
+ * One provider's listing, offered to the user as something to select — from a
+ * typeahead search, never typed in by hand. Nothing here is persisted until
+ * it's confirmed (`InstrumentSearchProvider.confirm`) and turned into an
+ * `Instrument`: search results reflect the provider's index, which can be
+ * stale by the time the user picks one.
+ */
+export interface InstrumentCandidate {
+  readonly provider: ProviderName;
+  readonly symbol: string;
+  readonly name: string;
+  readonly exchange: string | null;
+  readonly currency: Currency;
+  readonly kind: InstrumentKind;
+  readonly isin: string | null;
 }
 
 /** One currency's mid rate to PLN on one day, from one provider — NBP table A. */

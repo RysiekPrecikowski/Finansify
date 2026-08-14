@@ -3,6 +3,7 @@ import { type Currency } from '../money';
 import { type Temporal } from '../time';
 import {
   type FxRate,
+  type InstrumentCandidate,
   type PriceBar,
   type ResolvedSymbol,
   type StoredBar,
@@ -22,11 +23,31 @@ export interface PriceProvider {
 }
 
 /**
- * Given our own instrument record, decide which provider symbol it is — or
- * refuse. A `null` result means "needs a human", not "retry me": the
- * disambiguation in section 06 (MIC first, ISIN as cross-check only, currency
- * and exchange as the hard gate) lives inside the implementation, because only
- * the provider adapter knows its own listing conventions.
+ * Search-as-you-type, local database first. `search-instruments` (usecase)
+ * tries `InstrumentRepository.search` before ever calling this — an instrument
+ * already resolved by one user should never trigger a second Yahoo request for
+ * the next one who types the same ticker.
+ */
+export interface InstrumentSearchProvider {
+  readonly name: ProviderName;
+  search(query: string): Promise<readonly InstrumentCandidate[]>;
+
+  /**
+   * Re-fetches the live listing for a candidate the user just picked, and
+   * refuses (`null`) if currency or exchange no longer match what `search`
+   * returned. This is the hard gate ADR 0014 describes — moved to confirm a
+   * real candidate instead of verifying a guessed one, but the same rule:
+   * nothing is persisted without it succeeding.
+   */
+  confirm(candidate: InstrumentCandidate): Promise<InstrumentCandidate | null>;
+}
+
+/**
+ * Phase 1's original resolver shape — given our own instrument record, decide
+ * which provider symbol it is, or refuse. Kept only until PR 6 rewires
+ * `apps/web`'s transaction form onto `InstrumentSearchProvider` above and
+ * deletes this alongside `map-instrument.ts` and `resolve-instrument.ts`;
+ * nothing new should be built against it.
  */
 export interface SymbolResolver {
   readonly name: ProviderName;
