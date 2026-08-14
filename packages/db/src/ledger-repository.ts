@@ -20,7 +20,7 @@ import {
   type UserId,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
 
 import { type Database } from './client';
 import { accounts, type AccountRow } from './schema/accounts';
@@ -334,6 +334,22 @@ export function instrumentRepository(db: Database): InstrumentRepository {
 
     async listAll() {
       const rows = await db.select().from(instruments).orderBy(asc(instruments.symbol));
+      return rows.map(toInstrument);
+    },
+
+    async findById(id) {
+      const [row] = await db.select().from(instruments).where(eq(instruments.id, id)).limit(1);
+      return row === undefined ? null : toInstrument(row);
+    },
+
+    async search(query) {
+      const needle = `%${query}%`;
+      const rows = await db
+        .select()
+        .from(instruments)
+        .where(or(ilike(instruments.symbol, needle), ilike(instruments.name, needle)))
+        .orderBy(asc(instruments.symbol))
+        .limit(20);
       return rows.map(toInstrument);
     },
   };

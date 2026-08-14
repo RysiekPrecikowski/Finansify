@@ -8,7 +8,7 @@ package boundaries while there is still little code to move.
 | **0 — Foundations**  | Docs and ADRs · packages and ports · `Money`/`Currency`/Temporal · auth · database · CI |
 | **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices. |
 | **1.5 — Encryption** | Encryption at rest, once there is an application to protect. See ADR 0013.              |
-| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo and Stooq · shared cache · dashboard on real data   |
+| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo prices · shared cache · dashboard on real data      |
 | **3 — Polish bonds** | `BondTermsResolver` · family rules · accrual engine with golden tests · projections     |
 | **4 — Imports**      | Blob upload · staging and review UI · XTB and Boś parsers · CSV mapper · dedup          |
 | **5 — Performance**  | TWR, XIRR, benchmark overlay, versus-index view                                         |
@@ -102,20 +102,55 @@ is scope. The analysis keeps, the implementation waits.
 Phase 2 onward is features. The next thing that ships is a form that writes a
 transaction.
 
-## What the upcoming phases contain
+**Phase 2 — in progress.**
+
+- [x] ADR 0014 — lazy ingestion, single provider, exchange as a mandatory
+      resolution coordinate; corrects `docs/data-sources.md`'s Stooq entries
+- [x] `core`: `valuation` domain — `PriceLookup`/`FxRateLookup`, the valuation
+      ports, `readPrices`/`refreshPrices`, `readFxRates`/`refreshFxRates`,
+      `convertViaPln`, `valuePositions`; `searchInstruments`/`selectInstrument`
+      resolve and confirm an instrument at creation time, so there is no
+      separate mapping pass to run later
+- [x] `db`: `instrument_identifiers`, `instrument_prices`, `fx_rates` +
+      migration; `marketPriceRepository`, `symbolRepository`, `fxRateRepository`
+- [x] `providers` (new package): Yahoo adapter — instrument search and
+      confirm (ADR 0014, revised: the provider names the listing, this app
+      never constructs a ticker), daily bars with float32 rounding and
+      exchange-timezone dating, throttling and 429 backoff; NBP adapter for
+      table A
+- [x] `apps/web`: `/portfolio` open positions carry market value, unrealized
+      P&L, and a portfolio total in PLN, streamed in by a `<Suspense>`
+      boundary that is the only thing touching a provider — the ledger read
+      itself never does
+- [ ] Dashboard on real data — still renders `lib/fixtures/portfolio.ts`;
+      deferred rather than done in the same change, since it touches every
+      dashboard component and deserves its own PR
+- [x] Instrument selection by search — the user searches by ticker or name and
+      picks a result; local database first, the provider as a fallback, and
+      the selected candidate is re-confirmed against a live quote before it's
+      persisted (ADR 0014, revised). Replaces the earlier MIC-dropdown /
+      dry-run-check flow: there is no longer a way to create an instrument the
+      resolver hasn't already confirmed, so there is no manual mapping screen
+      to build
+- [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
+      ADR 0014 and the ingestion plan's "poza zakresem" section
 
 ### Phase 2 — Valuation
 
-Turns a correct ledger into a portfolio worth looking at.
+Turns a correct ledger into a portfolio worth looking at. ADR 0014 revised
+this phase's shape after real requests against Yahoo and Stooq: no scheduler
+(a `<Suspense>` boundary replaces `after()`), one provider rather than
+Yahoo-primary/Stooq-fallback (Stooq is now behind a proof-of-work anti-bot
+gate), and exchange (MIC) as a mandatory resolution coordinate rather than
+ISIN.
 
 - `instrument_identifiers` — provider ticker mapping, so `PKN.WA` vs `PKN` vs
   `BTC-USD` never reaches the domain.
-- `PriceFeed` adapters: Yahoo primary, Stooq fallback for GPW. `FxRateFeed`
-  against NBP table A.
-- The shared cache (`prices`, `fx_rates`) with per-source TTLs, plus a market
-  calendar so we neither refetch all weekend nor label Friday's close as live.
-- Background refresh with `after()`; a per-instrument fetch guard against a
-  thundering herd.
+- `PriceProvider`: Yahoo (`yahoo-finance2`), the only free source with working
+  GPW and global coverage. `FxRateProvider` against NBP table A.
+- The shared cache (`instrument_prices`, `fx_rates`), lazily refreshed inside
+  a `<Suspense>` boundary — no scheduler, no market calendar; a fixed 15-minute
+  TTL is the whole freshness rule for now.
 - Dashboard on real data: headline, hero chart, allocation. The fixture dies here.
 
 Depends on Phase 1's positions. Blocked on nothing external.
@@ -217,15 +252,15 @@ rather than paid away.
 
 ## Deployment risk, before real data lands
 
-Two gaps in `docs/deployment.md` that are cheap now and expensive later. Both
+One gap in `docs/deployment.md` that is cheap now and expensive later, and
 should close before the ledger holds anything.
 
-**A migration first meets a real database on merge to `main`.** Preview
-deployments share whatever `DATABASE_URL` the Vercel project has, so the
-per-PR database branch ADR 0008 leans on is _not wired_. Today that is
-harmless — the ledger tables are empty and every migration so far has been a
-clean `CREATE`. The first `ALTER` against real rows is the one that will hurt,
-and there is no rehearsal step between writing it and production.
+**~~A migration first meets a real database on merge to `main`.~~** Closed. The
+Neon-Managed integration creates a `preview/<git-branch>` database per preview
+deployment, so a migration is rehearsed against a real copy on the PR rather
+than meeting production first. The cost is a branch budget of ten on the free
+tier, kept by `.github/workflows/neon-cleanup.yml` — see "The Neon branch
+budget" in `docs/deployment.md`.
 
 **No down-migrations.** `drizzle-kit` applies forward only. Recovery from a bad
 migration is a restore, which makes the off-provider backup above load-bearing

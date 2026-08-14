@@ -1,0 +1,165 @@
+'use client';
+
+import { useEffect, useRef, useState, useTransition } from 'react';
+
+import { searchInstrumentsAction, type InstrumentOption } from '@/app/(app)/transactions/actions';
+import { errorId, Field } from '@/components/form-field';
+import { Input } from '@/components/ui/input';
+import { useI18n } from '@/lib/i18n/client';
+
+const DEBOUNCE_MS = 250;
+const MIN_QUERY_LENGTH = 2;
+
+/**
+ * What the combobox already has a selection for — either an existing row
+ * (editing a transaction whose instrument is already resolved) or nothing
+ * (a fresh form). There is no "typed but unconfirmed" initial state: a
+ * transaction is never saved with an instrument the user didn't pick from
+ * this list.
+ */
+export type InstrumentComboboxInitial = {
+  readonly kind: 'existing';
+  readonly instrumentId: string;
+  readonly label: string;
+} | null;
+
+/**
+ * Search-as-you-type instrument selection. The user never sees "add a new
+ * instrument" as a separate step — typing a ticker or a name and picking a
+ * row from the list is the entire flow, whether that row already exists in
+ * our database or comes from the provider. What gets submitted is always one
+ * of `<InstrumentOption>`'s two shapes as hidden fields, never free text
+ * (`actions.ts`'s `resolveInstrumentSelection` accepts nothing else).
+ */
+export function InstrumentCombobox({
+  initial,
+  errors,
+}: Readonly<{
+  initial: InstrumentComboboxInitial;
+  errors: readonly string[] | undefined;
+}>) {
+  const { dictionary } = useI18n();
+  const strings = dictionary.transactions.instrumentSearch;
+
+  const [query, setQuery] = useState(initial?.label ?? '');
+  const [selection, setSelection] = useState<InstrumentOption | null>(
+    initial === null ? null : { ...initial },
+  );
+  const [options, setOptions] = useState<readonly InstrumentOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    function onClickOutside(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  function onQueryChange(value: string) {
+    setQuery(value);
+    setSelection(null);
+    clearTimeout(debounceRef.current);
+
+    const trimmed = value.trim();
+    if (trimmed.length < MIN_QUERY_LENGTH) {
+      setOptions([]);
+      setOpen(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => {
+      startTransition(async () => {
+        const results = await searchInstrumentsAction(trimmed);
+        setOptions(results);
+        setOpen(true);
+      });
+    }, DEBOUNCE_MS);
+  }
+
+  function onPick(option: InstrumentOption) {
+    setSelection(option);
+    setQuery(option.label);
+    setOpen(false);
+  }
+
+  const fieldId = 'instrumentSearch';
+
+  return (
+    <div ref={containerRef} className="relative flex flex-col gap-2">
+      <Field name={fieldId} label={strings.label} errors={errors}>
+        <Input
+          id={fieldId}
+          name={fieldId}
+          type="text"
+          autoComplete="off"
+          placeholder={strings.placeholder}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          onFocus={() => {
+            if (options.length > 0) setOpen(true);
+          }}
+          aria-invalid={errors !== undefined && errors.length > 0}
+          aria-describedby={
+            errors !== undefined && errors.length > 0 ? errorId(fieldId) : undefined
+          }
+          aria-expanded={open}
+          role="combobox"
+          aria-autocomplete="list"
+        />
+      </Field>
+
+      {open && (
+        <ul className="bg-popover border-border absolute top-full z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border py-1 shadow-md">
+          {isPending && (
+            <li className="text-muted-foreground px-3 py-2 text-sm">{strings.searching}</li>
+          )}
+          {!isPending && options.length === 0 && (
+            <li className="text-muted-foreground px-3 py-2 text-sm">{strings.noResults}</li>
+          )}
+          {!isPending &&
+            options.map((option) => (
+              <li key={optionKey(option)}>
+                <button
+                  type="button"
+                  className="hover:bg-accent hover:text-accent-foreground w-full px-3 py-2 text-left text-sm"
+                  onClick={() => onPick(option)}
+                >
+                  {option.label}
+                </button>
+              </li>
+            ))}
+        </ul>
+      )}
+
+      {/* What actually gets submitted — never the free-text query above, and
+          never a descriptive field. Only which listing was picked travels;
+          kind, exchange and currency are re-derived server-side by `confirm()`,
+          because `instruments` is global and a field asserted here would be
+          persisted once and then served to everyone. */}
+      {selection !== null && (
+        <>
+          <input type="hidden" name="instrumentSelectionKind" value={selection.kind} />
+          {selection.kind === 'existing' ? (
+            <input type="hidden" name="instrumentId" value={selection.instrumentId} />
+          ) : (
+            <>
+              <input type="hidden" name="instrumentProvider" value={selection.provider} />
+              <input type="hidden" name="instrumentSymbol" value={selection.symbol} />
+              <input type="hidden" name="instrumentName" value={selection.name} />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function optionKey(option: InstrumentOption): string {
+  return option.kind === 'existing'
+    ? `existing:${option.instrumentId}`
+    : `candidate:${option.provider}:${option.symbol}`;
+}

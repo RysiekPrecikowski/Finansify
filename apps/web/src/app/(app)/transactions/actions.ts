@@ -3,7 +3,8 @@
 import {
   makeDeleteTransaction,
   makeRecordTransaction,
-  makeResolveInstrument,
+  makeSearchInstruments,
+  makeSelectInstrument,
   makeUpdateTransaction,
   type FieldIssue,
 } from '@finansify/core';
@@ -15,7 +16,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { byField, submittedValues, type FormState } from '@/lib/form-state';
 import { getDictionary } from '@/lib/i18n/server';
 import { transactionInputFrom } from '@/lib/transaction-form';
-import { getInstruments, scopedLedgerFor } from '@/server/container';
+import {
+  getInstrumentSearchProvider,
+  getInstruments,
+  getSymbols,
+  scopedLedgerFor,
+} from '@/server/container';
 
 /**
  * The identity is read from the session inside every action, on every submit —
@@ -38,12 +44,83 @@ async function currentUserId() {
 }
 
 /**
- * `instrumentInputSchema` reports issues on `symbol`, `name`, `kind` and
- * `currency`; the form names those inputs `instrumentSymbol` and friends so they
- * cannot collide with the transaction's own `currency`. Re-pointing the paths
- * here is what makes a message land under the field that caused it.
+ * One row of what `<InstrumentCombobox>` shows and, on selection, submits back
+ * as hidden fields — never a free-text symbol or exchange the user typed.
+ * `existing` is already in our database (id alone is enough); `candidate` is
+ * a provider search hit, identified by its own `symbol` and re-confirmed by
+ * `selectInstrument` before anything is persisted (ADR 0014).
  */
-function onInstrumentFields(issues: readonly FieldIssue[]): readonly FieldIssue[] {
+export type InstrumentOption =
+  | { readonly kind: 'existing'; readonly instrumentId: string; readonly label: string }
+  | {
+      readonly kind: 'candidate';
+      readonly provider: string;
+      readonly symbol: string;
+      readonly name: string;
+      // No kind, exchange or isin: the option exists to name a listing and to
+      // label it. Anything descriptive would travel back as a form field the
+      // client controls, and `instruments` is global — `confirm()` re-derives
+      // all of it server-side instead. The exchange is already baked into
+      // `label`.
+      readonly label: string;
+    };
+
+function labelOf(symbol: string, name: string, exchange: string | null): string {
+  return exchange === null ? `${symbol} · ${name}` : `${symbol} · ${name} (${exchange})`;
+}
+
+/**
+ * Local database first, Yahoo only as a fallback (`makeSearchInstruments`) —
+ * behind `getCurrentUser()` because this can reach a third-party API on every
+ * keystroke and an anonymous caller has no transaction to attach a result to
+ * anyway. A provider failure degrades to "no results" rather than a thrown
+ * error reaching the client typing in a text box.
+ */
+export async function searchInstrumentsAction(query: string): Promise<readonly InstrumentOption[]> {
+  const user = await getCurrentUser();
+  if (user === null) return [];
+
+  try {
+    const searchInstruments = makeSearchInstruments({
+      instruments: getInstruments(),
+      provider: getInstrumentSearchProvider(),
+    });
+    const result = await searchInstruments(query);
+
+    if (result.existing.length > 0) {
+      return result.existing.map((instrument) => ({
+        kind: 'existing',
+        instrumentId: instrument.id,
+        label: labelOf(instrument.symbol, instrument.name, instrument.exchange),
+      }));
+    }
+
+    return result.candidates.map((candidate) => ({
+      kind: 'candidate',
+      provider: candidate.provider,
+      symbol: candidate.symbol,
+      name: candidate.name,
+      label: labelOf(candidate.symbol, candidate.name, candidate.exchange),
+    }));
+  } catch (error) {
+    console.error('Instrument search failed', error);
+    return [];
+  }
+}
+
+/**
+ * `selectInstrument`'s `candidate` branch reports issues on `symbol`, `name`,
+ * `instrumentKind`, `isin` and `exchange` — the form names those inputs
+ * `instrumentSymbol` and friends so they cannot collide with the
+ * transaction's own `currency`. Re-pointing the paths here is what makes a
+ * message land under the field that caused it. The `existing` branch's one
+ * field is already named `instrumentId` on both sides, so it passes through.
+ */
+function onInstrumentFields(
+  kind: 'existing' | 'candidate',
+  issues: readonly FieldIssue[],
+): readonly FieldIssue[] {
+  if (kind === 'existing') return issues;
   return issues.map((issue) => ({
     ...issue,
     path: `instrument${issue.path.charAt(0).toUpperCase()}${issue.path.slice(1)}`,
@@ -75,28 +152,51 @@ async function invalid(
 }
 
 /**
- * Resolving a new instrument is two ports and no domain rule, which is why it
- * happens here rather than inside `recordTransaction`: instruments are global
- * (ADR 0010) and the ledger is user-scoped, so one use case cannot own both.
+ * Resolving the picked instrument is two ports and no domain rule, which is
+ * why it happens here rather than inside `recordTransaction`: instruments are
+ * global (ADR 0010) and the ledger is user-scoped, so one use case cannot own
+ * both. The combobox writes `instrumentSelectionKind` plus either
+ * `instrumentId` (an existing row) or the `instrument*` candidate fields — the
+ * user never sees which one is happening, only that they picked something
+ * from a list.
  */
-async function resolveInstrumentId(
+async function resolveInstrumentSelection(
   formData: FormData,
 ): Promise<{ ok: true; id: string | null } | { ok: false; issues: readonly FieldIssue[] }> {
-  if (formData.get('instrumentMode') !== 'new') {
-    const selected = formData.get('instrumentId');
-    return { ok: true, id: typeof selected === 'string' && selected !== '' ? selected : null };
+  const kind = formData.get('instrumentSelectionKind');
+  if (kind !== 'existing' && kind !== 'candidate') {
+    // Nothing was picked — correct for a transaction type that has no
+    // instrument leg at all (`transactionShapeOf(type).instrument === 'none'`);
+    // `recordTransaction`'s own schema refuses a `null` instrument on a type
+    // that requires one.
+    return { ok: true, id: null };
   }
 
-  const resolved = await makeResolveInstrument({ instruments: getInstruments() })({
-    symbol: formData.get('instrumentSymbol'),
-    name: formData.get('instrumentName'),
-    kind: formData.get('instrumentKind'),
-    currency: formData.get('instrumentCurrency'),
+  const text = (name: string): string | null => {
+    const raw = formData.get(name);
+    return typeof raw === 'string' && raw !== '' ? raw : null;
+  };
+
+  const input =
+    kind === 'existing'
+      ? { kind, instrumentId: text('instrumentId') }
+      : {
+          kind,
+          provider: text('instrumentProvider'),
+          symbol: text('instrumentSymbol'),
+          name: text('instrumentName'),
+        };
+
+  const selectInstrument = makeSelectInstrument({
+    instruments: getInstruments(),
+    symbols: getSymbols(),
+    provider: getInstrumentSearchProvider(),
   });
 
-  return resolved.ok
-    ? { ok: true, id: resolved.value.id }
-    : { ok: false, issues: onInstrumentFields(resolved.issues) };
+  const resolved = await selectInstrument(input);
+  if (!resolved.ok) return { ok: false, issues: onInstrumentFields(kind, resolved.issues) };
+
+  return { ok: true, id: resolved.value.id };
 }
 
 export async function createTransactionAction(
@@ -105,7 +205,7 @@ export async function createTransactionAction(
 ): Promise<FormState> {
   const userId = await currentUserId();
 
-  const instrument = await resolveInstrumentId(formData);
+  const instrument = await resolveInstrumentSelection(formData);
   if (!instrument.ok) return invalid(byField(instrument.issues), formData);
 
   const recordTransaction = makeRecordTransaction({ ledger: scopedLedgerFor(userId) });
@@ -128,7 +228,7 @@ export async function updateTransactionAction(
 ): Promise<FormState> {
   const userId = await currentUserId();
 
-  const instrument = await resolveInstrumentId(formData);
+  const instrument = await resolveInstrumentSelection(formData);
   if (!instrument.ok) return invalid(byField(instrument.issues), formData);
 
   const updateTransaction = makeUpdateTransaction({ ledger: scopedLedgerFor(userId) });

@@ -1,0 +1,22 @@
+{
+  "name": "@finansify/providers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "transit": "exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@finansify/core": "workspace:*",
+    "decimal.js": "10.6.0",
+    "yahoo-finance2": "4.0.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0"
+  }
+}

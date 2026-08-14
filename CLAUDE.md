@@ -119,6 +119,15 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
     against it; handing that file to an agent as the contract removes anything
     for it to interpret. Adapters and UI are the other way round: their shape
     is discovered, so tests follow the code.
+18. **Every database branch is owned by a pull request.** Neon's free tier
+    gives ten branches, production holds one, and each open PR's preview holds
+    another — so a branch that no PR accounts for is a slot nobody can reclaim,
+    and the eleventh PR gets no preview at all. Closing a PR deletes its branch,
+    automatically and eagerly, via `.github/workflows/neon-cleanup.yml`; do not
+    rely on the integration's own reap, which only runs when the next preview
+    deploys. Never create a Neon branch by hand in the console — a branch with
+    no PR behind it has nothing that will ever clean it up.
+    (`docs/deployment.md`, "The Neon branch budget")
 
 ## When you change a boundary
 

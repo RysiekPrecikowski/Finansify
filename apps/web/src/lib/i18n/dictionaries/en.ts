@@ -98,11 +98,12 @@ export const en: Dictionary = {
     unknownAccount: 'Unknown account',
     account: 'Account',
     instrument: 'Instrument',
-    newInstrument: '— new instrument —',
-    instrumentName: 'Instrument name',
-    instrumentCurrency: 'Instrument currency',
-    symbol: 'Symbol',
-    kind: 'Kind',
+    instrumentSearch: {
+      label: 'Instrument',
+      placeholder: 'Search by ticker or name…',
+      searching: 'Searching…',
+      noResults: 'No results',
+    },
     type: 'Type',
     amount: 'Amount',
     quantity: 'Quantity',
@@ -163,13 +164,22 @@ export const en: Dictionary = {
     realized: 'Realized P&L',
     accounts: 'Accounts',
     multipleCurrencies: 'Multiple currencies',
+    marketValue: 'Market value',
+    unrealized: 'Unrealized P&L',
+    totalValue: 'Total value',
+    totalValueNote:
+      'Open positions only, converted to PLN at the latest NBP rate. Cash is not included yet.',
+    totalValueIncomplete:
+      'Some positions have no price or exchange rate yet — this total is partial.',
+    unavailableNeverFetched: 'price loading…',
+    unavailableUnmapped: 'not mapped to a provider yet',
     closed: {
       title: 'Closed positions',
     },
     cash: {
       title: 'Cash',
       account: 'Account',
-      note: "Balances shown separately per account's own currency — a combined total arrives in Phase 2, together with NBP rates.",
+      note: "Balances shown separately per account's own currency — cash isn't folded into the total above yet.",
     },
     lots: {
       title: 'Lots',
