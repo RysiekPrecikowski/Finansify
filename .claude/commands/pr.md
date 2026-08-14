@@ -47,9 +47,11 @@ never pad a section to make it look complete.
 title and body. Base is always `main` — CLAUDE.md rule 12 means this PR is how
 the change is allowed to reach it at all.
 
-**5. Hand the ticket over.** Once the PR is open: set the ClickUp ticket to
-`in review`, clear its assignee (`assignees: []`), leave its `Implementer`
-field alone, and comment the PR link on it. An unassigned `in review` ticket is
+**5. Wait for CI, then hand the ticket over.** Run `gh pr checks --watch`. If a
+check fails, stop and report it — do not touch the ticket while CI is red.
+Once every check passes: set the ClickUp ticket to `in review`, clear its
+assignee (`assignees: []`), leave its `Implementer` field alone, and comment
+the PR link on it. An unassigned `in review` ticket is
 what "waiting for a reviewer" looks like; `Implementer` is what restores the
 assignee at merge — see `docs/clickup.md`. If `Implementer` is empty because
 the ticket was started outside this flow, set it to yourself here. Report the

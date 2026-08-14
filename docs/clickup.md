@@ -6,6 +6,16 @@ to be named so the GitHub integration links them back to the ticket.
 
 Read this before starting any piece of work, not after finishing it.
 
+## Setup
+
+Each of us connects our own ClickUp account through Claude's official ClickUp
+connector — claude.ai → Settings → Connectors → ClickUp, or `/mcp` in an
+interactive Claude Code session. Not a project `.mcp.json`: the connector is
+per-person, which is what makes `me` in a tool call resolve to whoever is
+actually running the agent (see Members, below). `/pr` and `/review` depend on
+it for steps 3 and 4 of the flow; if it isn't connected, stop and say so
+instead of skipping the ClickUp write silently.
+
 ## The board
 
 | Thing     | Id             |
@@ -55,14 +65,16 @@ at the moment the step actually happens — not batched at the end.
    `in review` and **clear the assignee** (`assignees: []`). Empty assignee is
    the signal "this is waiting for a reviewer". `Implementer` stays as it is —
    that is the field that remembers who wrote the code. Post the PR link as a
-   comment.
+   comment. `/pr` does this step.
 4. **Take the review** — the reviewer's agent assigns the reviewer to the
    ticket (`me`) and leaves the status at `in review`. `Implementer` is not
    touched. Never review your own PR (rule 12), and never take a ticket whose
-   `Implementer` is you.
+   `Implementer` is you. `/review` does this step.
 5. **Close** — after the PR is merged: set status `complete` and set the
    assignee to the ticket's `Implementer`, not the reviewer. The ticket ends up
-   owned by whoever wrote the code.
+   owned by whoever wrote the code. Merging itself stays the manual, reviewed
+   action rule 12 requires; run `/close-ticket` right after, so this step has
+   an owner instead of depending on someone remembering it.
 
 Nothing moves backwards silently. If a review sends work back, set the ticket
 to `in progress` and assign the `Implementer` again; say so in a comment.

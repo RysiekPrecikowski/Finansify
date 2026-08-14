@@ -1,0 +1,36 @@
+---
+description: Close out the ClickUp ticket for a PR that has just been merged
+argument-hint: [optional: PR number — defaults to the PR for the current branch]
+---
+
+Run this right after a PR merges to `main`. It does not merge anything itself
+— merging stays the manual, reviewed action CLAUDE.md rule 12 requires. This
+only performs step 5 of `docs/clickup.md`'s flow: closing the ticket the PR
+was for.
+
+**1. Confirm the merge.**
+
+```bash
+gh pr view $ARGUMENTS --json state,mergedAt,title,headRefName
+```
+
+`state` must be `MERGED`. If it isn't, stop and say so — do not close a ticket
+for a PR that only looks finished.
+
+**2. Find the ticket.** Take the id from `headRefName` (`<type>/<slug>-<taskId>`)
+or the PR title's trailing `(CU-<taskId>)`. If neither carries an id, stop and
+ask which ticket this PR was for rather than guessing.
+
+**3. Read the ticket before writing to it** (`docs/clickup.md`'s "before every
+session of work" rule) — `clickup_get_task` with `include: ["custom_fields"]`.
+
+- If status is not `in review`, stop and report the actual status instead of
+  overwriting it — something moved it since `/review` ran.
+- Read `Implementer`. If it's empty, stop and ask who implemented this rather
+  than guessing an owner.
+
+**4. Close it.** `clickup_update_task`: status `complete`, `assignees` set to
+`Implementer`'s user id (via the `{"add":[...]}` custom-field shape only
+applies to `Implementer` itself, which is untouched here — `assignees` takes a
+plain id array). Report the ticket id, its new status, and who it's now
+assigned to.
