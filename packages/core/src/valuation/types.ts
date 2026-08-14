@@ -62,15 +62,25 @@ export interface ResolvedSymbol {
  * it's confirmed (`InstrumentSearchProvider.confirm`) and turned into an
  * `Instrument`: search results reflect the provider's index, which can be
  * stale by the time the user picks one.
+ *
+ * `currency` is `null` on a raw search hit — Yahoo's `search()` doesn't return
+ * one, only `quote()` does, and calling `quote()` for every row of a
+ * typeahead result would be a request per keystroke rather than one per
+ * selection. `confirm()` is what fills it in.
  */
 export interface InstrumentCandidate {
   readonly provider: ProviderName;
   readonly symbol: string;
   readonly name: string;
   readonly exchange: string | null;
-  readonly currency: Currency;
+  readonly currency: Currency | null;
   readonly kind: InstrumentKind;
   readonly isin: string | null;
+}
+
+/** An `InstrumentCandidate` that has been through `confirm()` — currency is no longer in question. */
+export interface ConfirmedCandidate extends InstrumentCandidate {
+  readonly currency: Currency;
 }
 
 /** One currency's mid rate to PLN on one day, from one provider — NBP table A. */

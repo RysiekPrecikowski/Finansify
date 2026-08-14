@@ -2,6 +2,7 @@ import { type InstrumentId, type Instrument } from '../ledger/types';
 import { type Currency } from '../money';
 import { type Temporal } from '../time';
 import {
+  type ConfirmedCandidate,
   type FxRate,
   type InstrumentCandidate,
   type PriceBar,
@@ -33,13 +34,13 @@ export interface InstrumentSearchProvider {
   search(query: string): Promise<readonly InstrumentCandidate[]>;
 
   /**
-   * Re-fetches the live listing for a candidate the user just picked, and
-   * refuses (`null`) if currency or exchange no longer match what `search`
-   * returned. This is the hard gate ADR 0014 describes — moved to confirm a
-   * real candidate instead of verifying a guessed one, but the same rule:
+   * Re-fetches the live listing for a candidate the user just picked — by its
+   * own `symbol`, not a guess built from one — and fills in `currency`
+   * (absent from a search hit). Refuses (`null`) if the symbol no longer
+   * resolves to anything tradeable. This is the hard gate ADR 0014 describes:
    * nothing is persisted without it succeeding.
    */
-  confirm(candidate: InstrumentCandidate): Promise<InstrumentCandidate | null>;
+  confirm(candidate: InstrumentCandidate): Promise<ConfirmedCandidate | null>;
 }
 
 /**
