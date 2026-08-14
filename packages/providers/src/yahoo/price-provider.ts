@@ -29,9 +29,26 @@ export const yahooPriceProvider: PriceProvider = {
     const zone = result.meta.exchangeTimezoneName;
     const priceHint = result.meta.priceHint;
 
+    // `yahoo-finance2` types `priceHint` as required, but its own source notes
+    // that other "required" meta fields are absent for real instruments, and
+    // `Decimal.toDecimalPlaces(undefined)` rounds to nothing at all — the
+    // float32 artifact this whole function exists to strip would reach
+    // `NUMERIC` silently. Refusing the response instead surfaces as `failed`
+    // for this instrument in `refreshPrices`, which the UI shows as
+    // unvaluable; a rounding default guessed here would be a made-up price.
+    if (!Number.isInteger(priceHint) || priceHint < 0) {
+      throw new Error(`Yahoo returned no usable priceHint for ${ref.symbol}`);
+    }
+
     const bars: PriceBar[] = [];
     for (const quote of result.quotes) {
-      if (quote.close === null || quote.close <= 0) continue;
+      // Not `close <= 0`: `undefined <= 0` is false, so an absent close would
+      // pass that gate and throw inside `new Decimal(...)`, losing every other
+      // bar in the batch with it. This is validating a JSON number before it
+      // becomes a `Decimal`, not arithmetic on one.
+      if (typeof quote.close !== 'number' || !Number.isFinite(quote.close) || quote.close <= 0) {
+        continue;
+      }
 
       // The session date in the exchange's own timezone, not UTC — a UTC
       // date would shift GPW and NYSE bars onto the wrong calendar day

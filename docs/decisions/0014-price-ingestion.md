@@ -47,6 +47,17 @@ reads only `instrument_prices`/`fx_rates`, streams in updates as they land,
 and stays correct if the provider is down or slow. `apps/web/AGENTS.md`
 already states "there is no cron"; this is that rule applied to prices.
 
+**One TTL — 15 minutes — for every instrument and every currency.** A stored
+bar or rate older than that is due for a refresh; anything newer is served as
+`fresh` without touching a provider. There is no market calendar and no
+per-exchange or per-asset-class tuning: after a session closes this refetches
+the same unchanged close every 15 minutes, which costs one throttled request
+and is always correct, where a calendar that is wrong about a holiday or a
+half-day silently serves a stale number as live. `PRICE_TTL_MINUTES` in
+`packages/core/src/valuation/get-prices.ts` is the single definition, and
+`get-fx-rates.ts` imports it rather than declaring a second one — the two
+freshness windows are the same decision, not two that happen to coincide.
+
 **One provider, deliberately.** Yahoo (`yahoo-finance2`) for global and GPW
 equity/ETF prices, NBP table A for FX. There is no free, working second source
 for prices today, so resilience comes from the storage layer — a stale bar
@@ -55,13 +66,31 @@ provider redundancy. `docs/data-sources.md`'s "keep a second implementation
 working" and "stable free CSV endpoints" claims about Stooq are corrected in
 the same change as this ADR.
 
-**Exchange (MIC) is a mandatory coordinate for a priced instrument, not an
-optional refinement of ISIN.** Resolution order: our own `(symbol, exchange)`
-is the primary candidate; ISIN is a soft cross-check that only logs a mismatch
-and never gates; `quote()`'s `currency` and `fullExchangeName` are the one hard
-gate, and a mismatch refuses the mapping rather than guessing. An instrument
-with no `exchange` cannot be priced automatically and queues for the manual
-mapping screen.
+**The user never supplies a MIC code or constructs a ticker.** The first
+version of this decision had our own `(symbol, exchange)` as the primary
+candidate, built from a symbol the user typed and an exchange they picked from
+a dropdown — `quote()` only verified a guess after the fact. That inverted who
+knows the listing convention: PR 6 shipped with the exchange field defaulting
+to "unknown," which produced `exchange: null`, which the resolver correctly
+refused, which meant every instrument created through the default path was
+permanently unpriceable. The guess was the bug, not the verification.
+
+Resolution is provider-first instead: `search()` returns real candidates —
+symbol, name, exchange, currency — from the provider's own index, searched
+**local database first**, and Yahoo only when nothing local matches (an
+instrument one user has already resolved never re-triggers a Yahoo request for
+the next user who types the same ticker). The user picks a candidate, never
+types one. ISIN, when present, still rides along as a soft cross-check that
+only logs a mismatch and never gates — section 06's finding about one ISIN
+spanning several listings in different currencies is exactly why. `quote()`'s
+`currency` and `fullExchangeName` remain the one hard gate: the selected
+candidate is re-confirmed against a live quote at the moment it's persisted,
+and a mismatch refuses the selection rather than saving it anyway.
+
+Because confirmation happens before anything is written, there is no
+"unmapped" state to queue and no manual mapping screen. An instrument that
+exists in `instruments` was, by construction, priceable the moment it was
+created — the invariant is enforced at creation, not repaired afterward.
 
 **A missing latest price falls back to the last known price**, never to an
 estimate — the existing rule from `CLAUDE.md` and `data-sources.md`, restated
@@ -88,13 +117,13 @@ date)`, so two concurrent refreshes both upsert cleanly. The cost is a wasted
 duplicate request under concurrent load, never a data race. A fetch lock is
 future work, not a prerequisite.
 
-Exchange becoming mandatory for pricing has a migration consequence:
 `instruments.exchange` stays nullable at the column level — other instrument
-kinds (a bond, say) don't need it — but any instrument without one is
-unvaluable until someone fills it in via the mapping screen (PR 6). This is a
-deliberate refusal to guess a listing from currency alone, which the ISIN
-evidence above shows is exactly the class of error that produces a
-plausible-looking wrong number.
+kinds (a bond, say) don't need it, and it carries no meaning outside pricing —
+but every equity/ETF/fund instrument created through selection carries a
+confirmed one, because `confirm()` gates the write. This is a deliberate
+refusal to guess a listing from currency alone, which the ISIN evidence above
+shows is exactly the class of error that produces a plausible-looking wrong
+number.
 
 Choosing a library (`yahoo-finance2`) over a hand-rolled client for Yahoo, and
 the reverse for NBP, is also decided here: Yahoo needs `search()` and
@@ -125,3 +154,10 @@ here.
 same reason ISIN-only resolution was: currency does not determine listing
 (`CSPX.L` is USD despite trading in London), so this would silently reproduce
 the exact failure mode this ADR exists to avoid.
+
+**A MIC-code dropdown, with the user typing a symbol and us constructing the
+ticker.** This shipped first and is what this revision replaces — see
+"Decision" above. Rejected once it was in use: a dropdown that defaults to
+"unknown" is a dropdown most users leave on "unknown," and there is no version
+of this approach that doesn't put a guess where the provider already has an
+answer.

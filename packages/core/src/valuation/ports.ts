@@ -2,7 +2,9 @@ import { type InstrumentId, type Instrument } from '../ledger/types';
 import { type Currency } from '../money';
 import { type Temporal } from '../time';
 import {
+  type ConfirmedCandidate,
   type FxRate,
+  type InstrumentCandidate,
   type PriceBar,
   type ResolvedSymbol,
   type StoredBar,
@@ -22,11 +24,31 @@ export interface PriceProvider {
 }
 
 /**
- * Given our own instrument record, decide which provider symbol it is — or
- * refuse. A `null` result means "needs a human", not "retry me": the
- * disambiguation in section 06 (MIC first, ISIN as cross-check only, currency
- * and exchange as the hard gate) lives inside the implementation, because only
- * the provider adapter knows its own listing conventions.
+ * Search-as-you-type, local database first. `search-instruments` (usecase)
+ * tries `InstrumentRepository.search` before ever calling this — an instrument
+ * already resolved by one user should never trigger a second Yahoo request for
+ * the next one who types the same ticker.
+ */
+export interface InstrumentSearchProvider {
+  readonly name: ProviderName;
+  search(query: string): Promise<readonly InstrumentCandidate[]>;
+
+  /**
+   * Re-fetches the live listing for a candidate the user just picked — by its
+   * own `symbol`, not a guess built from one — and fills in `currency`
+   * (absent from a search hit). Refuses (`null`) if the symbol no longer
+   * resolves to anything tradeable. This is the hard gate ADR 0014 describes:
+   * nothing is persisted without it succeeding.
+   */
+  confirm(candidate: InstrumentCandidate): Promise<ConfirmedCandidate | null>;
+}
+
+/**
+ * Phase 1's original resolver shape — given our own instrument record, decide
+ * which provider symbol it is, or refuse. Kept only until PR 6 rewires
+ * `apps/web`'s transaction form onto `InstrumentSearchProvider` above and
+ * deletes this alongside `map-instrument.ts` and `resolve-instrument.ts`;
+ * nothing new should be built against it.
  */
 export interface SymbolResolver {
   readonly name: ProviderName;
@@ -43,7 +65,7 @@ export interface SymbolRepository {
   save(ref: ResolvedSymbol): Promise<void>;
 }
 
-/** Kursy do PLN; cross rates are computed by `core` (`convertViaPln`), never stored. */
+/** Rates to PLN; cross rates are computed by `core` (`convertViaPln`), never stored. */
 export interface FxRateProvider {
   readonly name: ProviderName;
   fetchTableTo(base: Currency): Promise<readonly FxRate[]>;
