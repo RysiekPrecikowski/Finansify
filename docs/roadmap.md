@@ -8,7 +8,7 @@ package boundaries while there is still little code to move.
 | **0 — Foundations**  | Docs and ADRs · packages and ports · `Money`/`Currency`/Temporal · auth · database · CI |
 | **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices. |
 | **1.5 — Encryption** | Encryption at rest, once there is an application to protect. See ADR 0013.              |
-| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo and Stooq · shared cache · dashboard on real data   |
+| **2 — Valuation**    | Instrument mapping · NBP FX · Yahoo prices · shared cache · dashboard on real data      |
 | **3 — Polish bonds** | `BondTermsResolver` · family rules · accrual engine with golden tests · projections     |
 | **4 — Imports**      | Blob upload · staging and review UI · XTB and Boś parsers · CSV mapper · dedup          |
 | **5 — Performance**  | TWR, XIRR, benchmark overlay, versus-index view                                         |
@@ -102,20 +102,48 @@ is scope. The analysis keeps, the implementation waits.
 Phase 2 onward is features. The next thing that ships is a form that writes a
 transaction.
 
-## What the upcoming phases contain
+**Phase 2 — in progress.**
+
+- [x] ADR 0014 — lazy ingestion, single provider, exchange as a mandatory
+      resolution coordinate; corrects `docs/data-sources.md`'s Stooq entries
+- [x] `core`: `valuation` domain — `PriceLookup`/`FxRateLookup`, the five
+      valuation ports, `readPrices`/`refreshPrices`,
+      `readFxRates`/`refreshFxRates`, `convertViaPln`, `mapInstrument`
+- [x] `db`: `instrument_identifiers`, `instrument_prices`, `fx_rates` +
+      migration; `marketPriceRepository`, `symbolRepository`, `fxRateRepository`
+- [x] `providers` (new package): Yahoo adapter — symbol resolution (section 06
+      of the ingestion plan: MIC first, ISIN as a soft cross-check only,
+      currency/exchange as the hard gate), daily bars with float32 rounding
+      and exchange-timezone dating, throttling and 429 backoff; NBP adapter for
+      table A
+- [x] `apps/web`: `/portfolio` open positions carry market value, unrealized
+      P&L, and a portfolio total in PLN, streamed in by a `<Suspense>`
+      boundary that is the only thing touching a provider — the ledger read
+      itself never does
+- [ ] Dashboard on real data — still renders `lib/fixtures/portfolio.ts`;
+      deferred rather than done in the same change, since it touches every
+      dashboard component and deserves its own PR
+- [ ] Instrument mapping screen (PR 6 of the ingestion plan) — an instrument
+      the resolver refuses currently has no UI path to a manual fix
+- [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
+      ADR 0014 and the ingestion plan's "poza zakresem" section
 
 ### Phase 2 — Valuation
 
-Turns a correct ledger into a portfolio worth looking at.
+Turns a correct ledger into a portfolio worth looking at. ADR 0014 revised
+this phase's shape after real requests against Yahoo and Stooq: no scheduler
+(a `<Suspense>` boundary replaces `after()`), one provider rather than
+Yahoo-primary/Stooq-fallback (Stooq is now behind a proof-of-work anti-bot
+gate), and exchange (MIC) as a mandatory resolution coordinate rather than
+ISIN.
 
 - `instrument_identifiers` — provider ticker mapping, so `PKN.WA` vs `PKN` vs
   `BTC-USD` never reaches the domain.
-- `PriceFeed` adapters: Yahoo primary, Stooq fallback for GPW. `FxRateFeed`
-  against NBP table A.
-- The shared cache (`prices`, `fx_rates`) with per-source TTLs, plus a market
-  calendar so we neither refetch all weekend nor label Friday's close as live.
-- Background refresh with `after()`; a per-instrument fetch guard against a
-  thundering herd.
+- `PriceProvider`: Yahoo (`yahoo-finance2`), the only free source with working
+  GPW and global coverage. `FxRateProvider` against NBP table A.
+- The shared cache (`instrument_prices`, `fx_rates`), lazily refreshed inside
+  a `<Suspense>` boundary — no scheduler, no market calendar; a fixed 15-minute
+  TTL is the whole freshness rule for now.
 - Dashboard on real data: headline, hero chart, allocation. The fixture dies here.
 
 Depends on Phase 1's positions. Blocked on nothing external.

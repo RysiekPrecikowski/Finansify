@@ -1,10 +1,26 @@
 import {
   createDbClient,
+  fxRateRepository,
   instrumentRepository,
   ledgerRepository,
+  marketPriceRepository,
+  symbolRepository,
   type Database,
 } from '@finansify/db';
-import type { InstrumentRepository, ScopedLedgerRepository, UserId } from '@finansify/core';
+import {
+  Temporal,
+  type Clock,
+  type FxRateProvider,
+  type FxRateRepository,
+  type InstrumentRepository,
+  type MarketPriceRepository,
+  type PriceProvider,
+  type ScopedLedgerRepository,
+  type SymbolRepository,
+  type SymbolResolver,
+  type UserId,
+} from '@finansify/core';
+import { nbpFxRateProvider, yahooPriceProvider, yahooSymbolResolver } from '@finansify/providers';
 import { cache } from 'react';
 
 /**
@@ -41,6 +57,38 @@ export function getDb(): Database {
 export function getInstruments(): InstrumentRepository {
   return instrumentRepository(getDb());
 }
+
+/**
+ * Prices, symbol mappings and FX rates are global (ADR 0010) — no
+ * `forUser`, same as `getInstruments()`. See ADR 0014 for the ports these
+ * implement and `apps/web/AGENTS.md` for why they're read separately from
+ * `<Suspense>`, never from the render path directly.
+ */
+export function getMarketPrices(): MarketPriceRepository {
+  return marketPriceRepository(getDb());
+}
+
+export function getSymbols(): SymbolRepository {
+  return symbolRepository(getDb());
+}
+
+export function getFxRates(): FxRateRepository {
+  return fxRateRepository(getDb());
+}
+
+export function getPriceProvider(): PriceProvider {
+  return yahooPriceProvider;
+}
+
+export function getSymbolResolver(): SymbolResolver {
+  return yahooSymbolResolver;
+}
+
+export function getFxProvider(): FxRateProvider {
+  return nbpFxRateProvider;
+}
+
+export const clock: Clock = { now: () => Temporal.Now.instant() };
 
 /**
  * Memoized with React's `cache()`, keyed on `userId`: callers pass

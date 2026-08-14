@@ -1,56 +1,24 @@
-import {
-  makeListPositions,
-  Money,
-  type InstrumentPosition,
-  type CashBalanceLine,
-} from '@finansify/core';
+import { makeListPositions, type CashBalanceLine, type InstrumentPosition } from '@finansify/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { DataList, type DataListColumn } from '@/components/data-list';
-import { Badge } from '@/components/ui/badge';
+import { OpenPositions } from '@/components/portfolio/open-positions';
+import { Monogram, MoneyLines } from '@/components/portfolio/shared';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth';
-import { directionOf, directionText, formatMoney, formatQuantity } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
-import { type Locale } from '@/lib/i18n/locales';
-import { cn } from '@/lib/utils';
 import { getInstruments, scopedLedgerFor } from '@/server/container';
 
-/** No logo provider yet, so a monogram — never a blank circle. */
-function Monogram({ symbol }: Readonly<{ symbol: string }>) {
+/** Shown while `<OpenPositions>` reads storage and, if due, refreshes it — never a spinner over the whole page. */
+function OpenPositionsFallback() {
   return (
-    <span
-      aria-hidden
-      className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-semibold"
-    >
-      {symbol.slice(0, 3)}
-    </span>
-  );
-}
-
-/**
- * One line per currency — cost basis and realized P&L are never summed across
- * currencies (rule 6/7): inventing a rate to collapse them is exactly what the
- * ledger refuses to do before Phase 2's FX feed exists.
- */
-function MoneyLines({
-  amounts,
-  locale,
-  colored = false,
-}: Readonly<{ amounts: readonly Money[]; locale: Locale; colored?: boolean }>) {
-  return (
-    <span className="flex flex-col items-end">
-      {amounts.map((amount) => (
-        <span
-          key={amount.currency}
-          className={cn('tabular-nums', colored && directionText[directionOf(amount)])}
-        >
-          {formatMoney(amount, locale, { signed: colored })}
-        </span>
-      ))}
-    </span>
+    <div className="border-border bg-muted/30 flex h-40 animate-pulse items-center justify-center rounded-md border text-sm text-transparent select-none">
+      loading
+    </div>
   );
 }
 
@@ -59,9 +27,10 @@ function MoneyLines({
  * cached read over user data needs the user id in its key to be safe at all
  * (rule 5, ADR 0010).
  *
- * There is no price feed until Phase 2, so there is no market value, no
- * unrealized P&L and no portfolio weight here — only what the ledger alone
- * supports: quantity, cost basis, realized P&L and cash.
+ * Open positions carry market value and unrealized P&L, streamed in by
+ * `<OpenPositions>`'s own `<Suspense>` boundary (ADR 0014, section 03) — the
+ * ledger read below never touches a price or an FX rate itself, so a slow or
+ * down provider only ever delays that one section, never the page.
  */
 export default async function PortfolioPage() {
   const user = await getCurrentUser();
@@ -79,99 +48,10 @@ export default async function PortfolioPage() {
 
   const strings = dictionary.portfolio;
 
-  const averageCostCell = (position: InstrumentPosition) =>
-    position.averageCost === null ? (
-      <Badge variant="outline" className="font-normal">
-        {strings.multipleCurrencies}
-      </Badge>
-    ) : (
-      formatMoney(Money.of(position.averageCost, position.costBasisByCurrency[0]!.currency), locale)
-    );
-
-  const accountsHeldIn = (position: InstrumentPosition) =>
-    [...new Set(position.lines.map((line) => line.account.name))].join(', ');
-
   // `rowHref` on `<DataList>` only wires the mobile card link — the desktop
   // `<table>` has no click-through of its own, same as `/transactions`, so an
   // explicit column is what gives a desktop user a way into the lot detail.
   const rowHref = (position: InstrumentPosition) => `/portfolio/${position.instrument.id}` as Route;
-
-  const openLotsColumn: DataListColumn<InstrumentPosition> = {
-    id: 'lots',
-    header: '',
-    align: 'end',
-    cell: (position) => (
-      <Button
-        size="sm"
-        variant="ghost"
-        nativeButton={false}
-        render={<Link href={rowHref(position)} />}
-      >
-        {strings.lots.title}
-      </Button>
-    ),
-  };
-
-  const openColumns: readonly DataListColumn<InstrumentPosition>[] = [
-    {
-      id: 'instrument',
-      header: strings.instrument,
-      mobile: 'title',
-      cell: (position) => (
-        <span className="flex flex-col">
-          <span className="font-medium">{position.instrument.symbol}</span>
-          <span className="text-muted-foreground truncate text-xs">{position.instrument.name}</span>
-        </span>
-      ),
-    },
-    {
-      id: 'quantity',
-      header: strings.quantity,
-      align: 'end',
-      // Quantity and average cost share one line on a phone, the way a broker
-      // app shows them — mirrors the dashboard holdings list.
-      mobile: 'subtitle',
-      cell: (position) => (
-        <>
-          <span>{formatQuantity(position.quantity.toFixed(), locale)}</span>
-          <span className="text-muted-foreground md:hidden">
-            {' · '}
-            {averageCostCell(position)}
-          </span>
-        </>
-      ),
-    },
-    {
-      id: 'averageCost',
-      header: strings.averageCost,
-      align: 'end',
-      cell: averageCostCell,
-    },
-    {
-      id: 'costBasis',
-      header: strings.costBasis,
-      align: 'end',
-      mobile: 'value',
-      cell: (position) => <MoneyLines amounts={position.costBasisByCurrency} locale={locale} />,
-    },
-    {
-      id: 'realized',
-      header: strings.realized,
-      align: 'end',
-      mobile: 'meta',
-      cell: (position) => (
-        <MoneyLines amounts={position.realizedByCurrency} locale={locale} colored />
-      ),
-    },
-    {
-      id: 'accounts',
-      header: strings.accounts,
-      cell: (position) => (
-        <span className="text-muted-foreground truncate text-xs">{accountsHeldIn(position)}</span>
-      ),
-    },
-    openLotsColumn,
-  ];
 
   const closedColumns: readonly DataListColumn<InstrumentPosition>[] = [
     {
@@ -194,7 +74,21 @@ export default async function PortfolioPage() {
         <MoneyLines amounts={position.realizedByCurrency} locale={locale} colored />
       ),
     },
-    openLotsColumn,
+    {
+      id: 'lots',
+      header: '',
+      align: 'end',
+      cell: (position) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          nativeButton={false}
+          render={<Link href={rowHref(position)} />}
+        >
+          {strings.lots.title}
+        </Button>
+      ),
+    },
   ];
 
   const cashColumns: readonly DataListColumn<CashBalanceLine>[] = [
@@ -260,13 +154,14 @@ export default async function PortfolioPage() {
       ) : (
         <>
           {view.open.length > 0 && (
-            <DataList
-              rows={view.open}
-              columns={openColumns}
-              rowKey={(position) => position.instrument.id}
-              leading={(position) => <Monogram symbol={position.instrument.symbol} />}
-              rowHref={rowHref}
-            />
+            <Suspense fallback={<OpenPositionsFallback />}>
+              <OpenPositions
+                positions={view.open}
+                locale={locale}
+                strings={strings}
+                dictionary={dictionary}
+              />
+            </Suspense>
           )}
 
           {view.closed.length > 0 && (
