@@ -61,9 +61,12 @@ order:
 1. **Automated fetch and parse** from the official source, writing into the
    shared global table. This is the target for all three, and should be built as
    soon as each one is actually needed.
-2. **Committed bootstrap data** in `packages/providers/src/pl/data/*.json` for
+2. **Committed bootstrap data** in `packages/providers/src/mf/data/` for
    history — so a cold start never depends on crawling years of archive, and the
-   automated fetcher only ever has to handle recent data.
+   automated fetcher only ever has to handle recent data. For bonds this is not
+   a cold-start convenience but the **only** route to a past issue, since the
+   archive is WAF-blocked (ADR 0015); adding an entry is a data change that gets
+   reviewed like code.
 3. **Manual override in the UI**, so a parser breaking on a redesigned page
    degrades to "one value needs typing in" rather than "bond valuations are
    silently wrong".
