@@ -1,5 +1,5 @@
 import { importBatchStatuses } from '@finansify/core/vocabulary';
-import { index, integer, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { accounts } from './accounts';
 import { users } from './users';
@@ -46,6 +46,14 @@ export const importBatches = pgTable(
     acceptedRows: integer('accepted_rows').notNull().default(0),
     rejectedRows: integer('rejected_rows').notNull().default(0),
     duplicateRows: integer('duplicate_rows').notNull().default(0),
+    /**
+     * Statement-level findings from `ParsedStatement.warnings` (its own doc
+     * comment explains why some findings have no single row to live on — a
+     * ticker the statement's position snapshot reports as held with no
+     * matching cash row anywhere in it). Discovered while wiring the upload
+     * flow, not anticipated when this table was first designed.
+     */
+    warnings: jsonb('warnings').$type<string[]>().notNull().default([]),
     uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

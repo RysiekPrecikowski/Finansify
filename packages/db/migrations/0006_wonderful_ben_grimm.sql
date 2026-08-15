@@ -1,0 +1,1 @@
+ALTER TABLE "import_batches" ADD COLUMN "warnings" jsonb DEFAULT '[]'::jsonb NOT NULL;
