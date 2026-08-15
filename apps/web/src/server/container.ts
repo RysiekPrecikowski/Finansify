@@ -1,8 +1,10 @@
 import {
+  bondIssueParameterRepository,
   createDbClient,
   createFileStore,
   fxRateRepository,
   importRepository,
+  indexObservationRepository,
   instrumentRepository,
   ledgerRepository,
   marketPriceRepository,
@@ -11,11 +13,15 @@ import {
 } from '@finansify/db';
 import { xtbStatementParser } from '@finansify/importers';
 import {
+  makeResolveBondTerms,
   Temporal,
+  type BondTermsResolver,
   type Clock,
   type FileStore,
   type FxRateProvider,
   type FxRateRepository,
+  type IndexObservationProvider,
+  type IndexObservationRepository,
   type InstrumentRepository,
   type InstrumentSearchProvider,
   type MarketPriceRepository,
@@ -26,7 +32,14 @@ import {
   type SymbolRepository,
   type UserId,
 } from '@finansify/core';
-import { nbpFxRateProvider, yahooInstrumentSearch, yahooPriceProvider } from '@finansify/providers';
+import {
+  gusCpiProvider,
+  mfBondIssueProvider,
+  nbpFxRateProvider,
+  nbpReferenceRateProvider,
+  yahooInstrumentSearch,
+  yahooPriceProvider,
+} from '@finansify/providers';
 import { cache } from 'react';
 
 /**
@@ -92,6 +105,39 @@ export function getInstrumentSearchProvider(): InstrumentSearchProvider {
 
 export function getFxProvider(): FxRateProvider {
   return nbpFxRateProvider;
+}
+
+/**
+ * Bond reference data is global for the same reason prices are (ADR 0010): a
+ * series' published rate and the NBP reference rate describe the world, not a
+ * user. No `forUser`, and — importantly — **no user id in any cache key over
+ * them**. Rule 5 exists to stop one user's portfolio leaking into another's
+ * cache entry; keying a shared macro series by user would not leak anything,
+ * it would just refetch GUS once per account and lose the sharing that makes a
+ * free tier viable.
+ */
+export function getIndexObservations(): IndexObservationRepository {
+  return indexObservationRepository(getDb());
+}
+
+export function getReferenceRateProvider(): IndexObservationProvider {
+  return nbpReferenceRateProvider;
+}
+
+export function getCpiProvider(): IndexObservationProvider {
+  return gusCpiProvider;
+}
+
+/**
+ * ADR 0011's cache-on-first-use resolver, composed here rather than exported
+ * ready-made from `core` — the repository is an adapter and only this file is
+ * allowed to know that.
+ */
+export function getBondTermsResolver(): BondTermsResolver {
+  return makeResolveBondTerms({
+    repository: bondIssueParameterRepository(getDb()),
+    provider: mfBondIssueProvider,
+  });
 }
 
 export const clock: Clock = { now: () => Temporal.Now.instant() };

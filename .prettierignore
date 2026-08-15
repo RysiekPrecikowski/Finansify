@@ -3,6 +3,14 @@ pnpm-lock.yaml
 apps/web/next-env.d.ts
 packages/db/migrations/
 
+# Recorded upstream responses. These are evidence, not source: reformatting a
+# saved CSV or HTML fragment would change the very bytes the parser is being
+# tested against, and the HTML ones are deliberate fragments that no formatter
+# can parse as a document.
+**/__fixtures__/*.html
+**/__fixtures__/*.csv
+**/__fixtures__/*.xml
+
 node_modules/
 .next/
 # Clerk's keyless-mode scratch dir: generated, git-ignored, holds temporary keys.

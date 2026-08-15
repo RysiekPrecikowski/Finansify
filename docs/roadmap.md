@@ -141,6 +141,9 @@ transaction.
 **Phase 4 — in progress**, running alongside Phase 3: real XTB exports
 became available during import planning, so the work that had been blocked
 on them went first — see "Phase 4 — Imports" below for what
+**Phase 4 — in progress**, started ahead of Phase 3 (bonds, not yet begun):
+real XTB exports became available during import planning, so the work that
+had been blocked on them went first — see "Phase 4 — Imports" below for what
 `Blocked` used to mean and no longer does for XTB specifically.
 
 - [x] ADR 0015 — the import boundary: `StatementParser`'s shape, why
@@ -202,6 +205,12 @@ on them went first — see "Phase 4 — Imports" below for what
       data, and the sanity checks that refuse rather than guess
 - [ ] `BondTermsResolver` wired in the composition root
 - [ ] Bond position entry and valuation in the UI
+- [ ] `FileStore` Blob adapter + upload
+- [ ] Instrument-resolution UI
+- [ ] Import use case — dedup, conflicts, reconciliation flags written to
+      `import_rows`
+- [ ] Import review UI
+      \- [ ] Bond position entry and valuation in the UI
 - [ ] `wrapper_rules` — IKE/IKZE limits per year, so adding OKI in 2027 is rows
 
 > > > > > > > 9b552fb (feat(core,db): Polish retail bond accrual engine and its reference tables)
