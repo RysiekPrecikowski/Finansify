@@ -49,3 +49,20 @@ export type FxRateSource = (typeof fxRateSources)[number];
 
 export const transactionSources = ['manual', 'import'] as const;
 export type TransactionSource = (typeof transactionSources)[number];
+
+/**
+ * `import_batches.status`. Deliberately tracks only what `import_rows` cannot
+ * answer on its own — whether the parse itself succeeded — not review
+ * progress: "does this batch still have unreviewed rows" is a `COUNT(*)
+ * WHERE status = 'pending'` over `import_rows`, and storing a second, syncable
+ * copy of that fact here is exactly the derived-state duplication ADR 0003
+ * exists to avoid. `pending` covers the moment between the batch row being
+ * created (so a failed upload still has a record to show) and `parse()`
+ * resolving.
+ */
+export const importBatchStatuses = ['pending', 'parsed', 'failed'] as const;
+export type ImportBatchStatus = (typeof importBatchStatuses)[number];
+
+/** `import_rows.status`. See `docs/domain.md`'s "Imports" section. */
+export const importRowStatuses = ['pending', 'accepted', 'rejected', 'duplicate'] as const;
+export type ImportRowStatus = (typeof importRowStatuses)[number];
