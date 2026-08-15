@@ -1,0 +1,23 @@
+{
+  "name": "@finansify/importers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "transit": "exit 0",
+    "typecheck": "tsc --noEmit",
+    "fixture:generate": "tsx src/xtb/fixture/generate.ts"
+  },
+  "dependencies": {
+    "@finansify/core": "workspace:*",
+    "decimal.js": "10.6.0",
+    "exceljs": "4.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "tsx": "4.20.6"
+  }
+}

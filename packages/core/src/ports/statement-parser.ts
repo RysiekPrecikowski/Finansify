@@ -93,6 +93,16 @@ export interface ParsedRow {
 export interface ParsedStatement {
   readonly broker: BrokerId;
   readonly rows: readonly ParsedRow[];
+  /**
+   * Findings that belong to the statement as a whole, not any single row —
+   * discovered building the first real parser (`packages/importers`): a
+   * ticker the export's own position snapshot reports as held, with no
+   * buy/sell row anywhere in the statement to attach a per-row warning to
+   * (most plausibly, the position predates the statement's date range).
+   * `ParsedRow.warnings` remains where a finding belongs whenever it can be
+   * tied to a specific line.
+   */
+  readonly warnings: readonly string[];
 }
 
 /**
