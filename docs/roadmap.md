@@ -145,6 +145,11 @@ on them went first — see "Phase 4 — Imports" below for what
 real XTB exports became available during import planning, so the work that
 had been blocked on them went first — see "Phase 4 — Imports" below for what
 `Blocked` used to mean and no longer does for XTB specifically.
+**Phase 4 — in progress**, started alongside Phase 3: real XTB exports became
+available during import planning, so the work that had been blocked on them
+went first — see "Phase 4 — Imports" below for what `Blocked` used to mean and
+no longer does for XTB specifically. The two phases ran in parallel rather than
+in sequence, which is why the migration and ADR numbering interleaves.
 
 - [x] ADR 0015 — the import boundary: `StatementParser`'s shape, why
       sub-accounts and eWallet/card modeling are declined (verified, not just

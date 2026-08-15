@@ -96,6 +96,16 @@ fetchers validate hard and **refuse to write a value that fails a sanity check
 rather than guessing**, which is `docs/data-sources.md`'s existing rule applied
 to the two feeds that now have a real source.
 
+The corollary is easy to get wrong, and was: **a plausibility band must admit the
+source's own history, or it is an outage rather than a check.** The CPI series
+peaks at 1283.1 (February 1990, ~1183% year-on-year) and bottoms at 98.4
+(February 2015). A first cut capped it at 1000 because a secondary source
+described the 1990 peak as "around 640%"; that rejected the real file and took
+the entire series down. Bands are set from the data, not from recollection —
+and the way this surfaced was running the fetcher against the live source, which
+is why `docs/roadmap.md` insists a green test suite is not the same as having
+run the thing.
+
 ## Alternatives considered
 
 **Scrape the interest tables at runtime.** Rejected: it does not work, and if the

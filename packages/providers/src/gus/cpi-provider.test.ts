@@ -76,12 +76,23 @@ describe('refusing implausible values', () => {
 
   // A blank cell is a *published-yet* question and is skipped; an unreadable
   // one is a parser question and must be refused, never silently dropped.
-  it.each(['0', '5,0', '2000,0', 'b.d.', '-'])('refuses %s rather than writing it', (value) => {
+  it.each(['0', '5,0', '3000,0', 'b.d.', '-'])('refuses %s rather than writing it', (value) => {
     expect(() => parseCpiCsv(row(value))).toThrow(ImplausibleCpiError);
   });
 
-  it('accepts a genuine hyperinflation-era print', () => {
-    // 1990 peaked near 640; the band must admit real history.
-    expect(() => parseCpiCsv(row('639,6'))).not.toThrow();
+  it.each([
+    // The file's actual extremes. A ceiling that excluded either of these
+    // would reject real published data — which is exactly what an earlier,
+    // tighter band did, and it took the whole CPI series down with it.
+    ['1283,1', 'February 1990, the series maximum'],
+    ['98,4', 'February 2015, deflation'],
+  ])('accepts %s — %s', (value) => {
+    expect(() => parseCpiCsv(row(value))).not.toThrow();
+  });
+
+  it('still catches a shifted column in either direction', () => {
+    // A year lands above the ceiling, a month below the floor.
+    expect(() => parseCpiCsv(row('2026'))).toThrow(ImplausibleCpiError);
+    expect(() => parseCpiCsv(row('7'))).toThrow(ImplausibleCpiError);
   });
 });
