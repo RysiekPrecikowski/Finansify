@@ -143,9 +143,17 @@ export function InstrumentCombobox({
       {selection !== null && (
         <>
           <input type="hidden" name="instrumentSelectionKind" value={selection.kind} />
-          {selection.kind === 'existing' ? (
+          {selection.kind === 'existing' && (
             <input type="hidden" name="instrumentId" value={selection.instrumentId} />
-          ) : (
+          )}
+          {/* A bond submits only its series code. Everything else about it —
+              family, tenor, rates, fees — is derived server-side from that
+              code plus the trade date, so there is nothing here for a client
+              to assert. */}
+          {selection.kind === 'bond' && (
+            <input type="hidden" name="instrumentSeriesCode" value={selection.seriesCode} />
+          )}
+          {selection.kind === 'candidate' && (
             <>
               <input type="hidden" name="instrumentProvider" value={selection.provider} />
               <input type="hidden" name="instrumentSymbol" value={selection.symbol} />
@@ -159,7 +167,12 @@ export function InstrumentCombobox({
 }
 
 function optionKey(option: InstrumentOption): string {
-  return option.kind === 'existing'
-    ? `existing:${option.instrumentId}`
-    : `candidate:${option.provider}:${option.symbol}`;
+  switch (option.kind) {
+    case 'existing':
+      return `existing:${option.instrumentId}`;
+    case 'bond':
+      return `bond:${option.seriesCode}`;
+    default:
+      return `candidate:${option.provider}:${option.symbol}`;
+  }
 }

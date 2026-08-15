@@ -9,3 +9,4 @@ export * from './record-transaction';
 export * from './search-instruments';
 export * from './select-instrument';
 export * from './upload-statement';
+export * from './select-bond';

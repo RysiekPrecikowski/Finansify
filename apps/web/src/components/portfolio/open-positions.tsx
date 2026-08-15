@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { formatMoney, formatPlainDate, formatQuantity } from '@/lib/format';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
+import { bondPriceLookups } from '@/server/bond-valuation';
 import {
   clock,
   getFxProvider,
@@ -53,14 +54,20 @@ export async function OpenPositions({
   strings: Dictionary['portfolio'];
   dictionary: Dictionary;
 }>) {
-  const instrumentIds = positions.map((position) => position.instrument.id);
+  // Bonds are deliberately excluded from every price path below. Nothing
+  // quotes them (ADR 0011), so asking the provider would be a guaranteed miss
+  // per bond per render, and `refreshPrices` would report each one as
+  // `unmapped` — which the UI renders as a defect rather than as the normal
+  // state of an instrument that is valued by accrual instead.
+  const quoted = positions.filter((position) => position.instrument.kind !== 'bond');
+  const instrumentIds = quoted.map((position) => position.instrument.id);
   // Instrument currencies (for pricing) union cost-basis currencies (for
   // unrealized P&L), minus PLN: NBP table A has no PLN row, so including it
   // here made `fxDue` permanently true and re-fetched the table on every
   // `/portfolio` render regardless of what was actually stale.
   const currencies = [
     ...new Set([
-      ...positions.map((position) => position.instrument.currency),
+      ...quoted.map((position) => position.instrument.currency),
       ...positions.flatMap((position) =>
         position.costBasisByCurrency.map((amount) => amount.currency),
       ),
@@ -121,11 +128,16 @@ export async function OpenPositions({
   // All the Money arithmetic — market value, unrealized P&L, the PLN total —
   // lives in `core`'s `valuePositions`, tested against fakes there. This
   // component only formats what it returns.
+  // Bond values are accrued, not fetched, and arrive as `PriceLookup`s so the
+  // one valuation pipeline serves both kinds — see `server/bond-valuation.ts`.
+  const withBonds = new Map(priceLookups);
+  for (const [id, lookup] of await bondPriceLookups(positions)) withBonds.set(id, lookup);
+
   const {
     positions: valued,
     totalMarketValuePln,
     totalIsComplete,
-  } = valuePositions(positions, priceLookups, ratesToPln);
+  } = valuePositions(positions, withBonds, ratesToPln);
 
   const averageCostCell = (position: ValuedPosition) =>
     position.averageCost === null ? (

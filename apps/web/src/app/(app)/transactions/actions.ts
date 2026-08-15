@@ -3,6 +3,7 @@
 import {
   makeDeleteTransaction,
   makeRecordTransaction,
+  looksLikeSeriesCode,
   makeSearchInstruments,
   makeUpdateTransaction,
 } from '@finansify/core';
@@ -57,10 +58,23 @@ export type InstrumentOption =
       // all of it server-side instead. The exchange is already baked into
       // `label`.
       readonly label: string;
-    };
+    }
+  /**
+   * A Polish retail treasury bond. No provider quotes these, so there is no
+   * listing to confirm against and nothing to search — the series code is the
+   * identity, and `selectBond` gates it by resolving the issue's terms
+   * instead (ADR 0011). Offered whenever the query is *shaped* like a code;
+   * whether the family exists is decided server-side, where a rejection can
+   * explain itself.
+   */
+  | { readonly kind: 'bond'; readonly seriesCode: string; readonly label: string };
 
 function labelOf(symbol: string, name: string, exchange: string | null): string {
   return exchange === null ? `${symbol} · ${name}` : `${symbol} · ${name} (${exchange})`;
+}
+
+function bondLabel(seriesCode: string): string {
+  return `${seriesCode} · Obligacja skarbowa`;
 }
 
 /**
@@ -81,15 +95,27 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
     });
     const result = await searchInstruments(query);
 
-    if (result.existing.length > 0) {
-      return result.existing.map((instrument) => ({
-        kind: 'existing',
-        instrumentId: instrument.id,
-        label: labelOf(instrument.symbol, instrument.name, instrument.exchange),
-      }));
-    }
+    const existing = result.existing.map<InstrumentOption>((instrument) => ({
+      kind: 'existing',
+      instrumentId: instrument.id,
+      label: labelOf(instrument.symbol, instrument.name, instrument.exchange),
+    }));
 
-    return result.candidates.map((candidate) => ({
+    // A series code is offered *alongside* whatever the provider found rather
+    // than instead of it: a user typing `EDO0836` has no other way to reach a
+    // bond, and Yahoo will happily return nothing for it. Suppressed once the
+    // series is already an instrument, since the `existing` row for it is the
+    // better answer — same id, and no resolver call on selection.
+    const seriesCode = query.trim().toUpperCase();
+    const alreadyHeld = result.existing.some((instrument) => instrument.symbol === seriesCode);
+    const bond: readonly InstrumentOption[] =
+      looksLikeSeriesCode(query) && !alreadyHeld
+        ? [{ kind: 'bond', seriesCode, label: bondLabel(seriesCode) }]
+        : [];
+
+    if (existing.length > 0 || bond.length > 0) return [...bond, ...existing];
+
+    return result.candidates.map<InstrumentOption>((candidate) => ({
       kind: 'candidate',
       provider: candidate.provider,
       symbol: candidate.symbol,
