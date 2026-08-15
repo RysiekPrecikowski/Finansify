@@ -206,8 +206,15 @@ export const pl = {
       back: 'Wróć do portfela',
     },
   },
+  export: {
+    title: 'Eksport',
+    description:
+      'Pobierz całą swoją księgę transakcji — Twoja własna kopia, niezależna od Finansify.',
+    downloadCsv: 'Pobierz CSV',
+    downloadJson: 'Pobierz JSON',
+  },
   placeholder: {
-    more: 'Ustawienia, import wyciągów i raporty.',
+    more: 'Ustawienia i import wyciągów.',
   },
   mock: {
     banner: 'Dane demonstracyjne — księga transakcji pojawi się w Fazie 1.',

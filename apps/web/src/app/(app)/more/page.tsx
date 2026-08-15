@@ -1,4 +1,4 @@
-import { ChevronRight, Landmark } from 'lucide-react';
+import { ChevronRight, Download, Landmark } from 'lucide-react';
 import Link from 'next/link';
 
 import { getDictionary } from '@/lib/i18n/server';
@@ -22,6 +22,14 @@ export default async function MorePage() {
         >
           <Landmark className="text-muted-foreground size-4 shrink-0" aria-hidden />
           <span className="flex-1">{dictionary.accounts.title}</span>
+          <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        </Link>
+        <Link
+          href="/export"
+          className="hover:bg-muted/50 flex items-center gap-3 px-1 py-3 text-sm"
+        >
+          <Download className="text-muted-foreground size-4 shrink-0" aria-hidden />
+          <span className="flex-1">{dictionary.export.title}</span>
           <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
         </Link>
       </nav>

@@ -27,7 +27,7 @@ check, Neon and Clerk provisioned, and the first migration applied to a real
 database. Two HIGH findings from `/security-review` (a CI pwn-request, an auth
 bypass on `.rsc`) found and fixed.
 
-**Phase 1 — in progress.**
+**Phase 1 — complete.**
 
 - [x] `core`: ledger vocabulary, `LedgerRepository` port, branded ids
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
@@ -48,7 +48,7 @@ bypass on `.rsc`) found and fixed.
       `forUser` predicate on every mutation, and 404-not-403 on another user's
       row all confirmed by tracing the SQL
 - [x] `apps/web`: positions view
-- [ ] CSV/JSON ledger export
+- [x] CSV/JSON ledger export
 
 **A real transaction can now be entered, listed, edited and deleted, and
 `/portfolio` shows what it produced.** `/accounts`, `/transactions`, and
@@ -59,9 +59,12 @@ closed positions grouped by instrument, cash per `(account, currency)`, and a
 per-instrument lot drill-down — quantity, cost basis, and realized P&L, with no
 market value or unrealized P&L until Phase 2's price feed exists.
 
+`/export` closes out the phase: the same ledger `/portfolio` reads, joined
+against accounts and instruments and flattened to CSV or JSON, downloadable
+from `/more`.
+
 The dashboard still renders `lib/fixtures/portfolio.ts` — the fixture dies in
-Phase 2, when there are prices to replace it with. What is left in Phase 1 is
-CSV/JSON export, which reads the same ledger `/portfolio` now does.
+Phase 2, when there are prices to replace it with.
 
 **Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
 ledger held a row**: it added a master key, an environment variable, a
