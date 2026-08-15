@@ -7,3 +7,4 @@ export * from './withholding';
 export * from './resolve-bond-terms';
 export * from './index-series';
 export * from './value-bond-position';
+export * from './project-bond';

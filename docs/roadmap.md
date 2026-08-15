@@ -248,7 +248,18 @@ in sequence, which is why the migration and ADR numbering interleaves.
 - [ ] Bonds on the dashboard — blocked on "Dashboard on real data" above, which
       still renders `lib/fixtures/portfolio.ts`; there is no real position of
       any kind there to put a bond next to
-- [ ] `wrapper_rules` — IKE/IKZE limits per year, so adding OKI in 2027 is rows
+- [x] Bond projections — `projectBondCashFlows` (the payment schedule),
+      `projectBondValue` (redemption value at a chosen date) and
+      `projectEarlyRedemption` (day by day across a range). Every figure carries
+      a `ProjectionBasis` saying whether it is arithmetic or rests on the last
+      published index print; no forecasting, since inventing inflation to value
+      an inflation-linked bond is the failure this project exists to avoid
+- [~] `wrapper_rules` — the domain shape, the room arithmetic and the
+  tax-exemption lookup exist and are tested, and refuse an unknown year
+  rather than reusing the last one. **The IKE and IKZE figures are not
+  seeded**: they are announced annually and no official source was
+  reachable, so entering them from memory was declined. The table and the
+  screen land with those numbers
 
 > > > > > > > 9b552fb (feat(core,db): Polish retail bond accrual engine and its reference tables)
 
