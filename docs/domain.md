@@ -231,9 +231,19 @@ built for it, it keeps the primary database small, and it works identically
 whichever engine ADR 0008 resolves to. The `FileStore` port keeps Blob itself
 swappable.
 
-The database keeps only what the review UI needs:
+See ADR 0015 for the `StatementParser` port itself. The database keeps only
+what the review UI needs:
 
-- `import_batches` — user, account, broker, blob key, uploaded_at, status, counts.
+- `import_batches` — user, account, broker, blob key, uploaded_at, status
+  (`pending` / `parsed` / `failed`), a failure reason when `failed`, and
+  `total`/`accepted`/`rejected`/`duplicate` row counts. The account is chosen
+  by the user at upload time, never detected from the file. Status tracks only
+  whether the parse itself succeeded — "does this batch still have unreviewed
+  rows" is a query over `import_rows`, not a second copy of that fact here.
+  The counts are a snapshot taken once row processing is final, not a
+  live-synced counter: while a batch is under review, the true numbers are a
+  query over `import_rows`; the stored snapshot exists because `import_rows`
+  is pruned and the counts are what survives that prune.
 - `import_rows` — batch id, row index, the **normalized parsed row** as JSON,
   status (`pending` / `accepted` / `rejected` / `duplicate`), the resulting
   `transaction_id`, and a reason if rejected.
