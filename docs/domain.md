@@ -170,6 +170,32 @@ Validation is non-negotiable: golden tests against the official daily interest
 tables published on obligacjeskarbowe.pl. The engine must reproduce them to the
 grosz before any bond value is shown to a user.
 
+#### Three conventions the prose does not tell you
+
+All three were established against the Ministry's published ROR0827 table and
+all three are load-bearing. See ADR 0016.
+
+1. **The day count is not ACT/365.** Interest for one bond is
+   `base × annualRate × periodMonths / 12 × elapsedDays / daysInPeriod` — a
+   twelfth (or a quarter, or a whole) of the annual rate, spread linearly across
+   that period's own day count. ACT/365 disagrees with the published table on 7
+   of 30 days, ACT/366 on 8. Each family's day count is a finding from its own
+   table, never inherited from another's.
+2. **Rounding is per bond, then multiplied.** The tables are published "dla 1
+   sztuki obligacji" and interest is paid per bond; rounding a 25-bond holding
+   as a whole pays a different number.
+3. **Periods are anchored to the purchase, not the issue.** Period _n_ runs
+   `settledOn.add({months: n × periodMonths})` — measured from the settlement
+   date every time, never stepped period by period, which drifts on short
+   months. This is why the Ministry publishes one table per purchase date
+   ("NABYTYCH W DNIU …"). On a period's exact end date the interest is accrued;
+   it becomes paid or capitalized only once the date is strictly past it.
+
+Tax is deliberately **not** applied by the engine. `withholdingOn` is a separate
+function, because the 19% Belka rate is a property of the account's wrapper —
+IKE and IKZE are exempt — and folding it into the accrual would make the engine
+silently wrong for the wrapper that matters most to this product.
+
 ### Bond terms resolve themselves
 
 Bond parameters are neither committed data nor something the user types in. They
