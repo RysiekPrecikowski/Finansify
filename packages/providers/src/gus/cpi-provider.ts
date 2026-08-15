@@ -26,14 +26,18 @@ const YEAR_ON_YEAR = 'Analogiczny miesiąc poprzedniego roku = 100';
 const COLUMN = { presentation: 2, year: 3, month: 4, value: 5 } as const;
 
 /**
- * Poland's post-1989 inflation peaked around 640% year-on-year in 1990 and the
- * series has dipped below 100 (deflation) more than once, so the plausible band
- * has to be wide on one side and admit sub-100 on the other. An index of 0 or a
- * negative one means the column moved — refuse rather than write it. A wrong
- * CPI print silently mis-values every indexed bond for its whole term.
+ * The band has to admit the file's own history, which is more extreme than it
+ * sounds: the series peaks at **1283.1** (February 1990, ~1183% year-on-year)
+ * and bottoms at 98.4 (February 2015, deflation). A tighter ceiling looks
+ * prudent and is simply wrong — it rejects real published data, which is how a
+ * "safety" check turns into an outage. This was found by running the fetcher
+ * against the live file, not by reading it.
+ *
+ * It still catches the failure that matters, a shifted column: a year (2026) is
+ * above the ceiling and a month (1–12) is below the floor.
  */
 const MIN_INDEX = new Decimal('50');
-const MAX_INDEX = new Decimal('1000');
+const MAX_INDEX = new Decimal('2000');
 
 export class ImplausibleCpiError extends Error {
   constructor(raw: string, year: string, month: string) {
