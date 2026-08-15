@@ -1,9 +1,12 @@
+import { Suspense } from 'react';
+
 import { AccountTiles } from '@/components/dashboard/account-tiles';
 import { AssetClassChips } from '@/components/dashboard/asset-class-chips';
 import { ChartCard } from '@/components/dashboard/chart-card';
 import { HoldingsList } from '@/components/dashboard/holdings-list';
 import { PortfolioHeadline } from '@/components/dashboard/portfolio-headline';
 import { SortMenu, type SortOption } from '@/components/dashboard/sort-menu';
+import { IndicatorStrip } from '@/components/indicators/indicator-strip';
 import { chartPointCount, resample, type ChartSeries } from '@/lib/chart-series';
 import { parseDashboardParams } from '@/lib/dashboard-params';
 import { directionOf, formatMoney } from '@/lib/format';
@@ -112,6 +115,12 @@ export default async function DashboardPage({
         <h1 className="text-lg font-semibold tracking-tight">{snapshot.name}</h1>
         <p className="text-muted-foreground text-xs">{dictionary.mock.banner}</p>
       </div>
+
+      {/* The one part of this page that touches the network, so it streams in
+          on its own rather than delaying the headline behind it. */}
+      <Suspense fallback={null}>
+        <IndicatorStrip locale={locale} dictionary={dictionary} />
+      </Suspense>
 
       <AssetClassChips present={present} dictionary={dictionary} />
 
