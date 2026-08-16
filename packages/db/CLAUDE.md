@@ -19,6 +19,10 @@ for the boundary and `docs/decisions/0008-database-engine.md` for why Neon.
   `src/client.ts` builds the Drizzle instance from a connection string; nothing
   in this package reads `process.env` directly — the caller (`apps/web`'s
   composition root) passes the string in.
+- `src/file-store.ts` implements `FileStore` against Vercel Blob — the second
+  persistence backend this package holds, alongside Postgres. Same rule as
+  `client.ts`: `createFileStore(token)` takes the token as a parameter, never
+  reads `BLOB_READ_WRITE_TOKEN` itself.
 
 ## Migrations
 

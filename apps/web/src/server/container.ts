@@ -1,22 +1,28 @@
 import {
   createDbClient,
+  createFileStore,
   fxRateRepository,
+  importRepository,
   instrumentRepository,
   ledgerRepository,
   marketPriceRepository,
   symbolRepository,
   type Database,
 } from '@finansify/db';
+import { xtbStatementParser } from '@finansify/importers';
 import {
   Temporal,
   type Clock,
+  type FileStore,
   type FxRateProvider,
   type FxRateRepository,
   type InstrumentRepository,
   type InstrumentSearchProvider,
   type MarketPriceRepository,
   type PriceProvider,
+  type ScopedImportRepository,
   type ScopedLedgerRepository,
+  type StatementParser,
   type SymbolRepository,
   type UserId,
 } from '@finansify/core';
@@ -99,3 +105,22 @@ export const clock: Clock = { now: () => Temporal.Now.instant() };
 export const scopedLedgerFor = cache((userId: UserId): ScopedLedgerRepository => {
   return ledgerRepository(getDb()).forUser(userId);
 });
+
+export const scopedImportsFor = cache((userId: UserId): ScopedImportRepository => {
+  return importRepository(getDb()).forUser(userId);
+});
+
+let cachedFileStore: FileStore | undefined;
+
+export function getFileStore(): FileStore {
+  // Named for the store, not the generic default: this project's Blob store
+  // is "imports", so the Vercel Marketplace integration emits
+  // `BLOB_IMPORTS_READ_WRITE_TOKEN` rather than `BLOB_READ_WRITE_TOKEN`.
+  cachedFileStore ??= createFileStore(requiredEnv('BLOB_IMPORTS_READ_WRITE_TOKEN'));
+  return cachedFileStore;
+}
+
+/** Every registered broker parser — just XTB today (ADR 0015, ticket for Boś not started). */
+export function getStatementParsers(): readonly StatementParser[] {
+  return [xtbStatementParser];
+}
