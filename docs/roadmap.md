@@ -138,9 +138,9 @@ transaction.
 - [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
       ADR 0014 and the ingestion plan's "poza zakresem" section
 
-**Phase 4 — in progress**, started ahead of Phase 3 (bonds, not yet begun):
-real XTB exports became available during import planning, so the work that
-had been blocked on them went first — see "Phase 4 — Imports" below for what
+**Phase 4 — in progress**, running alongside Phase 3: real XTB exports
+became available during import planning, so the work that had been blocked
+on them went first — see "Phase 4 — Imports" below for what
 `Blocked` used to mean and no longer does for XTB specifically.
 
 - [x] ADR 0015 — the import boundary: `StatementParser`'s shape, why
@@ -178,6 +178,33 @@ had been blocked on them went first — see "Phase 4 — Imports" below for what
       a submission carries); `rejectImportRow` is the new use case behind
       reject. The whole `/import` flow is now bilingual and linked from
       `/more`.
+
+**Phase 3 — in progress.**
+
+- [x] ADR 0016 — what bond reference data is actually reachable, after testing
+      rather than assuming; corrects `docs/data-sources.md`'s CPI and NBP rows
+- [x] `core`: family rules for all eight issued families as versioned,
+      effective-dated config, with the early-redemption fees read off each
+      family's own offer page (the widely-repeated 0.70/2.00 pairing is wrong
+      for anything bought since 2024-09-01)
+- [x] `core`: `accrueBond` — periods anchored to settlement, the published
+      day-count rule, capitalization, index selection with a CPI floor at zero,
+      and the three early-redemption regimes. Golden-tested to the grosz against
+      the Ministry's own ROR0827 table; spec and fixtures written first and the
+      implementation handed to a separate agent (rule 16)
+- [x] `core`: `withholdingOn` — the 19% kept out of the engine, because IKE and
+      IKZE are exempt and the rate belongs to the wrapper
+- [x] `db`: `bond_series_terms`, `index_observations` + migration;
+      `bondIssueParameterRepository`, `indexObservationRepository`
+- [ ] Golden tables for the other seven families — needs a person to save one
+      PDF each from an ordinary browser; the archive is WAF-blocked (ADR 0016)
+- [ ] `providers`: NBP reference rate, GUS CPI CSV, MF offer pages + bootstrap
+      data, and the sanity checks that refuse rather than guess
+- [ ] `BondTermsResolver` wired in the composition root
+- [ ] Bond position entry and valuation in the UI
+- [ ] `wrapper_rules` — IKE/IKZE limits per year, so adding OKI in 2027 is rows
+
+> > > > > > > 9b552fb (feat(core,db): Polish retail bond accrual engine and its reference tables)
 
 ### Phase 2 — Valuation
 

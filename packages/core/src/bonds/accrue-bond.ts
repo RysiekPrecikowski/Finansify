@@ -1,0 +1,233 @@
+import Decimal from 'decimal.js';
+
+import { currency, Money } from '../money';
+import { Temporal } from '../time';
+import { redemptionDateFor } from './series-code';
+import {
+  type BondAccrual,
+  type BondInterestPeriod,
+  type BondPurchase,
+  type BondTerms,
+  type EarlyRedemptionRule,
+  type IndexId,
+  type IndexObservation,
+} from './types';
+
+const PLN = currency('PLN');
+
+/** Every retail treasury series is issued at 100 zł, in PLN, without exception. */
+const NOMINAL_PER_BOND = Money.of('100', PLN);
+
+const MONTHS_PER_YEAR = 12;
+
+export class MissingIndexObservationError extends Error {
+  constructor(indexId: IndexId, periodStartsOn: Temporal.PlainDate) {
+    super(
+      `No ${indexId} observation is effective before ${periodStartsOn.toString()}, so the rate for that interest period is unknown — it is never estimated or carried forward from the first period`,
+    );
+    this.name = 'MissingIndexObservationError';
+  }
+}
+
+/**
+ * The index value that governs a period: the latest observation effective
+ * *strictly before* the period opens. `IndexObservation.effectiveFrom` already
+ * encodes announcement date for CPI, so "the print announced in the month
+ * preceding the period" is this one comparison rather than two rules.
+ */
+function indexValueFor(
+  indexId: IndexId,
+  startsOn: Temporal.PlainDate,
+  observations: readonly IndexObservation[],
+): Decimal {
+  let latest: IndexObservation | undefined;
+  for (const observation of observations) {
+    if (observation.indexId !== indexId) continue;
+    if (Temporal.PlainDate.compare(observation.effectiveFrom, startsOn) >= 0) continue;
+    if (
+      latest === undefined ||
+      Temporal.PlainDate.compare(observation.effectiveFrom, latest.effectiveFrom) > 0
+    ) {
+      latest = observation;
+    }
+  }
+  if (latest === undefined) throw new MissingIndexObservationError(indexId, startsOn);
+
+  // "W przypadku ujemnej stopy inflacji do ustalania oprocentowania brana jest
+  // wartość zerowa" — the floor is a property of the CPI families' terms, so it
+  // is applied to the print and not to the sum, leaving the margin intact. The
+  // NBP reference rate carries no such clause and gets no floor.
+  if (indexId === 'pl_cpi_yoy' && latest.value.isNegative()) return new Decimal(0);
+  return latest.value;
+}
+
+function annualRateFor(
+  terms: BondTerms,
+  ordinal: number,
+  startsOn: Temporal.PlainDate,
+  observations: readonly IndexObservation[],
+): Decimal {
+  const { indexId } = terms.rules;
+  if (ordinal === 1 || indexId === null) return terms.firstPeriodRate;
+  return indexValueFor(indexId, startsOn, observations).plus(terms.margin);
+}
+
+/**
+ * Interest on **one** bond, rounded to the grosz.
+ *
+ * The day count is the period's own: a twelfth (or a quarter, or a whole) of the
+ * annual rate, spread linearly across however many days that period happens to
+ * contain. Neither ACT/365 nor ACT/366 reproduces the Ministry's published
+ * table — see `__fixtures__/ror0827-period-1.ts` before changing this.
+ *
+ * Rounding happens here, per bond, because the tables are published "dla 1
+ * sztuki obligacji" and that is the amount that lands in the account; rounding
+ * the holding as a whole pays a different number.
+ */
+function interestPerBond(
+  base: Money,
+  annualRate: Decimal,
+  periodMonths: number,
+  elapsedDays: number,
+  totalDays: number,
+): Money {
+  const periodRate = annualRate.times(periodMonths).dividedBy(MONTHS_PER_YEAR);
+  const raw = base.amount.times(periodRate).times(elapsedDays).dividedBy(totalDays);
+  return Money.of(raw.toDecimalPlaces(2, Decimal.ROUND_HALF_UP), PLN);
+}
+
+/**
+ * What redeeming early actually pays out. Accrued interest only — interest
+ * already paid to the holder is theirs and is not clawed back.
+ */
+function earlyRedemptionValueOf(
+  rule: EarlyRedemptionRule,
+  nominal: Money,
+  accruedInterest: Money,
+  quantity: number,
+  currentOrdinal: number,
+): Money {
+  if (rule.kind === 'forfeit_interest') return nominal;
+
+  const fee = rule.amountPerBond.times(quantity);
+  const capped = rule.capping === 'always' || currentOrdinal === 1;
+  const charged = capped && fee.greaterThan(accruedInterest) ? accruedInterest : fee;
+  return nominal.plus(accruedInterest).minus(charged);
+}
+
+/**
+ * What one holding of a retail treasury bond is worth on `asOf`, gross of tax.
+ *
+ * Two conventions drive everything below and neither is obvious from the
+ * Ministry's prose:
+ *
+ * 1. Every period boundary is `settledOn.add({ months: n × periodMonths })`,
+ *    measured from the settlement anchor rather than stepped period by period.
+ *    Stepping drifts on short months — 31 Aug + 1 month is 30 Sep, and 30 Sep +
+ *    1 month is 30 Oct, a day early — while the anchor gives 31 Oct.
+ * 2. A period's interest is *accrued* on its exact end date and only becomes
+ *    paid (or capitalized) once `asOf` is strictly past it, which is how the
+ *    published tables show it.
+ */
+export function accrueBond(
+  terms: BondTerms,
+  purchase: BondPurchase,
+  asOf: Temporal.PlainDate,
+  observations: readonly IndexObservation[],
+): BondAccrual {
+  const { rules } = terms;
+  const { settledOn, quantity } = purchase;
+  const nominal = NOMINAL_PER_BOND.times(quantity);
+
+  // Nothing is owned before settlement — the money is still cash, and reporting
+  // a nominal here would double-count it against the cash leg.
+  if (Temporal.PlainDate.compare(asOf, settledOn) < 0) {
+    return {
+      seriesCode: terms.seriesCode,
+      asOf,
+      nominal: Money.zero(PLN),
+      accruedInterest: Money.zero(PLN),
+      paidInterest: Money.zero(PLN),
+      currentValue: Money.zero(PLN),
+      earlyRedemptionValue: Money.zero(PLN),
+      periods: [],
+    };
+  }
+
+  // Accrual stops dead at redemption; a later `asOf` reports the redemption-day
+  // figures rather than running the schedule on past the end of the bond.
+  const redeemsOn = redemptionDateFor(settledOn, rules.tenorMonths);
+  const upTo = Temporal.PlainDate.compare(asOf, redeemsOn) > 0 ? redeemsOn : asOf;
+
+  const periods: BondInterestPeriod[] = [];
+  let basePerBond = NOMINAL_PER_BOND;
+  let capitalizedPerBond = Money.zero(PLN);
+  let paidPerBond = Money.zero(PLN);
+  let currentPerBond = Money.zero(PLN);
+  let currentOrdinal = 1;
+
+  for (let ordinal = 1; ; ordinal += 1) {
+    const startsOn = settledOn.add({ months: (ordinal - 1) * rules.periodMonths });
+    if (Temporal.PlainDate.compare(startsOn, redeemsOn) >= 0) break;
+    if (Temporal.PlainDate.compare(startsOn, upTo) > 0) break;
+
+    const endsOn = settledOn.add({ months: ordinal * rules.periodMonths });
+    const totalDays = startsOn.until(endsOn).days;
+    const elapsed = startsOn.until(upTo).days;
+    const elapsedDays = elapsed > totalDays ? totalDays : elapsed;
+
+    const annualRate = annualRateFor(terms, ordinal, startsOn, observations);
+    const interest = interestPerBond(
+      basePerBond,
+      annualRate,
+      rules.periodMonths,
+      elapsedDays,
+      totalDays,
+    );
+
+    periods.push({
+      ordinal,
+      startsOn,
+      endsOn,
+      annualRate,
+      base: basePerBond.times(quantity),
+      interest: interest.times(quantity),
+    });
+
+    if (Temporal.PlainDate.compare(upTo, endsOn) <= 0) {
+      currentPerBond = interest;
+      currentOrdinal = ordinal;
+      break;
+    }
+
+    if (rules.capitalizes) {
+      capitalizedPerBond = capitalizedPerBond.plus(interest);
+      basePerBond = basePerBond.plus(interest);
+    } else {
+      paidPerBond = paidPerBond.plus(interest);
+    }
+  }
+
+  // Capitalized interest is still the holder's and still unpaid, so it belongs
+  // to accrued rather than to paid; that is also what keeps `currentValue` a
+  // plain `nominal + accruedInterest` for every family.
+  const accruedInterest = capitalizedPerBond.plus(currentPerBond).times(quantity);
+  const paidInterest = paidPerBond.times(quantity);
+
+  return {
+    seriesCode: terms.seriesCode,
+    asOf,
+    nominal,
+    accruedInterest,
+    paidInterest,
+    currentValue: nominal.plus(accruedInterest),
+    earlyRedemptionValue: earlyRedemptionValueOf(
+      rules.earlyRedemption,
+      nominal,
+      accruedInterest,
+      quantity,
+      currentOrdinal,
+    ),
+    periods,
+  };
+}

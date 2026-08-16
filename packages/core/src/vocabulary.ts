@@ -7,3 +7,4 @@
  */
 export * from './ledger/vocabulary';
 export * from './valuation/vocabulary';
+export * from './bonds/vocabulary';
