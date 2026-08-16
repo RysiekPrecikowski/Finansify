@@ -1,16 +1,42 @@
-import { accountIdSchema } from '../ledger/types';
+import { accountIdSchema, type Account } from '../ledger/types';
 import { type ScopedLedgerRepository } from '../ledger/ports';
 import { type ScopedImportRepository } from '../imports/ports';
 import { type ImportBatch } from '../imports/types';
 import { type Clock } from '../ports/clock';
 import { type FileStore } from '../ports/file-store';
-import { type RawFile, type StatementParser } from '../ports/statement-parser';
+import { type ParsedRow, type RawFile, type StatementParser } from '../ports/statement-parser';
 
 import { failure, success, type UseCaseResult } from './result';
 
 export interface UploadStatementInput {
   readonly accountId: unknown;
   readonly file: RawFile;
+}
+
+/**
+ * The account is picked from a dropdown; the currency is read out of the
+ * file. Nothing before this point compares the two, so picking the wrong one
+ * of several accounts at the same broker — the exact case a multi-currency
+ * XTB user has, one account per currency — stages a whole statement of
+ * amounts against an account that does not hold that currency, and every
+ * number looks right in isolation.
+ *
+ * A warning rather than a refusal: the parsed rows carry their own currency
+ * and are correct as parsed, the batch is staged for review before anything
+ * becomes a `Transaction`, and a genuine one-off (a broker reporting in a
+ * second currency) should not be unimportable. Statement-level, because it is
+ * a fact about the pairing of file and account, not about any single row.
+ */
+function currencyMismatchWarnings(account: Account, rows: readonly ParsedRow[]): readonly string[] {
+  const found = [...new Set(rows.map((row) => row.currency))].filter(
+    (code) => code !== account.currency,
+  );
+  if (found.length === 0) return [];
+
+  return [
+    `This statement reports amounts in ${found.join(', ')}, but the selected account "${account.name}" holds ${account.currency}. ` +
+      'Check that the right account was chosen before accepting these rows.',
+  ];
 }
 
 /**
@@ -72,7 +98,7 @@ export function makeUploadStatement(deps: {
       await deps.imports.createRows(batch.id, parsed.rows);
       const updated = await deps.imports.markBatchParsed(batch.id, {
         totalRows: parsed.rows.length,
-        warnings: parsed.warnings,
+        warnings: [...parsed.warnings, ...currencyMismatchWarnings(account, parsed.rows)],
       });
       return success(updated);
     } catch (error) {

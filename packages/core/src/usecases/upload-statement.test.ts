@@ -334,4 +334,85 @@ describe('makeUploadStatement', () => {
     expect(result.value.status).toBe('failed');
     expect(result.value.failureReason).toBe('unexpected token');
   });
+
+  /**
+   * The account comes from a dropdown, the currency comes from the file, and
+   * a multi-currency XTB user has one account per currency with identical
+   * names in that dropdown. Picking the wrong one stages a whole statement
+   * against an account that does not hold that currency, and every amount
+   * looks right in isolation — the mismatch is only visible by comparing the
+   * two, which nothing did before this warning.
+   */
+  it('warns when the statement reports a currency the chosen account does not hold', async () => {
+    const { ledger, imports, userA, account } = await setup();
+    const rows = [
+      parsedRow({ externalId: 'row-1', currency: currency('USD') }),
+      parsedRow({ externalId: 'row-2', currency: currency('USD') }),
+    ];
+    const parser = makeParser('xtb', 'certain', { rows });
+    const uploadStatement = makeUploadStatement({
+      ledger: ledger.forUser(userA),
+      imports: imports.forUser(userA),
+      fileStore: makeFileStore(),
+      parsers: [parser],
+      clock,
+    });
+
+    const result = await uploadStatement({ accountId: account.id, file: FILE });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Staged, not refused — the rows are correct as parsed, and the batch is
+    // reviewed before any of it becomes a `Transaction`.
+    expect(result.value.status).toBe('parsed');
+    expect(result.value.totalRows).toBe(2);
+    expect(result.value.warnings).toHaveLength(1);
+    expect(result.value.warnings[0]).toContain('USD');
+    expect(result.value.warnings[0]).toContain('PLN');
+    expect(result.value.warnings[0]).toContain(account.name);
+  });
+
+  it('reports each mismatched currency once, alongside the parser own warnings', async () => {
+    const { ledger, imports, userA, account } = await setup();
+    const rows = [
+      parsedRow({ externalId: 'row-1', currency: currency('USD') }),
+      parsedRow({ externalId: 'row-2', currency: currency('USD') }),
+      parsedRow({ externalId: 'row-3', currency: currency('EUR') }),
+      parsedRow({ externalId: 'row-4', currency: currency('PLN') }),
+    ];
+    const parser = makeParser('xtb', 'certain', { rows, warnings: ['from the parser'] });
+    const uploadStatement = makeUploadStatement({
+      ledger: ledger.forUser(userA),
+      imports: imports.forUser(userA),
+      fileStore: makeFileStore(),
+      parsers: [parser],
+      clock,
+    });
+
+    const result = await uploadStatement({ accountId: account.id, file: FILE });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.warnings).toHaveLength(2);
+    expect(result.value.warnings[0]).toBe('from the parser');
+    expect(result.value.warnings[1]).toContain('USD, EUR');
+  });
+
+  it('adds no warning when every row matches the account currency', async () => {
+    const { ledger, imports, userA, account } = await setup();
+    const parser = makeParser('xtb', 'certain', { rows: [parsedRow()] });
+    const uploadStatement = makeUploadStatement({
+      ledger: ledger.forUser(userA),
+      imports: imports.forUser(userA),
+      fileStore: makeFileStore(),
+      parsers: [parser],
+      clock,
+    });
+
+    const result = await uploadStatement({ accountId: account.id, file: FILE });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.warnings).toEqual([]);
+  });
 });

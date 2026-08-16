@@ -6,7 +6,8 @@ import { type FileStore } from '@finansify/core';
  * same rationale as `createDbClient`: this package has no opinion on where
  * the credential comes from, and the composition root
  * (`apps/web/src/server/container.ts`) is the one place that should know the
- * variable name (`BLOB_READ_WRITE_TOKEN`).
+ * variable name (`BLOB_IMPORTS_READ_WRITE_TOKEN` — named for the store, not
+ * the generic default).
  *
  * `access: 'private'` always — a statement export is financial data, never a
  * publicly-reachable URL (`docs/domain.md`, "Imports"). `addRandomSuffix:
