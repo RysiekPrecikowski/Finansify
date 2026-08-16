@@ -3,7 +3,8 @@ import { currency, Temporal } from '@finansify/core';
 import { describe, expect, it } from 'vitest';
 
 import { type CashOperationRow } from './cash-operations';
-import { type MapContext, mapCashOperationRow } from './map-operation';
+import { type MapContext, mapCashOperationRow, mapOpenPositionLot } from './map-operation';
+import { type OpenPositionLot } from './positions';
 
 const PLN = currency('PLN');
 
@@ -255,6 +256,91 @@ describe('mapCashOperationRow — Fractional shares', () => {
 
     expect(result?.type).not.toBe('dividend');
     expect(result?.warnings[0]).not.toMatch(/has no specific mapping/);
+  });
+});
+
+describe('mapOpenPositionLot', () => {
+  function lot(overrides: Partial<OpenPositionLot> = {}): OpenPositionLot {
+    return {
+      positionId: '1000000005',
+      ticker: 'SPIN.WA',
+      volume: new Decimal(8),
+      openPrice: new Decimal('0.01'),
+      openTime: Temporal.Instant.from('2024-08-01T08:00:00Z'),
+      ...overrides,
+    };
+  }
+
+  it('maps to transfer_in, never buy or sell — no evidence of an actual trade, only that a position exists', () => {
+    const result = mapOpenPositionLot(lot(), PLN);
+
+    expect(result.type).toBe('transfer_in');
+  });
+
+  it('builds externalId from the lot’s own position id, so a re-import dedups the same way every other row does', () => {
+    const result = mapOpenPositionLot(lot({ positionId: '1000000005' }), PLN);
+
+    expect(result.externalId).toBe('xtb-position:1000000005');
+  });
+
+  it('carries the lot’s ticker onto the instrument candidate as-is, without re-normalizing it', () => {
+    const result = mapOpenPositionLot(lot({ ticker: 'SPIN.WA' }), PLN);
+
+    expect(result.instrument).toEqual({ symbol: 'SPIN.WA', exchange: null, name: null });
+  });
+
+  it('sets quantity to the lot’s volume', () => {
+    const result = mapOpenPositionLot(lot({ volume: new Decimal('8') }), PLN);
+
+    expect(result.quantity.toString()).toBe('8');
+  });
+
+  it('sets price to the lot’s open price, and grossAmount to open price × volume', () => {
+    const result = mapOpenPositionLot(
+      lot({ volume: new Decimal('8'), openPrice: new Decimal('0.01') }),
+      PLN,
+    );
+
+    expect(result.price?.toString()).toBe('0.01 PLN');
+    expect(result.grossAmount?.toString()).toBe('0.08 PLN');
+  });
+
+  it('uses the passed-in currency for price, grossAmount, fee and tax', () => {
+    const USD = currency('USD');
+    const result = mapOpenPositionLot(lot(), USD);
+
+    expect(result.price?.toString()).toBe('0.01 USD');
+    expect(result.grossAmount?.toString()).toBe('0.08 USD');
+    expect(result.fee.toString()).toBe('0 USD');
+    expect(result.tax.toString()).toBe('0 USD');
+    expect(result.currency).toBe(USD);
+  });
+
+  it('derives tradeDate from the lot’s open time, converted to the investor’s own Warsaw day', () => {
+    const result = mapOpenPositionLot(
+      lot({ openTime: Temporal.Instant.from('2024-08-01T08:00:00Z') }),
+      PLN,
+    );
+
+    expect(result.tradeDate.toString()).toBe('2024-08-01');
+  });
+
+  it('leaves fxRate, fxRateSource, settleDate and note null', () => {
+    const result = mapOpenPositionLot(lot(), PLN);
+
+    expect(result.fxRate).toBeNull();
+    expect(result.fxRateSource).toBeNull();
+    expect(result.settleDate).toBeNull();
+    expect(result.note).toBeNull();
+  });
+
+  it('carries exactly one warning explaining the row was recovered from Open Positions and should be reviewed', () => {
+    const result = mapOpenPositionLot(lot(), PLN);
+
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatch(/Open Positions/);
+    expect(result.warnings[0]).toMatch(/Cash Operations/);
+    expect(result.warnings[0]).toMatch(/review/i);
   });
 });
 

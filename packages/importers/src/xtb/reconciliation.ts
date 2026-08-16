@@ -15,11 +15,19 @@ export interface ReconciliationResult {
 
 /**
  * Cross-checks the cash-derived open quantity per ticker (buys minus sells,
- * from `Cash Operations`) against `Open Positions`' own aggregate row and
- * `Closed Positions`' record of what has already been realized. This is what
- * catches a stock split, a spin-off, or a position with no counterpart
- * anywhere in the export — flagged, never auto-corrected and never blocking
- * (ADR 0015).
+ * from `Cash Operations`, plus any `transfer_in` `parser.ts` recovered from
+ * `Open Positions` for a ticker `Cash Operations` had nothing for at all)
+ * against `Open Positions`' own aggregate row and `Closed Positions`' record
+ * of what has already been realized. This is what catches a stock split, a
+ * spin-off, or a position with no counterpart anywhere in the export —
+ * flagged, never auto-corrected and never blocking (ADR 0015).
+ *
+ * `transfer_in` counts here for the same reason `buy` does: this parser only
+ * ever emits it for a recovered row, so including it cannot change how any
+ * other row reconciles — it only lets a recovered row cross-check cleanly
+ * against the same aggregate it was recovered from, instead of tripping the
+ * "no counterpart" warning a moment after being recovered specifically to
+ * resolve it.
  *
  * A mismatch attaches its warning to the *last* parsed row for that ticker
  * (by trade date) — the most recent entry a reviewer would naturally look at
@@ -34,9 +42,14 @@ export function reconcile(
   const lastRowIndexByTicker = new Map<string, number>();
 
   rows.forEach((row, index) => {
-    if ((row.type !== 'buy' && row.type !== 'sell') || row.instrument === null) return;
+    if (
+      (row.type !== 'buy' && row.type !== 'sell' && row.type !== 'transfer_in') ||
+      row.instrument === null
+    ) {
+      return;
+    }
     const ticker = row.instrument.symbol;
-    const delta = row.type === 'buy' ? row.quantity : row.quantity.negated();
+    const delta = row.type === 'sell' ? row.quantity.negated() : row.quantity;
     netQuantityByTicker.set(
       ticker,
       (netQuantityByTicker.get(ticker) ?? new Decimal(0)).plus(delta),

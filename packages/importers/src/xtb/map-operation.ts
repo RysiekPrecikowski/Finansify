@@ -10,6 +10,7 @@ import {
 import { type CashOperationRow } from './cash-operations';
 import { parseTradeComment } from './comment-grammar';
 import { instantToWarsawDate } from './layout';
+import { type OpenPositionLot } from './positions';
 import { normalizeXtbTicker } from './ticker-suffix';
 
 export interface MapContext {
@@ -164,6 +165,41 @@ function mapTrade(row: CashOperationRow, ctx: MapContext): ParsedRow {
     fxRateSource: fxRatio === null ? null : 'broker',
     note: row.comment,
     warnings,
+  };
+}
+
+/**
+ * Recovers a transaction for a ticker `Cash Operations` has zero evidence for
+ * at all but that `parser.ts` has confirmed genuinely sits open — the shape
+ * of a spin-off with no cash trace (confirmed against a real account:
+ * Synektik's spin-off into Syn2bio never appears on `Cash Operations`, but
+ * `Open Positions`' own per-lot table records it as a `BUY` at a near-zero
+ * open price). Mapped to `transfer_in`, not `buy` or the lot's own `BUY`/
+ * `SELL` marker — nothing here is evidence of a market trade, only that the
+ * position exists and when it opened, and `transfer_in` is the type for
+ * exactly that (shares arriving without one). `externalId` is built from the
+ * lot's own position id, XTB's stable identifier for it, so a re-import dedups
+ * exactly as every other row does (rule 4/ADR 0004).
+ */
+export function mapOpenPositionLot(lot: OpenPositionLot, currency: Currency): ParsedRow {
+  return {
+    externalId: `xtb-position:${lot.positionId}`,
+    instrument: { symbol: lot.ticker, exchange: null, name: null },
+    type: 'transfer_in',
+    tradeDate: instantToWarsawDate(lot.openTime),
+    settleDate: null,
+    quantity: lot.volume,
+    price: Money.of(lot.openPrice, currency),
+    grossAmount: Money.of(lot.openPrice.times(lot.volume), currency),
+    fee: Money.zero(currency),
+    tax: Money.zero(currency),
+    currency,
+    fxRate: null,
+    fxRateSource: null,
+    note: null,
+    warnings: [
+      `No Cash Operations row exists for this position at all — recovered from Open Positions' own record instead (opened ${lot.openTime.toString()}, at ${lot.openPrice.toFixed()} ${currency}/unit). Most likely a spin-off with no cash trace. Review before accepting.`,
+    ],
   };
 }
 

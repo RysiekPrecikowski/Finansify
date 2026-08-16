@@ -25,6 +25,10 @@
  *   aggregate row — a reconciliation mismatch.
  * - `LOST.PL`: a cash-derived open quantity with no counterpart in either
  *   Open or Closed Positions at all — the "missing position" case.
+ * - `SPIN.PL`: a spin-off with zero rows anywhere in Cash Operations, but an
+ *   aggregate row and a per-lot `BUY` row in Open Positions — recovered as a
+ *   `transfer_in` row from the lot instead, which then reconciles cleanly
+ *   against the very aggregate row it was recovered from.
  * - A `Total` footer row in Cash Operations, and a `Profit/loss` footer row
  *   in Closed Positions — both must be skipped, not parsed as data.
  *
@@ -413,12 +417,16 @@ function buildOpenPositions(workbook: Workbook) {
   }
 
   // Aggregate rows only — per-lot rows aren't needed for reconciliation and
-  // are left out of this fixture to keep it readable.
+  // are left out of this fixture to keep it readable, except for SPIN.PL
+  // below, whose own lot row is the entire point of that scenario.
   const rows: Row[] = [
     { instrument: 'ETFX Fund', ticker: 'ETFX.PL', volume: 14.5 },
     { instrument: 'Foreign Corp', ticker: 'FORX.US', volume: 5 },
     // Deliberately 6, not the cash-derived 10 — the reconciliation mismatch.
     { instrument: 'Mismatch Co', ticker: 'MISM.PL', volume: 6 },
+    // Zero Cash Operations rows exist for this ticker at all — recovered
+    // entirely from its own lot row below.
+    { instrument: 'Spinoff Co', ticker: 'SPIN.PL', volume: 8 },
   ];
 
   rows.forEach((row, index) => {
@@ -430,6 +438,21 @@ function buildOpenPositions(workbook: Workbook) {
     r.getCell(openPositionsColumn.type).value = '';
     r.getCell(openPositionsColumn.volume).value = row.volume;
   });
+
+  // SPIN.PL's own per-lot row — a spin-off recorded here as a BUY at a
+  // near-zero open price, the same shape confirmed against a real account
+  // (Synektik spinning off into Syn2bio, never appearing on Cash Operations
+  // at all). `readOpenPositionLots` reads this; the aggregate reader above
+  // skips it because its Type column is populated.
+  const lotRow = sheet.getRow(12 + rows.length);
+  lotRow.getCell(openPositionsColumn.product).value = 'My Trades';
+  lotRow.getCell(openPositionsColumn.instrumentOrPosition).value = '1000000009';
+  lotRow.getCell(openPositionsColumn.ticker).value = 'SPIN.PL';
+  lotRow.getCell(openPositionsColumn.category).value = 'STOCK';
+  lotRow.getCell(openPositionsColumn.type).value = 'BUY';
+  lotRow.getCell(openPositionsColumn.volume).value = 8;
+  lotRow.getCell(openPositionsColumn.openPrice).value = 0.01;
+  lotRow.getCell(openPositionsColumn.openTime).value = time('2024-08-15T08:00:00Z');
 }
 
 function buildClosedPositions(workbook: Workbook) {
