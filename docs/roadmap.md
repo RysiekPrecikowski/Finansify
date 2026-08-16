@@ -122,9 +122,13 @@ transaction.
       exchange-timezone dating, throttling and 429 backoff; NBP adapter for
       table A
 - [x] `apps/web`: `/portfolio` open positions carry market value, unrealized
-      P&L, and a portfolio total in PLN, streamed in by a `<Suspense>`
+      P&L, and a portfolio total, streamed in by a `<Suspense>`
       boundary that is the only thing touching a provider — the ledger read
       itself never does
+- [x] Presentation currency — `valuePositions` takes the total currency and the
+      line currency separately, so the sum can be read in one currency while
+      positions stay in their own; a cookie-backed switcher beside the locale
+      one. Presentation only: neither realized nor unrealized P&L moves
 - [ ] Dashboard on real data — still renders `lib/fixtures/portfolio.ts`;
       deferred rather than done in the same change, since it touches every
       dashboard component and deserves its own PR

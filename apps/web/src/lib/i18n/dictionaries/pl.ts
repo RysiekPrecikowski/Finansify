@@ -16,6 +16,7 @@ export const pl = {
     toggleTheme: 'Przełącz motyw',
     changeLanguage: 'Zmień język',
     changeCurrency: 'Zmień walutę prezentacji',
+    nativeLines: 'Pozycje w walucie instrumentu',
     sort: 'Sortowanie',
     account: 'Konto',
     signOut: 'Wyloguj się',
@@ -183,7 +184,7 @@ export const pl = {
     unrealized: 'Niezrealizowany zysk/strata',
     totalValue: 'Wartość portfela',
     totalValueNote:
-      'Tylko otwarte pozycje, przeliczone na PLN po ostatnim kursie NBP. Gotówka nie jest jeszcze wliczona.',
+      'Tylko otwarte pozycje, przeliczone na {currency} po ostatnim kursie NBP. Gotówka nie jest jeszcze wliczona.',
     totalValueIncomplete:
       'Część pozycji nie ma jeszcze ceny lub kursu wymiany — ta suma jest niepełna.',
     unavailableNeverFetched: 'cena się ładuje…',

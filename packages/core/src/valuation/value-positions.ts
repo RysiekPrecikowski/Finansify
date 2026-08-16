@@ -1,7 +1,7 @@
 import type Decimal from 'decimal.js';
 
 import { type InstrumentId } from '../ledger/types';
-import { currency, Money, type Currency } from '../money';
+import { Money, type Currency } from '../money';
 import {
   groupByCurrency,
   type AccountPositionLine,
@@ -9,8 +9,6 @@ import {
 } from '../usecases/list-positions';
 import { convertViaPln, UnknownFxRateError } from './convert';
 import { type PriceLookup } from './types';
-
-const PLN = currency('PLN');
 
 export interface ValuedAccountLine extends AccountPositionLine {
   /** In the instrument's own currency — `null` when no price is on file at all. */

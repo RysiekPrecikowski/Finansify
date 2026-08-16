@@ -9,6 +9,7 @@ import { OpenPositions } from '@/components/portfolio/open-positions';
 import { Monogram, MoneyLines } from '@/components/portfolio/shared';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth';
+import { getDisplaySettings } from '@/lib/display/server';
 import { formatMoney } from '@/lib/format';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { getInstruments, scopedLedgerFor } from '@/server/container';
@@ -39,11 +40,12 @@ export default async function PortfolioPage() {
   const ledger = scopedLedgerFor(user.id);
   const listPositions = makeListPositions({ ledger, instruments: getInstruments() });
 
-  const [view, accounts, dictionary, locale] = await Promise.all([
+  const [view, accounts, dictionary, locale, display] = await Promise.all([
     listPositions(),
     ledger.listAccounts(),
     getDictionary(),
     getLocale(),
+    getDisplaySettings(),
   ]);
 
   const strings = dictionary.portfolio;
@@ -160,6 +162,7 @@ export default async function PortfolioPage() {
                 locale={locale}
                 strings={strings}
                 dictionary={dictionary}
+                display={display}
               />
             </Suspense>
           )}

@@ -15,6 +15,7 @@ export const en: Dictionary = {
     toggleTheme: 'Toggle theme',
     changeLanguage: 'Change language',
     changeCurrency: 'Change presentation currency',
+    nativeLines: "Positions in the instrument's currency",
     sort: 'Sort',
     account: 'Account',
     signOut: 'Sign out',
@@ -168,7 +169,7 @@ export const en: Dictionary = {
     unrealized: 'Unrealized P&L',
     totalValue: 'Total value',
     totalValueNote:
-      'Open positions only, converted to PLN at the latest NBP rate. Cash is not included yet.',
+      'Open positions only, converted to {currency} at the latest NBP rate. Cash is not included yet.',
     totalValueIncomplete:
       'Some positions have no price or exchange rate yet — this total is partial.',
     unavailableNeverFetched: 'price loading…',
