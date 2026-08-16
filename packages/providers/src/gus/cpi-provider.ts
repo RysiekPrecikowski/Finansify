@@ -7,7 +7,7 @@ import Decimal from 'decimal.js';
  * **Not** from the BDL API, which publishes CPI only annually and quarterly —
  * every CPI subject is marked `R` or `K`, never `M`. GUS's newer DBW API has no
  * consumer-price area at all. This CSV is the only free monthly source, and it
- * carries the whole series back to 1982-01 in one GET. See ADR 0015.
+ * carries the whole series back to 1982-01 in one GET. See ADR 0016.
  */
 const CPI_CSV_URL =
   'https://stat.gov.pl/download/gfx/portalinformacyjny/pl/defaultstronaopisowa/4741/1/1/miesieczne_wskazniki_cen_towarow_i_uslug_konsumpcyjnych_od_1982_roku__2_2.csv';

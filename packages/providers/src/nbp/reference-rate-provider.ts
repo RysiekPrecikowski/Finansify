@@ -6,7 +6,7 @@ import Decimal from 'decimal.js';
  *
  * **Not** on `api.nbp.pl` — that serves exchange-rate tables and gold and
  * nothing else. These two static files are what nbp.pl's own rates page reads
- * (ADR 0015). Together they give the complete history back to 1998-02-26 in two
+ * (ADR 0016). Together they give the complete history back to 1998-02-26 in two
  * GETs, which is the whole series: the rate changes a handful of times a year.
  */
 const CURRENT_URL = 'https://static.nbp.pl/dane/stopy/stopy_procentowe.xml';

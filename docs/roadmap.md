@@ -236,6 +236,11 @@ in sequence, which is why the migration and ADR numbering interleaves.
       API. 1162 published day-values for ROR, DOR, TOS, COI and EDO, all
       reproduced to the grosz. Supersedes the earlier conclusion that only one
       table was obtainable (ADR 0015)
+- [x] Multi-period golden tables — TOS0727 across three capitalized years and
+      ROR0726 / DOR0726 across twelve monthly resets each, against the RPP's
+      real decisions. 1828 more published day-values, and the engine's derived
+      rate checked against the published one for all 22 resets. Found and fixed
+      a compounding rounding error in capitalization
 - [ ] OTS, ROS and ROD have no published daily table to test against — OTS pays
       one sum at redemption, and the two family bonds are distributed only by
       PKO, whose tables stay WAF-blocked

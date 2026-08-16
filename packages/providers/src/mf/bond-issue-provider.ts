@@ -31,7 +31,7 @@ import { bootstrapIssueParameters } from './data/issue-parameters';
  * There is no tier-1 route to history and there will not be one: the emission-
  * letter archive and the interest tables are POST forms that PKO's WAF answers
  * with 403 for any non-interactive client, confirmed with a real headless
- * browser (ADR 0015). The third tier — a manual override in the UI — is the
+ * browser (ADR 0016). The third tier — a manual override in the UI — is the
  * permanent escape hatch rather than a temporary one.
  */
 const BASE = 'https://www.obligacjeskarbowe.pl';

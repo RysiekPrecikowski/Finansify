@@ -6,7 +6,7 @@ import Decimal from 'decimal.js';
  * that are no longer the current month's offer.
  *
  * This exists because there is **no automated route to history at all** — the
- * emission-letter archive is a POST form behind PKO's WAF (ADR 0015). So this
+ * emission-letter archive is a POST form behind PKO's WAF (ADR 0016). So this
  * file is load-bearing rather than a cold-start convenience, and it grows by
  * hand whenever someone enters a holding older than the current offer.
  *

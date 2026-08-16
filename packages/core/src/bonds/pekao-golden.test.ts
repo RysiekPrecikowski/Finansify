@@ -26,7 +26,7 @@ import tables from './__fixtures__/pekao-interest-tables.json';
  *   GET /.rest/gb-interest-tables/emissions/{SERIES}/{PERIOD} → the daily table
  *
  * The fixture is the unmodified output of those calls for the first interest
- * period of each family's current issue, retrieved 2026-08-16. See ADR 0015.
+ * period of each family's current issue, retrieved 2026-08-16. See ADR 0016.
  *
  * These are the Ministry's own figures, not this engine's: a change that makes
  * them fail is a change that makes the app pay a different number than the
@@ -111,7 +111,7 @@ describe('the fixture as a whole', () => {
   it('covers the five families Pekao publishes tables for', () => {
     // OTS pays a single sum at redemption and has no daily table; ROS and ROD
     // are family bonds distributed only by PKO. Their absence is a fact about
-    // the source, not an oversight — see ADR 0015.
+    // the source, not an oversight — see ADR 0016.
     expect(Object.keys(tables).sort()).toEqual(['COI', 'DOR', 'EDO', 'ROR', 'TOS']);
   });
 
