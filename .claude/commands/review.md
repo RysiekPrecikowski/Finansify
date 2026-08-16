@@ -78,8 +78,19 @@ them different from the terse narration a session emits while working.
 - No hedging ("might want to consider"), no filler adjectives, no emoji.
   Warmer is a register, not an excuse to get vaguer.
 
+Everything posted to GitHub is **English**, review comments included (rule 11).
+
 Do not silently fix anything. This command reviews; `/code-review --fix` or a
 human applies the fix.
+
+**Replying to a review you received.** Answer each comment where it was left,
+in English, and keep it to a few sentences: what changed, and — only when the
+choice was not obvious — why that option rather than the alternative the
+reviewer named. The reviewer already read the code; the reply exists so they
+can tell their point was understood, not to brief them on the diff. If a reply
+starts needing headings or a bullet list of everything touched, that belongs in
+the PR description. Say plainly when a point was declined and why, rather than
+answering around it.
 
 **Take the ticket while reviewing.** When reviewing a PR that carries a ClickUp
 id (branch or title, `CU-<id>`), read it first — `.claude/scripts/clickup.sh
