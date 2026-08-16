@@ -231,8 +231,14 @@ in sequence, which is why the migration and ADR numbering interleaves.
       IKZE are exempt and the rate belongs to the wrapper
 - [x] `db`: `bond_series_terms`, `index_observations` + migration;
       `bondIssueParameterRepository`, `indexObservationRepository`
-- [ ] Golden tables for the other seven families — needs a person to save one
-      PDF each from an ordinary browser; the archive is WAF-blocked (ADR 0015)
+- [x] Golden tables for five of the eight families — Bank Pekao, a second
+      emission agent, publishes the same official tables over a plain JSON REST
+      API. 1162 published day-values for ROR, DOR, TOS, COI and EDO, all
+      reproduced to the grosz. Supersedes the earlier conclusion that only one
+      table was obtainable (ADR 0015)
+- [ ] OTS, ROS and ROD have no published daily table to test against — OTS pays
+      one sum at redemption, and the two family bonds are distributed only by
+      PKO, whose tables stay WAF-blocked
 - [x] `providers`: NBP reference rate (current + archive to 1998), GUS CPI CSV
       (cp1250, announcement-dated), MF offer pages + committed bootstrap data,
       each with a plausibility band that refuses rather than guesses — including

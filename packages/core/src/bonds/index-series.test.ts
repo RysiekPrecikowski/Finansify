@@ -179,3 +179,32 @@ describe('makeRefreshIndexSeries', () => {
     expect(report.error).toContain('nbp_reference');
   });
 });
+
+describe('the refresh cadence, stated as behaviour', () => {
+  // These pin the intervals the app relies on. Loosening one means a rate
+  // change or an inflation print can sit unnoticed for that much longer, and a
+  // bond indexed against it is mispriced for the whole gap.
+  it('re-checks the reference rate weekly', () => {
+    const newest = observation('nbp_reference', '2026-03-05', '0.0375');
+
+    expect(isIndexSeriesDue('nbp_reference', newest, date('2026-03-11'))).toBe(false);
+    expect(isIndexSeriesDue('nbp_reference', newest, date('2026-03-12'))).toBe(true);
+  });
+
+  it('keeps asking for CPI every day of a month that has no print yet', () => {
+    // Not "once a month": once the calendar month moves on, every read retries
+    // until GUS publishes, so a print is picked up within a day rather than
+    // waiting for the next month boundary.
+    const newest = observation('pl_cpi_yoy', '2026-08-01', '0.03');
+
+    for (const day of ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-30']) {
+      expect(isIndexSeriesDue('pl_cpi_yoy', newest, date(day)), day).toBe(true);
+    }
+  });
+
+  it('stops asking for CPI as soon as the month has its print', () => {
+    const arrived = observation('pl_cpi_yoy', '2026-09-01', '0.028');
+
+    expect(isIndexSeriesDue('pl_cpi_yoy', arrived, date('2026-09-30'))).toBe(false);
+  });
+});

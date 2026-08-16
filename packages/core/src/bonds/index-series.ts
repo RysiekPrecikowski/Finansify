@@ -64,6 +64,19 @@ export function summarizeIndexSeries(
  */
 const REFERENCE_RATE_MAX_AGE_DAYS = 7;
 
+/**
+ * Where the freshness actually comes from, stated once because it is spread
+ * across three call sites:
+ *
+ * - **The macro series** re-check on the rules below — CPI once the calendar
+ *   month passes its newest print, the reference rate weekly. Both `/indicators`
+ *   and `/portfolio` run the check, so a user who only ever opens one of them
+ *   still gets current data.
+ * - **Bond values are recomputed on every read**, because an accrual is a
+ *   function of `asOf`: yesterday's holding is re-accrued today without
+ *   anything being fetched or stored. There is no bond-value cache to go stale.
+ */
+
 export function isIndexSeriesDue(
   indexId: IndexId,
   newest: IndexObservation | null,
