@@ -145,3 +145,40 @@ describe('xtbStatementParser.parse — against the real fixture', () => {
     }
   });
 });
+
+describe('xtbStatementParser.parse — the account currency is never guessed', () => {
+  /** The fixture, with the `Open Positions` summary block's `Currency` cell rewritten. */
+  async function fixtureWithSummaryCurrency(value: string | null): Promise<RawFile> {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(readFileSync(FIXTURE_PATH) as never);
+    workbook.getWorksheet('Open Positions')!.getRow(5).getCell(4).value = value;
+    const buffer = await workbook.xlsx.writeBuffer();
+    return { filename: 'xtb-sample.xlsx', bytes: new Uint8Array(buffer) };
+  }
+
+  it('reads a non-PLN account currency straight from the sheet', async () => {
+    const { rows } = await xtbStatementParser.parse(await fixtureWithSummaryCurrency('USD'));
+
+    expect(rows.every((row) => row.currency === currency('USD'))).toBe(true);
+  });
+
+  /**
+   * The regression this describe block exists for. An account with nothing
+   * currently open has no summary block to read, and defaulting to PLN there
+   * relabelled every amount in a USD or EUR statement with no warning
+   * anywhere — a wrong currency on real money that looks exactly like a right
+   * one. Refusing the statement outright is what `makeUploadStatement` turns
+   * into a `failed` batch the user can act on.
+   */
+  it('refuses the statement when the summary block carries no currency', async () => {
+    await expect(xtbStatementParser.parse(await fixtureWithSummaryCurrency(null))).rejects.toThrow(
+      /no readable account currency/,
+    );
+  });
+
+  it('refuses the statement when the currency cell is not an ISO 4217 code', async () => {
+    await expect(
+      xtbStatementParser.parse(await fixtureWithSummaryCurrency('Currency')),
+    ).rejects.toThrow(/no readable account currency/);
+  });
+});
