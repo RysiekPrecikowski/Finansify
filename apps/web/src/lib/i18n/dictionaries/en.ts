@@ -197,8 +197,15 @@ export const en: Dictionary = {
     ikze: 'IKZE',
     ppk: 'PPK',
   },
+  export: {
+    title: 'Export',
+    description:
+      'Download your whole transaction ledger — your own copy, independent of Finansify.',
+    downloadCsv: 'Download CSV',
+    downloadJson: 'Download JSON',
+  },
   placeholder: {
-    more: 'Settings, statement imports and reports.',
+    more: 'Settings and statement imports.',
   },
   mock: {
     banner: 'Demo data — the transaction ledger arrives in Phase 1.',

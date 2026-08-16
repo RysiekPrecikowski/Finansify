@@ -1,4 +1,5 @@
 export * from './result';
+export * from './export-ledger';
 export * from './list-positions';
 export * from './open-account';
 export * from './record-transaction';
