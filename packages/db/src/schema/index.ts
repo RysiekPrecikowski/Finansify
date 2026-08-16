@@ -1,4 +1,6 @@
 export * from './accounts';
+export * from './import-batches';
+export * from './import-rows';
 export * from './instruments';
 export * from './portfolios';
 export * from './prices';

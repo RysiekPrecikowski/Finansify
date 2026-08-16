@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { accounts } from './accounts';
+import { importBatches } from './import-batches';
 import { instruments } from './instruments';
 import { users } from './users';
 
@@ -74,8 +75,12 @@ export const transactions = pgTable(
     fxRateSource: fxRateSourceEnum('fx_rate_source'),
     source: transactionSourceEnum('source').notNull().default('manual'),
     externalId: text('external_id'),
-    // No foreign key: `import_batches` does not exist until Phase 4.
-    importBatchId: uuid('import_batch_id'),
+    // `set null`, not `cascade`: a transaction this batch created is real
+    // financial data the moment it exists, independent of the batch's own
+    // lifetime — losing the audit link is acceptable, losing the row is not.
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null',
+    }),
     editedAfterImport: boolean('edited_after_import').notNull().default(false),
     /** Specific-lot selection on a sell; null means the strategy default. */
     matchedLotIds: jsonb('matched_lot_ids').$type<string[]>(),
