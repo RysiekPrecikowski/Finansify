@@ -1,4 +1,9 @@
-import { importBatchIdSchema, Money, type ImportRow, type ImportRowStatus } from '@finansify/core';
+import {
+  grossValueOf,
+  importBatchIdSchema,
+  type ImportRow,
+  type ImportRowStatus,
+} from '@finansify/core';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -11,12 +16,6 @@ import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { formatMoney, formatPlainDate } from '@/lib/format';
 import { scopedImportsFor } from '@/server/container';
 import { acceptRowAction } from '../../actions';
-
-function grossValueOfParsedRow(row: ImportRow['parsed']): Money {
-  if (row.grossAmount !== null) return row.grossAmount;
-  if (row.price !== null) return row.price.times(row.quantity);
-  return Money.zero(row.currency);
-}
 
 function descriptionOf(row: ImportRow): string {
   if (row.parsed.instrument !== null) {
@@ -100,7 +99,7 @@ export default async function ImportBatchReviewListPage({
       header: strings.amount,
       align: 'end',
       mobile: 'value',
-      cell: (row) => formatMoney(grossValueOfParsedRow(row.parsed), locale),
+      cell: (row) => formatMoney(grossValueOf(row.parsed), locale),
     },
     {
       id: 'status',
