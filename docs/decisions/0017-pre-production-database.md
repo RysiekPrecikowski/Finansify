@@ -47,9 +47,22 @@ fails illegibly is barely a gate; the incident above was diagnosable in minutes
 once the cause was visible.
 
 `pre-production` is also what local development points at. `vercel env pull
---environment=development` should hand out its connection string, so a hand-run
+--environment=development` hands out its connection string, so a hand-run
 `db:migrate` lands somewhere that is checked rather than on a branch nobody
 looks at again.
+
+**One branch serves both roles, and they conflict.** It is the CI gate and the
+place someone breaks things by hand on a Tuesday. A branch left broken makes
+`migrate-preproduction` fail on Wednesday for a migration that is perfectly
+correct, and the failure will be read as a bad migration rather than as
+yesterday's mess.
+
+The convention that resolves it: **reset from parent before pushing anything to
+`main`.** Whoever broke it resets it. A second branch would remove the need for
+the convention and cost another slot out of ten — declined at two people, where
+the convention is cheaper than the slot. Revisit when the team is larger or when
+a stale `pre-production` has actually blocked a merge, because that is the
+signal the trade has stopped paying.
 
 ## Consequences
 
@@ -71,9 +84,12 @@ still a leak — so the rule now names this one exception rather than being
 silently violated by it.
 
 **`pre-production` drifts and must be reset.** It accumulates whatever
-migrations and data the team runs at it. Reset from production ("reset from
-parent" in Neon) whenever the rehearsal stops resembling the real thing;
-otherwise a migration that passes there proves nothing about production.
+migrations and data the team runs at it, deliberately — it is also the local
+sandbox. Reset from production ("reset from parent" in Neon) whenever the
+rehearsal stops resembling the real thing, and always before pushing to `main`
+after breaking it by hand. A migration that passes against a drifted branch
+proves nothing about production, which is the failure mode this whole ADR is
+about; a gate that lies is worse than no gate.
 
 **Merges are slower by one migration run.** Roughly a minute. Cheap against the
 alternative measured today.

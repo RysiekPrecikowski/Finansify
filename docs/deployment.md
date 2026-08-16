@@ -64,6 +64,24 @@ It is also what local development points at: `vercel env pull --environment=deve
 hands out its connection string, so a hand-run `db:migrate` lands somewhere that
 is checked rather than on a branch nobody looks at again.
 
+### The one rule that keeps the gate honest
+
+`pre-production` is both the CI gate and the branch you break by hand. Those
+roles conflict: a branch left in a broken state fails `migrate-preproduction`
+on the next merge, for a migration that is perfectly fine, and the failure reads
+as a bad migration rather than as yesterday's experiment.
+
+**Reset it from parent before you push anything to `main`.** Neon Console →
+`pre-production` → _Reset from parent_. Whoever broke it resets it. This is a
+convention rather than a mechanism, chosen over a second branch because ten
+slots is the whole budget and there are two of us (ADR 0017).
+
+The failure it prevents is not hypothetical: on 2026-08-16 a hand-run
+`db:migrate` against the development branch left it with a journal row for a
+migration that never merged, so every later run died on `CREATE TYPE ... already
+exists` — the same wedge that hit production, on the branch that was supposed to
+catch it.
+
 ### Why this exists, concretely
 
 **`neon-http` cannot run a multi-statement transaction.** A migration that fails
