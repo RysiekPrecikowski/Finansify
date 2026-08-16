@@ -1,7 +1,6 @@
 import {
-  currency as toCurrency,
+  FractionalBondError,
   parseSeriesCode,
-  Temporal,
   valueBondPosition,
   type InstrumentId,
   type InstrumentPosition,
@@ -10,7 +9,6 @@ import {
 
 import { clock, getBondTermsResolver, getIndexObservations } from '@/server/container';
 
-const PLN = toCurrency('PLN');
 const displayTimeZone = 'Europe/Warsaw';
 
 /**
@@ -49,24 +47,30 @@ export async function bondPriceLookups(
 
   for (const position of bonds) {
     const lots = position.lines.flatMap((line) => line.lots);
-    const openedFirst = lots
-      .map((lot) => lot.openedOn)
-      .sort((a, b) => Temporal.PlainDate.compare(a, b))[0];
-    if (openedFirst === undefined || !position.quantity.greaterThan(0)) continue;
+    if (lots.length === 0 || !position.quantity.greaterThan(0)) continue;
 
     try {
-      // Terms are resolved against the earliest purchase, because that is the
-      // one whose family rules could differ from today's — the fee revision is
-      // dated by purchase. Lots bought later share the series' own published
-      // rate and margin, which do not change over its life.
       const code = parseSeriesCode(position.instrument.symbol).code;
-      const terms = await resolver.resolve(code, openedFirst);
-      if (terms === null) {
+
+      // **Per lot, not per position.** `resolveFamilyRules` is effective-dated
+      // by *purchase* date — the early-redemption fee moved on 2024-09-01 — so
+      // a holding with lots either side of that date genuinely has two
+      // different fees. Resolving once against the earliest lot applied the
+      // older fee to all of them. The resolver caches, so every lot after the
+      // first is a map lookup.
+      const valuedLots = await Promise.all(
+        lots.map(async (lot) => ({ lot, terms: await resolver.resolve(code, lot.openedOn) })),
+      );
+      if (valuedLots.some((entry) => entry.terms === null)) {
         lookups.set(position.instrument.id, { status: 'unavailable', reason: 'unmapped' });
         continue;
       }
 
-      const valued = valueBondPosition(terms, lots, asOf, observations);
+      const valued = valueBondPosition(
+        valuedLots.map((entry) => ({ terms: entry.terms!, lot: entry.lot })),
+        asOf,
+        observations,
+      );
       lookups.set(position.instrument.id, {
         status: 'fresh',
         close: valued.marketValue.dividedBy(position.quantity),
@@ -75,15 +79,18 @@ export async function bondPriceLookups(
       });
     } catch (error) {
       // A series we cannot value must show as unvaluable, never as zero and
-      // never dropped from the total (`docs/data-sources.md`). Most likely
-      // causes: a CPI print the engine needs has not been fetched, or the
-      // holding is fractional.
+      // never dropped from the total (`docs/data-sources.md`).
       console.error(`Could not value bond ${position.instrument.symbol}`, error);
-      lookups.set(position.instrument.id, { status: 'unavailable', reason: 'never-fetched' });
+
+      // A fractional holding is not a missing fetch and must not claim to be:
+      // "no price has arrived yet" tells the user the opposite of "your
+      // quantity is 2.5, and retail bonds are indivisible". `unmapped` is the
+      // closer of the two available reasons — the position needs a human, not
+      // a retry — until `PriceLookup` grows a reason of its own.
+      const reason = error instanceof FractionalBondError ? 'unmapped' : 'never-fetched';
+      lookups.set(position.instrument.id, { status: 'unavailable', reason });
     }
   }
 
   return lookups;
 }
-
-export { PLN };

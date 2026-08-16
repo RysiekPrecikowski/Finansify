@@ -277,6 +277,9 @@ export const en: Dictionary = {
     refreshFailed: 'Could not refresh — showing the last known value.',
     seeAll: 'See indicators',
   },
+  instruments: {
+    bondName: 'Treasury bond',
+  },
   placeholder: {
     more: 'Settings and statement imports.',
   },
