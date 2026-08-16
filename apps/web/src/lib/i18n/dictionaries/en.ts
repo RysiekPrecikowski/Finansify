@@ -274,6 +274,7 @@ export const en: Dictionary = {
       description: 'Description',
       amount: 'Amount',
       accept: 'Accept',
+      acceptAll: 'Accept all pending ({count})',
       reject: 'Reject',
       edit: 'Edit',
       viewTransaction: 'View transaction',

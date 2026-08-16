@@ -283,6 +283,7 @@ export const pl = {
       description: 'Opis',
       amount: 'Kwota',
       accept: 'Akceptuj',
+      acceptAll: 'Zaakceptuj wszystkie oczekujące ({count})',
       reject: 'Odrzuć',
       edit: 'Edytuj',
       viewTransaction: 'Zobacz transakcję',

@@ -231,6 +231,43 @@ export async function acceptRowAction(formData: FormData): Promise<void> {
 }
 
 /**
+ * Accepts every currently-pending row that doesn't still need instrument
+ * resolution, one `acceptImportRow` call at a time — the bulk counterpart to
+ * `acceptRowAction`, for the common case of a statement with no rows to edit.
+ * A row that fails (a duplicate surfaced by an earlier row in the same
+ * batch, say) simply stays `pending`: there is nowhere to show a per-row
+ * error from a bulk action, and the reviewer already lands back on the list,
+ * where an unaccepted row is visible and still reachable individually.
+ */
+export async function acceptAllPendingAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (user === null) redirect('/sign-in' as Route);
+
+  const batchIdResult = importBatchIdSchema.safeParse(formData.get('batchId'));
+  if (!batchIdResult.success) redirect('/import' as Route);
+  const batchId = batchIdResult.data;
+
+  const imports = scopedImportsFor(user.id);
+  const rows = await imports.rowsForBatch(batchId);
+  const acceptable = rows.filter(
+    (row) =>
+      row.status === 'pending' &&
+      (row.parsed.instrument === null || row.resolvedInstrumentId !== null),
+  );
+
+  const acceptImportRow = makeAcceptImportRow({
+    imports,
+    ledger: scopedLedgerFor(user.id),
+  });
+  for (const row of acceptable) {
+    await acceptImportRow(row.id);
+  }
+
+  revalidateAfterAccept(batchId);
+  redirect(`/import/${batchId}/review` as Route);
+}
+
+/**
  * The edit-and-accept form's target — reuses `<TransactionForm>`,
  * `transactionInputFrom` and `resolveInstrumentSelection` exactly as
  * `createTransactionAction` does, so a reviewer edits a staged row with the

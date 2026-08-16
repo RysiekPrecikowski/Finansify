@@ -110,6 +110,30 @@ describe('reconcile', () => {
     expect(result.statementWarnings[0]).toContain('NOROWS.PL');
   });
 
+  it('names spin-off as a likely cause of a ticker with no cash rows, not just "predates this export"', () => {
+    // The old wording only mentioned the position predating the export's date
+    // range, which is misleading for the real cause this most often has: a
+    // spin-off (e.g. a company splitting in two) where the new ticker never
+    // appears anywhere in Cash Operations because no cash ever moved for it.
+    // A loose match, not an exact string — this is UI-facing prose, not a
+    // contract — but a future rewrite that drops the spin-off framing
+    // entirely should fail this test.
+    const rows = [row('ETFX.PL', 'buy', 10, 'T1')];
+
+    const result = reconcile(
+      rows,
+      new Map([
+        ['ETFX.PL', new Decimal(10)],
+        ['SPUN.PL', new Decimal(5)],
+      ]),
+      new Set(),
+    );
+
+    expect(result.statementWarnings).toHaveLength(1);
+    expect(result.statementWarnings[0]).toContain('SPUN.PL');
+    expect(result.statementWarnings[0]).toMatch(/spin-off/i);
+  });
+
   it('ignores non-trade rows (e.g. dividend) when computing net quantity', () => {
     const dividendRow = row('ETFX.PL', 'dividend', 999, 'DIV1');
 
