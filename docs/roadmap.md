@@ -265,14 +265,14 @@ in sequence, which is why the migration and ADR numbering interleaves.
       a `ProjectionBasis` saying whether it is arithmetic or rests on the last
       published index print; no forecasting, since inventing inflation to value
       an inflation-linked bond is the failure this project exists to avoid
-- [~] `wrapper_rules` — the domain shape, the room arithmetic and the
-  tax-exemption lookup exist and are tested, and refuse an unknown year
-  rather than reusing the last one. **The IKE and IKZE figures are not
-  seeded**: they are announced annually and no official source was
-  reachable, so entering them from memory was declined. The table and the
-  screen land with those numbers
-
-> > > > > > > 9b552fb (feat(core,db): Polish retail bond accrual engine and its reference tables)
+- [x] `wrapper_rules` in `core` — the room arithmetic, the tax-exemption
+      lookup, and seven years of IKE and IKZE limits (2020–2026) transcribed
+      from the KNF's own tables, every row citing its source. IKZE carries
+      **two** caps from 2021 — self-employed and standard — which a single
+      number would have got wrong in the more dangerous direction. An unknown
+      year is refused, never extrapolated
+- [ ] `wrapper_rules` as a table and a screen — the figures and the arithmetic
+      live in `core`; nothing persists them or shows contribution room yet
 
 ### Phase 2 — Valuation
 

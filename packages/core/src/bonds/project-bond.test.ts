@@ -214,3 +214,52 @@ describe('projectEarlyRedemption', () => {
     expect(points).toEqual([]);
   });
 });
+
+describe('the schedule sums to what the bond actually pays', () => {
+  // The invariant `projectBondCashFlows` exists to satisfy, and the one that
+  // catches the whole class of error: total flows = nominal + all interest.
+  // Asserting flow *counts* and the first amount — which is all the tests above
+  // did — let a paying family's final period be emitted twice, once as its own
+  // interest flow and again inside the redemption, while `redemptionValue`
+  // stayed correct on its own and hid it.
+  const cases = [
+    ['COI0830', '0.0475', '0.015', 4] as const,
+    ['ROR0827', '0.04', '0', 12] as const,
+    ['DOR0828', '0.0415', '0.0015', 24] as const,
+    ['EDO0836', '0.0535', '0.02', 1] as const,
+    ['TOS0829', '0.044', '0', 1] as const,
+  ];
+
+  it.each(cases)('%s flows sum to nominal plus total interest', (code, rate, margin) => {
+    const settledOn = '2026-08-01';
+    const t = terms(code, settledOn, rate, margin);
+    const held = purchase(code, settledOn);
+    const projection = projectBondCashFlows(t, held, date(settledOn), [
+      cpi('2026-07-01', '0.03'),
+      { indexId: 'nbp_reference', effectiveFrom: date('2026-03-05'), value: new Decimal('0.0375') },
+    ]);
+
+    const total = projection.cashFlows.reduce((sum, flow) => sum.plus(flow.amount), pln('0'));
+    const atMaturity = projectBondValue(t, held, projection.redeemsOn, [
+      cpi('2026-07-01', '0.03'),
+      { indexId: 'nbp_reference', effectiveFrom: date('2026-03-05'), value: new Decimal('0.0375') },
+    ]).accrual;
+
+    const owed = atMaturity.nominal.plus(atMaturity.accruedInterest).plus(atMaturity.paidInterest);
+    expect(total).toEqual(owed);
+  });
+
+  it('emits one interest flow per period for a payer, and the nominal once', () => {
+    const projection = projectBondCashFlows(
+      terms('COI0830', '2026-08-01', '0.0475', '0.015'),
+      purchase('COI0830', '2026-08-01'),
+      date('2026-08-01'),
+      [cpi('2026-07-01', '0.03')],
+    );
+
+    const redemptions = projection.cashFlows.filter((flow) => flow.kind === 'redemption');
+    expect(redemptions).toHaveLength(1);
+    // Nominal alone — the final period is already its own interest flow.
+    expect(redemptions[0]?.amount).toEqual(pln('100.00'));
+  });
+});

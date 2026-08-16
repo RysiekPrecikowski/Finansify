@@ -153,11 +153,27 @@ export function projectBondCashFlows(
   }
 
   const atMaturity = accrueBond(terms, purchase, redeemsOn, observations);
-  // Nominal plus whatever has not already been paid out along the way.
+
+  // **Nominal alone for a paying family.** Its final period has already been
+  // emitted as its own `interest` flow on this very date, and at
+  // `asOf = redeemsOn` that period is still *accrued* rather than paid — by
+  // design in `accrueBond`, payment happens strictly past the end date — so it
+  // sits inside `accruedInterest` too. Adding both put the same money on the
+  // same date twice: COI0830 summed to 122.75 where 118.25 is due.
+  //
+  // Dropping the last interest flow instead would net out to the same total but
+  // is not the same schedule: a consumer computing XIRR sees one cash amount
+  // under a different label. Keeping all N interest flows and returning only
+  // the nominal here is the shape that matches how the money actually arrives.
+  const redemptionAmount =
+    rules.payout === 'at_redemption'
+      ? atMaturity.nominal.plus(atMaturity.accruedInterest)
+      : atMaturity.nominal;
+
   cashFlows.push({
     ordinal: periodCount,
     on: redeemsOn,
-    amount: atMaturity.nominal.plus(atMaturity.accruedInterest),
+    amount: redemptionAmount,
     kind: 'redemption',
     basis,
   });
@@ -165,6 +181,9 @@ export function projectBondCashFlows(
   return {
     asOf,
     redeemsOn,
+    // The summary field stays "what the holder is owed at maturity", which for
+    // a payer is nominal plus that last unpaid period — correct on its own, and
+    // exactly why the double count hid here.
     redemptionValue: atMaturity.nominal.plus(atMaturity.accruedInterest),
     basis,
     cashFlows,
