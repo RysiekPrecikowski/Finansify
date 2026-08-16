@@ -33,6 +33,7 @@ constraint six months from now.
 | 0012 | Repository language, branch protection, file minimalism  | Accepted                         |
 | 0013 | Application-level encryption at rest                     | Withdrawn, deferred to Phase 1.5 |
 | 0014 | Lazy price ingestion, single provider, exchange required | Accepted                         |
+| 0015 | The import boundary: what a StatementParser owns         | Accepted                         |
 
 ## Template
 
