@@ -44,6 +44,13 @@ export interface WrapperRules {
    * `withholdingOn`'s rate argument should be derived from rather than
    * hard-coding 19% at the call site.
    */
+  /**
+   * Whether gains inside the wrapper escape the 19% flat tax **during
+   * accumulation**. That scope is the whole caveat: PPK's treatment depends on
+   * how it is drawn — the pre-60 `zwrot` path does attract the 19% — so this
+   * flag describes holding, not withdrawal, and a payout calculator must not
+   * read it as permission to skip the tax.
+   */
   readonly taxExempt: boolean;
   /**
    * Where the figure came from. Not decoration: the one time these were filled
@@ -197,10 +204,16 @@ export const publishedWrapperRules: readonly WrapperRules[] = [
     {
       wrapper: 'ppk',
       year,
+      // No annual ceiling: contributions are a share of salary set by the
+      // employer, not a cap the holder can breach.
       contributionLimit: null,
       selfEmployedLimit: null,
       taxExempt: true,
-      source: 'Contributions are a share of salary, not an annual ceiling',
+      // Accumulation only, and the one row here whose justification is a
+      // rationale rather than a citation. PPK's actual treatment is
+      // conditional on the withdrawal path (the pre-60 `zwrot` is taxed), so
+      // this needs a real source before anything computes tax from it.
+      source: 'Accumulation phase only — withdrawal treatment not yet verified',
     },
   ]),
 ];
