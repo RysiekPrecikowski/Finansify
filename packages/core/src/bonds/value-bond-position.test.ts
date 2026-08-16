@@ -40,6 +40,9 @@ function lot(id: string, openedOn: string, quantity: string, remaining = quantit
   };
 }
 
+/** Every lot in these fixtures shares one purchase era, so one `BondTerms` fits all. */
+const withTerms = (terms: BondTerms, lots: readonly Lot[]) => lots.map((lot) => ({ lot, terms }));
+
 const LOT_A = '33333333-3333-4333-8333-333333333331';
 const LOT_B = '33333333-3333-4333-8333-333333333332';
 
@@ -51,8 +54,7 @@ describe('valueBondPosition', () => {
     const held = [lot(LOT_A, '2026-08-01', '1'), lot(LOT_B, '2027-08-01', '1')];
 
     const valued = valueBondPosition(
-      terms('TOS0829', '2026-08-01', '0.044'),
-      held,
+      withTerms(terms('TOS0829', '2026-08-01', '0.044'), held),
       date('2027-08-01'),
       [],
     );
@@ -66,8 +68,7 @@ describe('valueBondPosition', () => {
 
   it('sums a single lot to exactly what accrueBond gives it', () => {
     const valued = valueBondPosition(
-      terms('EDO0836', '2026-08-01', '0.0535', '0.02'),
-      [lot(LOT_A, '2026-08-01', '10')],
+      withTerms(terms('EDO0836', '2026-08-01', '0.0535', '0.02'), [lot(LOT_A, '2026-08-01', '10')]),
       date('2027-08-01'),
       [],
     );
@@ -82,8 +83,7 @@ describe('valueBondPosition', () => {
     const partly = lot(LOT_A, '2026-08-01', '10', '4');
 
     const valued = valueBondPosition(
-      terms('EDO0836', '2026-08-01', '0.0535', '0.02'),
-      [partly],
+      withTerms(terms('EDO0836', '2026-08-01', '0.0535', '0.02'), [partly]),
       date('2027-08-01'),
       [],
     );
@@ -93,8 +93,10 @@ describe('valueBondPosition', () => {
 
   it('skips a fully consumed lot rather than reporting a zero row', () => {
     const valued = valueBondPosition(
-      terms('EDO0836', '2026-08-01', '0.0535', '0.02'),
-      [lot(LOT_A, '2026-08-01', '10', '0'), lot(LOT_B, '2026-08-01', '2')],
+      withTerms(terms('EDO0836', '2026-08-01', '0.0535', '0.02'), [
+        lot(LOT_A, '2026-08-01', '10', '0'),
+        lot(LOT_B, '2026-08-01', '2'),
+      ]),
       date('2027-08-01'),
       [],
     );
@@ -105,8 +107,7 @@ describe('valueBondPosition', () => {
 
   it('carries paid interest through for the families that pay out', () => {
     const valued = valueBondPosition(
-      terms('COI0830', '2026-08-01', '0.0475', '0.015'),
-      [lot(LOT_A, '2026-08-01', '3')],
+      withTerms(terms('COI0830', '2026-08-01', '0.0475', '0.015'), [lot(LOT_A, '2026-08-01', '3')]),
       date('2028-08-01'),
       [{ indexId: 'pl_cpi_yoy', effectiveFrom: date('2027-07-01'), value: new Decimal('0.025') }],
     );
@@ -118,8 +119,7 @@ describe('valueBondPosition', () => {
 
   it('returns zeroes for a position with no open lots', () => {
     const valued = valueBondPosition(
-      terms('ROR0827', '2026-08-31', '0.04'),
-      [],
+      withTerms(terms('ROR0827', '2026-08-31', '0.04'), []),
       date('2026-09-30'),
       [],
     );
@@ -133,11 +133,54 @@ describe('valueBondPosition', () => {
     // under-report the position for as long as it is held.
     expect(() =>
       valueBondPosition(
-        terms('ROR0827', '2026-08-31', '0.04'),
-        [lot(LOT_A, '2026-08-31', '2.5')],
+        withTerms(terms('ROR0827', '2026-08-31', '0.04'), [lot(LOT_A, '2026-08-31', '2.5')]),
         date('2026-09-30'),
         [],
       ),
     ).toThrow(FractionalBondError);
+  });
+});
+
+describe('lots bought either side of a rules change', () => {
+  // The early-redemption fee moved on 2024-09-01. Two EDO lots of the same
+  // series across that date genuinely face different fees, so each lot has to
+  // carry the terms in force for *its own* purchase — one shared `BondTerms`
+  // silently applies the earlier lot's fee to both.
+  it('charges each lot the fee in force when it was bought', () => {
+    const older = lot(LOT_A, '2024-08-31', '1');
+    const newer = lot(LOT_B, '2024-09-01', '1');
+
+    const valued = valueBondPosition(
+      [
+        { lot: older, terms: terms('EDO0836', '2024-08-31', '0.0535', '0.02') },
+        { lot: newer, terms: terms('EDO0836', '2024-09-01', '0.0535', '0.02') },
+      ],
+      date('2025-08-31'),
+      [],
+    );
+
+    // A year in, each bond has accrued well past both fees, so both are
+    // charged in full: 2.00 on the older lot and 3.00 on the newer one.
+    const gross = valued.marketValue;
+    expect(gross.minus(valued.earlyRedemptionValue)).toEqual(pln('5.00'));
+  });
+
+  it('would understate the fee if one lot’s terms were used for both', () => {
+    // The bug this shape prevents, stated as a test: both lots on the older
+    // terms charge 2.00 each, which is 1.00 short of what is actually due.
+    const older = lot(LOT_A, '2024-08-31', '1');
+    const newer = lot(LOT_B, '2024-09-01', '1');
+    const sharedOldTerms = terms('EDO0836', '2024-08-31', '0.0535', '0.02');
+
+    const wrong = valueBondPosition(
+      [
+        { lot: older, terms: sharedOldTerms },
+        { lot: newer, terms: sharedOldTerms },
+      ],
+      date('2025-08-31'),
+      [],
+    );
+
+    expect(wrong.marketValue.minus(wrong.earlyRedemptionValue)).toEqual(pln('4.00'));
   });
 });

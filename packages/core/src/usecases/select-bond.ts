@@ -40,6 +40,18 @@ const PLN = toCurrency('PLN');
 export function makeSelectBond(deps: {
   instruments: InstrumentRepository;
   resolver: BondTermsResolver;
+  /**
+   * Builds the instrument's display name. Supplied by the composition root
+   * from a dictionary rather than written here: `packages/core/CLAUDE.md` is
+   * direct that a function in `core` returning a display string is in the
+   * wrong place, and a Polish literal in this package would also bypass the
+   * `en`/`pl` split every other label goes through — an English-locale user
+   * reads this field on `/portfolio` and on their transaction list.
+   *
+   * Defaults to the series code, which is neutral, derivable and already the
+   * instrument's identity.
+   */
+  nameFor?: (code: BondSeriesCode) => string;
 }) {
   return async function selectBond(input: unknown): Promise<UseCaseResult<Instrument>> {
     const parsed = bondSelectionSchema.safeParse(input);
@@ -74,9 +86,7 @@ export function makeSelectBond(deps: {
 
     const instrument = await deps.instruments.findOrCreate({
       symbol: code,
-      // A name a human recognizes on a statement, built from what the code
-      // already means rather than fetched from anywhere.
-      name: `Obligacja skarbowa ${code}`,
+      name: deps.nameFor?.(code) ?? code,
       kind: 'bond',
       currency: PLN,
       isin: null,

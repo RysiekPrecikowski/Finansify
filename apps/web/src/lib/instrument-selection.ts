@@ -1,5 +1,6 @@
 import { makeSelectBond, makeSelectInstrument, type FieldIssue } from '@finansify/core';
 
+import { getDictionary } from '@/lib/i18n/server';
 import {
   getBondTermsResolver,
   getInstrumentSearchProvider,
@@ -40,9 +41,13 @@ export async function resolveInstrumentSelection(
   };
 
   if (kind === 'bond') {
+    const dictionary = await getDictionary();
     const selectBond = makeSelectBond({
       instruments: getInstruments(),
       resolver: getBondTermsResolver(),
+      // The composition root builds the human name, from a dictionary — `core`
+      // stores the series code and nothing presentational.
+      nameFor: (code) => `${dictionary.instruments.bondName} ${code}`,
     });
     const resolved = await selectBond({
       seriesCode: text('instrumentSeriesCode'),

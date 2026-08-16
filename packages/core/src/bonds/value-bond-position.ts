@@ -38,10 +38,21 @@ export interface ValuedBondPosition {
  *
  * `remainingQuantity` rather than `originalQuantity`: a partially redeemed lot
  * accrues on what is left.
+ *
+ * Each lot carries **its own** terms, because `resolveFamilyRules` is
+ * effective-dated by purchase date: the early-redemption fee moved on
+ * 2024-09-01, so two lots of the same series bought either side of it really do
+ * face different fees. One shared `BondTerms` would quietly apply the earliest
+ * lot's fee to all of them.
  */
+/** One open lot with the terms in force for *its* purchase date. */
+export interface LotWithTerms {
+  readonly lot: Lot;
+  readonly terms: BondTerms;
+}
+
 export function valueBondPosition(
-  terms: BondTerms,
-  lots: readonly Lot[],
+  holdings: readonly LotWithTerms[],
   asOf: Temporal.PlainDate,
   observations: readonly IndexObservation[],
 ): ValuedBondPosition {
@@ -52,7 +63,7 @@ export function valueBondPosition(
   let paidInterest = Money.zero(PLN);
   let earlyRedemptionValue = Money.zero(PLN);
 
-  for (const lot of lots) {
+  for (const { lot, terms } of holdings) {
     // A fully consumed lot contributes nothing and must not be accrued — its
     // quantity is zero, so it would add a zero row and nothing else, but
     // skipping keeps `lots` meaning "what you still hold".

@@ -287,6 +287,9 @@ export const pl = {
     refreshFailed: 'Nie udało się odświeżyć — pokazujemy ostatnią znaną wartość.',
     seeAll: 'Zobacz wskaźniki',
   },
+  instruments: {
+    bondName: 'Obligacja skarbowa',
+  },
   placeholder: {
     more: 'Ustawienia i import wyciągów.',
   },

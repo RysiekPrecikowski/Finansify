@@ -73,10 +73,6 @@ function labelOf(symbol: string, name: string, exchange: string | null): string 
   return exchange === null ? `${symbol} · ${name}` : `${symbol} · ${name} (${exchange})`;
 }
 
-function bondLabel(seriesCode: string): string {
-  return `${seriesCode} · Obligacja skarbowa`;
-}
-
 /**
  * Local database first, Yahoo only as a fallback (`makeSearchInstruments`) —
  * behind `getCurrentUser()` because this can reach a third-party API on every
@@ -107,10 +103,17 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
     // series is already an instrument, since the `existing` row for it is the
     // better answer — same id, and no resolver call on selection.
     const seriesCode = query.trim().toUpperCase();
+    const dictionary = await getDictionary();
     const alreadyHeld = result.existing.some((instrument) => instrument.symbol === seriesCode);
     const bond: readonly InstrumentOption[] =
       looksLikeSeriesCode(query) && !alreadyHeld
-        ? [{ kind: 'bond', seriesCode, label: bondLabel(seriesCode) }]
+        ? [
+            {
+              kind: 'bond',
+              seriesCode,
+              label: `${seriesCode} · ${dictionary.instruments.bondName}`,
+            },
+          ]
         : [];
 
     if (existing.length > 0 || bond.length > 0) return [...bond, ...existing];
