@@ -103,6 +103,12 @@ export interface Transaction {
   readonly externalId: string | null;
   readonly importBatchId: string | null;
   readonly editedAfterImport: boolean;
+  /**
+   * A soft-deleted transaction still occupies `(account_id, external_id)`, so
+   * the import dedup path has to be able to see it — deleting a row is a
+   * decision a re-import must respect, not a gap it should fill (ADR 0004).
+   */
+  readonly deleted: boolean;
   /** Specific-lot selection on a sell; `null` means the strategy default. */
   readonly matchedLotIds: readonly TransactionId[] | null;
   readonly note: string | null;

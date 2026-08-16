@@ -8,7 +8,7 @@ import {
   type TransactionInput,
   type UserId,
 } from '@finansify/core';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { type Database } from './client';
@@ -114,7 +114,6 @@ function expectedFindByExternalIdWhere(user: UserId, account: AccountId, externa
     eq(transactions.userId, user),
     eq(transactions.accountId, account),
     eq(transactions.externalId, externalId),
-    isNull(transactions.deletedAt),
   );
 }
 
@@ -149,7 +148,7 @@ describe('ledgerRepository — findByExternalId', () => {
     expect(found!.accountId).toBe(ACCOUNT_ID);
   });
 
-  it('scopes the query to this user, the given account and externalId, and excludes soft-deleted rows', async () => {
+  it('scopes the query to this user, the given account and externalId, and includes soft-deleted rows', async () => {
     const row = transactionRow({ externalId: 'row-1' });
     const { db, where } = makeDb({ selectResults: [[row]] });
     const repo = ledgerRepository(db).forUser(USER_ID);
@@ -160,12 +159,13 @@ describe('ledgerRepository — findByExternalId', () => {
   });
 
   // The mock cannot itself apply a WHERE clause, so a transaction belonging
-  // to another user, one that is soft-deleted, and one on a different
-  // account all look identical here: an empty result set. The clause-shape
-  // test above is what actually proves each of those is excluded by the
-  // query this builds — this test only proves the empty-result path
-  // resolves null rather than throwing or returning undefined.
-  it("resolves null, without throwing, when nothing matches — covers another user's transaction, a soft-deleted one, and a different account sharing the same externalId", async () => {
+  // to another user and one on a different account both look identical here:
+  // an empty result set. The clause-shape test above is what actually proves
+  // each of those is excluded by the query this builds — this test only
+  // proves the empty-result path resolves null rather than throwing or
+  // returning undefined. A soft-deleted row is no longer one of the reasons
+  // the result would be empty — the query includes those now.
+  it("resolves null, without throwing, when nothing matches — covers another user's transaction and a different account sharing the same externalId", async () => {
     const { db } = makeDb({ selectResults: [[]] });
     const repo = ledgerRepository(db).forUser(USER_ID);
 

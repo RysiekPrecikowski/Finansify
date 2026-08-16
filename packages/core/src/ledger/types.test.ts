@@ -46,6 +46,7 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
     externalId: null,
     importBatchId: null,
     editedAfterImport: false,
+    deleted: false,
     matchedLotIds: null,
     note: null,
     ...overrides,

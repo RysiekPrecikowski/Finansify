@@ -50,6 +50,7 @@ function transaction(fields: TransactionFields): Transaction {
     externalId: null,
     importBatchId: null,
     editedAfterImport: false,
+    deleted: false,
     matchedLotIds: null,
     note: null,
   };

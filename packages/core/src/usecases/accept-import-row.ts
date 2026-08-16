@@ -42,21 +42,28 @@ function transactionInputFromParsedRow(
 const CONFLICT_REASON =
   'This transaction was edited by hand since it was imported — the re-import was not applied.';
 
+const DELETED_REASON =
+  'This transaction was deleted by hand after it was imported — the re-import was not applied.';
+
 /**
  * Accepts one staged row: resolves the dedup/conflict question against
  * `(account_id, external_id)` and either creates, refreshes, or leaves alone
  * the transaction it names — never both a create and an update for the same
  * `external_id` (ADR 0004, rule 6's dedup half of ADR 0015).
  *
- * Three outcomes, all ending with the row settled out of `pending`:
+ * Four outcomes, all ending with the row settled out of `pending`:
  * - No existing transaction for this `external_id` → create one, `accepted`.
- * - One exists and was never hand-edited → refresh it in place with the
- *   restated import data, `accepted`. A broker's re-export is assumed more
- *   authoritative than a stale first import, right up until a human touches
- *   the row.
- * - One exists and `editedAfterImport` is `true` → leave it untouched,
- *   `duplicate` with a reason. Silently overwriting a hand correction is
- *   exactly what `editedAfterImport` exists to prevent.
+ * - One exists, is not deleted, and was never hand-edited → refresh it in
+ *   place with the restated import data, `accepted`. A broker's re-export is
+ *   assumed more authoritative than a stale first import, right up until a
+ *   human touches the row.
+ * - One exists and is soft-deleted → leave it deleted, `duplicate` with a
+ *   reason. A deletion is a deliberate decision, exactly like a hand edit —
+ *   silently resurrecting the row would overrule it (`Transaction.deleted`'s
+ *   own doc comment, ADR 0004).
+ * - One exists, is not deleted, and `editedAfterImport` is `true` → leave it
+ *   untouched, `duplicate` with a reason. Silently overwriting a hand
+ *   correction is exactly what `editedAfterImport` exists to prevent.
  *
  * A row whose `parsed.instrument` is set but not yet `resolvedInstrumentId`
  * is refused — instrument resolution (its own ticket) has to finish first,
@@ -129,6 +136,15 @@ export function makeAcceptImportRow(deps: {
       const updated = await deps.imports.recordRowOutcome(row.id, {
         status: 'accepted',
         transactionId: transaction.id,
+      });
+      return success(updated);
+    }
+
+    if (existing.deleted) {
+      const updated = await deps.imports.recordRowOutcome(row.id, {
+        status: 'duplicate',
+        transactionId: existing.id,
+        reason: DELETED_REASON,
       });
       return success(updated);
     }
