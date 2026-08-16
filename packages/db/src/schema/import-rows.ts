@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { importBatches } from './import-batches';
+import { instruments } from './instruments';
 import { transactions } from './transactions';
 
 export const importRowStatusEnum = pgEnum('import_row_status', importRowStatuses);
@@ -42,6 +43,13 @@ export const importRows = pgTable(
     // `set null`: a transaction this row produced outlives the row itself —
     // rows are pruned on a timer, transactions never are (ADR 0004).
     transactionId: uuid('transaction_id').references(() => transactions.id, {
+      onDelete: 'set null',
+    }),
+    // `set null`, not `cascade`: an instrument outliving the rows that once
+    // pointed at it during resolution is the normal case — instruments are
+    // global (ADR 0010) and nothing about pruning an import batch's rows
+    // should touch them.
+    resolvedInstrumentId: uuid('resolved_instrument_id').references(() => instruments.id, {
       onDelete: 'set null',
     }),
     rejectionReason: text('rejection_reason'),

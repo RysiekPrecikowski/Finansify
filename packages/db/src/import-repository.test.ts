@@ -3,20 +3,23 @@ import {
   currency,
   importBatchId,
   importRowId,
+  instrumentId,
   Money,
   Temporal,
   transactionId,
   userId,
+  type ImportBatchId,
   type ImportRow,
   type ParsedRow,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
+import { and, eq, sql } from 'drizzle-orm';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { type Database } from './client';
 import { importRepository } from './import-repository';
 import { importBatches, type ImportBatchRow } from './schema/import-batches';
-import { type ImportRowRow } from './schema/import-rows';
+import { importRows, type ImportRowRow } from './schema/import-rows';
 
 const USER_ID = userId('11111111-1111-4111-8111-111111111111');
 const ACCOUNT_ID = accountId('22222222-2222-4222-8222-222222222222');
@@ -101,6 +104,60 @@ function makeDb(config: {
     updateWhere,
     updateReturning,
   };
+}
+
+function rowRow(overrides: Partial<ImportRowRow> = {}): ImportRowRow {
+  return {
+    id: '77777777-7777-4777-8777-777777777777',
+    batchId: BATCH_ID,
+    rowIndex: 0,
+    parsed: expectedSerialized(fullRow()),
+    status: 'pending',
+    transactionId: null,
+    resolvedInstrumentId: null,
+    rejectionReason: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+/**
+ * `rowsForBatch` chains `.orderBy()` off `.where()` rather than `.limit()` —
+ * a different shape than every other query in this file — so it needs its own
+ * mock rather than `makeDb`'s. The ownership check (`requireOwnBatch`) still
+ * runs first and still chains `.limit()`, so `where()` here answers both.
+ */
+function makeRowsForBatchDb(config: { ownerRows: ImportBatchRow[]; rows?: ImportRowRow[] }): {
+  db: Database;
+  select: Mock;
+  where: Mock;
+  orderBy: Mock;
+} {
+  const limit = vi.fn().mockResolvedValueOnce(config.ownerRows);
+  const orderBy = vi.fn().mockResolvedValueOnce(config.rows ?? []);
+  const where = vi.fn().mockReturnValue({ limit, orderBy });
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { db: { select } as unknown as Database, select, where, orderBy };
+}
+
+/**
+ * Mirrors `resolveInstruments`'s own per-resolution `WHERE` construction
+ * exactly (`import-repository.ts`), so a test can assert the adapter built
+ * the right clause without re-deriving drizzle's `SQL` internals by hand —
+ * same rationale as `expectedSerialized` above.
+ */
+function resolutionWhereClause(batchId: ImportBatchId, symbol: string, exchange: string | null) {
+  const exchangeMatch =
+    exchange === null
+      ? sql`(${importRows.parsed}->'instrument'->>'exchange') IS NULL`
+      : sql`(${importRows.parsed}->'instrument'->>'exchange') = ${exchange}`;
+  return and(
+    eq(importRows.batchId, batchId),
+    sql`(${importRows.parsed}->'instrument'->>'symbol') = ${symbol}`,
+    exchangeMatch,
+  );
 }
 
 /** Every optional field populated — exercises the non-null branch of every `?? null` in (de)serialization. */
@@ -360,6 +417,7 @@ describe('importRepository — createRows', () => {
       parsed: expectedSerialized(rowA),
       status: 'pending',
       transactionId: null,
+      resolvedInstrumentId: null,
       rejectionReason: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -371,6 +429,7 @@ describe('importRepository — createRows', () => {
       parsed: expectedSerialized(rowB),
       status: 'accepted',
       transactionId: '66666666-6666-4666-8666-666666666666',
+      resolvedInstrumentId: null,
       rejectionReason: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -397,5 +456,180 @@ describe('importRepository — createRows', () => {
     expect(created[1]!.status).toBe('accepted');
     expect(created[1]!.transactionId).toBe(transactionId(insertedRowB.transactionId!));
     expectParsedRowsEqual(created[1]!.parsed, rowB);
+  });
+});
+
+describe('importRepository — getBatch', () => {
+  it('returns the batch mapped from the row when it is found and owned by this user', async () => {
+    const row = batchRow({ status: 'parsed', totalRows: 3 });
+    const { db, select } = makeDb({ selectResults: [[row]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const batch = await repo.getBatch(BATCH_ID);
+
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(batch).toEqual({
+      id: importBatchId(row.id),
+      accountId: accountId(row.accountId),
+      broker: row.broker,
+      blobKey: row.blobKey,
+      status: row.status,
+      failureReason: row.failureReason,
+      totalRows: row.totalRows,
+      acceptedRows: row.acceptedRows,
+      rejectedRows: row.rejectedRows,
+      duplicateRows: row.duplicateRows,
+      warnings: row.warnings,
+      uploadedAt: Temporal.Instant.fromEpochMilliseconds(row.uploadedAt.getTime()),
+    });
+  });
+
+  // The scoped `WHERE` filters on `userId` and `id` together, so a batch
+  // belonging to another user comes back as the same empty result set as one
+  // that never existed — both reach this branch, never the ownership throw
+  // every other batch-id method here uses.
+  it('resolves null, without throwing, for a batch that exists but belongs to another user', async () => {
+    const { db } = makeDb({ selectResults: [[]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await expect(repo.getBatch(BATCH_ID)).resolves.toBeNull();
+  });
+
+  it('resolves null, without throwing, for a batch id that does not exist at all', async () => {
+    const { db } = makeDb({ selectResults: [[]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await expect(repo.getBatch(BATCH_ID)).resolves.toBeNull();
+  });
+});
+
+describe('importRepository — rowsForBatch', () => {
+  it('throws without querying rows when the batch is not owned by this user (or does not exist)', async () => {
+    const { db, where } = makeRowsForBatchDb({ ownerRows: [] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await expect(repo.rowsForBatch(BATCH_ID)).rejects.toThrow(`No import batch ${BATCH_ID}`);
+    // Only the ownership check's own `.where()` ran — the rows query never got issued.
+    expect(where).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns every row for the batch, mapped and in rowIndex order, ordered by importRows.rowIndex', async () => {
+    const owner = batchRow();
+    const rowA = rowRow({ id: '88888888-8888-4888-8888-888888888888', rowIndex: 0 });
+    const rowB = rowRow({
+      id: '99999999-9999-4999-8999-999999999999',
+      rowIndex: 1,
+      status: 'accepted',
+      resolvedInstrumentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+    const { db, orderBy } = makeRowsForBatchDb({ ownerRows: [owner], rows: [rowA, rowB] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const rows = await repo.rowsForBatch(BATCH_ID);
+
+    expect(orderBy).toHaveBeenCalledWith(importRows.rowIndex);
+    expect(rows.map((row) => row.rowIndex)).toEqual([0, 1]);
+    expect(rows[0]!.id).toBe(importRowId(rowA.id));
+    expect(rows[1]!.resolvedInstrumentId).toBe(instrumentId(rowB.resolvedInstrumentId!));
+  });
+});
+
+describe('importRepository — resolveInstruments', () => {
+  it('checks ownership via a scoped select before updating', async () => {
+    const { db, select, update } = makeDb({ selectResults: [[]] });
+    const repo = importRepository(db).forUser(USER_ID);
+    const target = instrumentId('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+
+    await expect(
+      repo.resolveInstruments(BATCH_ID, [{ symbol: 'AAPL', exchange: null, instrumentId: target }]),
+    ).rejects.toThrow(`No import batch ${BATCH_ID}`);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('returns [] without issuing any update for an empty resolutions array, after still checking ownership', async () => {
+    const existing = batchRow();
+    const { db, select, update } = makeDb({ selectResults: [[existing]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.resolveInstruments(BATCH_ID, []);
+
+    expect(result).toEqual([]);
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('issues exactly one UPDATE per resolution — a handful of tickers, not one per row', async () => {
+    const existing = batchRow();
+    const target = instrumentId('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    const { db, update, updateReturning } = makeDb({
+      selectResults: [[existing]],
+      updateResults: [[rowRow({ rowIndex: 0 })], [rowRow({ rowIndex: 1 })]],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await repo.resolveInstruments(BATCH_ID, [
+      { symbol: 'AAPL', exchange: 'NASDAQ', instrumentId: target },
+      { symbol: 'MSFT', exchange: null, instrumentId: target },
+    ]);
+
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(updateReturning).toHaveBeenCalledTimes(2);
+  });
+
+  it("builds each resolution's WHERE clause from that resolution's own (symbol, exchange) — a null exchange produces an IS NULL check, not a wildcard match", async () => {
+    const existing = batchRow();
+    const target = instrumentId('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    const { db, updateWhere } = makeDb({
+      selectResults: [[existing]],
+      updateResults: [[rowRow({ rowIndex: 0 })], [rowRow({ rowIndex: 1 })]],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await repo.resolveInstruments(BATCH_ID, [
+      { symbol: 'AAPL', exchange: 'NASDAQ', instrumentId: target },
+      { symbol: 'MSFT', exchange: null, instrumentId: target },
+    ]);
+
+    expect(updateWhere).toHaveBeenNthCalledWith(
+      1,
+      resolutionWhereClause(BATCH_ID, 'AAPL', 'NASDAQ'),
+    );
+    expect(updateWhere).toHaveBeenNthCalledWith(2, resolutionWhereClause(BATCH_ID, 'MSFT', null));
+  });
+
+  it('sets resolvedInstrumentId on every matching row and returns the union of rows touched across all resolutions', async () => {
+    const existing = batchRow();
+    const target = instrumentId('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    const touchedByFirst = rowRow({
+      id: '88888888-8888-4888-8888-888888888888',
+      rowIndex: 0,
+      resolvedInstrumentId: target,
+    });
+    const touchedBySecond = rowRow({
+      id: '99999999-9999-4999-8999-999999999999',
+      rowIndex: 1,
+      resolvedInstrumentId: target,
+    });
+    const { db, updateSet } = makeDb({
+      selectResults: [[existing]],
+      updateResults: [[touchedByFirst], [touchedBySecond]],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.resolveInstruments(BATCH_ID, [
+      { symbol: 'AAPL', exchange: 'NASDAQ', instrumentId: target },
+      { symbol: 'MSFT', exchange: null, instrumentId: target },
+    ]);
+
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ resolvedInstrumentId: target }),
+    );
+    expect(result).toHaveLength(2);
+    expect(result.map((row) => row.id)).toEqual([
+      importRowId(touchedByFirst.id),
+      importRowId(touchedBySecond.id),
+    ]);
+    expect(result.every((row) => row.resolvedInstrumentId === target)).toBe(true);
   });
 });

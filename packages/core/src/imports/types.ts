@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { type AccountId } from '../ledger/types';
+import { type AccountId, type InstrumentId } from '../ledger/types';
 import { type ImportBatchStatus, type ImportRowStatus } from '../ledger/vocabulary';
 import { type BrokerId, type ParsedRow } from '../ports/statement-parser';
 import { type TransactionId } from '../ledger/types';
@@ -54,4 +54,14 @@ export interface ImportRow {
   readonly status: ImportRowStatus;
   readonly transactionId: TransactionId | null;
   readonly rejectionReason: string | null;
+  /**
+   * Set once the row's `parsed.instrument` has been matched to a real
+   * `Instrument` — by auto-match or by manual search (instrument-resolution
+   * UI, its own ticket). `null` for a row whose `parsed.instrument` is itself
+   * `null` (a pure cash line) or one not yet resolved. Every row sharing the
+   * same `(symbol, exchange)` gets the same value, written together by
+   * `resolveInstruments` — never per row, since a statement repeats the same
+   * handful of tickers across hundreds of lines.
+   */
+  readonly resolvedInstrumentId: InstrumentId | null;
 }

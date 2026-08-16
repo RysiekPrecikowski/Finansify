@@ -1,0 +1,2 @@
+ALTER TABLE "import_rows" ADD COLUMN "resolved_instrument_id" uuid;--> statement-breakpoint
+ALTER TABLE "import_rows" ADD CONSTRAINT "import_rows_resolved_instrument_id_instruments_id_fk" FOREIGN KEY ("resolved_instrument_id") REFERENCES "public"."instruments"("id") ON DELETE set null ON UPDATE no action;

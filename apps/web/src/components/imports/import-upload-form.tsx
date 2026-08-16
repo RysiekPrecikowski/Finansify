@@ -1,5 +1,7 @@
 'use client';
 
+import type { Route } from 'next';
+import Link from 'next/link';
 import { useActionState } from 'react';
 
 import { uploadStatementAction, type UploadStatementState } from '@/app/(app)/import/actions';
@@ -95,6 +97,16 @@ export function ImportUploadForm({ accounts }: Props) {
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
+          )}
+          {state.batch.status === 'parsed' && (
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/import/${state.batch.id}` as Route} />}
+              className="self-start"
+            >
+              Resolve instruments
+            </Button>
           )}
         </div>
       )}

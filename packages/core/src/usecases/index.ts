@@ -1,6 +1,7 @@
 export * from './result';
 export * from './export-ledger';
 export * from './list-positions';
+export * from './match-import-instruments';
 export * from './open-account';
 export * from './record-transaction';
 export * from './search-instruments';

@@ -4,9 +4,7 @@ import {
   makeDeleteTransaction,
   makeRecordTransaction,
   makeSearchInstruments,
-  makeSelectInstrument,
   makeUpdateTransaction,
-  type FieldIssue,
 } from '@finansify/core';
 import type { Route } from 'next';
 import { revalidatePath } from 'next/cache';
@@ -15,13 +13,9 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { byField, submittedValues, type FormState } from '@/lib/form-state';
 import { getDictionary } from '@/lib/i18n/server';
+import { resolveInstrumentSelection } from '@/lib/instrument-selection';
 import { transactionInputFrom } from '@/lib/transaction-form';
-import {
-  getInstrumentSearchProvider,
-  getInstruments,
-  getSymbols,
-  scopedLedgerFor,
-} from '@/server/container';
+import { getInstrumentSearchProvider, getInstruments, scopedLedgerFor } from '@/server/container';
 
 /**
  * The identity is read from the session inside every action, on every submit —
@@ -109,25 +103,6 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
 }
 
 /**
- * `selectInstrument`'s `candidate` branch reports issues on `symbol`, `name`,
- * `instrumentKind`, `isin` and `exchange` — the form names those inputs
- * `instrumentSymbol` and friends so they cannot collide with the
- * transaction's own `currency`. Re-pointing the paths here is what makes a
- * message land under the field that caused it. The `existing` branch's one
- * field is already named `instrumentId` on both sides, so it passes through.
- */
-function onInstrumentFields(
-  kind: 'existing' | 'candidate',
-  issues: readonly FieldIssue[],
-): readonly FieldIssue[] {
-  if (kind === 'existing') return issues;
-  return issues.map((issue) => ({
-    ...issue,
-    path: `instrument${issue.path.charAt(0).toUpperCase()}${issue.path.slice(1)}`,
-  }));
-}
-
-/**
  * `values` echoes the submission back so the rejected form re-renders with what
  * the user typed. React resets an uncontrolled input when the action
  * re-renders, and this form has fourteen of them — one bad rate would otherwise
@@ -149,54 +124,6 @@ async function invalid(
     values,
     formError: dictionary.transactions.errors.invalid,
   };
-}
-
-/**
- * Resolving the picked instrument is two ports and no domain rule, which is
- * why it happens here rather than inside `recordTransaction`: instruments are
- * global (ADR 0010) and the ledger is user-scoped, so one use case cannot own
- * both. The combobox writes `instrumentSelectionKind` plus either
- * `instrumentId` (an existing row) or the `instrument*` candidate fields — the
- * user never sees which one is happening, only that they picked something
- * from a list.
- */
-async function resolveInstrumentSelection(
-  formData: FormData,
-): Promise<{ ok: true; id: string | null } | { ok: false; issues: readonly FieldIssue[] }> {
-  const kind = formData.get('instrumentSelectionKind');
-  if (kind !== 'existing' && kind !== 'candidate') {
-    // Nothing was picked — correct for a transaction type that has no
-    // instrument leg at all (`transactionShapeOf(type).instrument === 'none'`);
-    // `recordTransaction`'s own schema refuses a `null` instrument on a type
-    // that requires one.
-    return { ok: true, id: null };
-  }
-
-  const text = (name: string): string | null => {
-    const raw = formData.get(name);
-    return typeof raw === 'string' && raw !== '' ? raw : null;
-  };
-
-  const input =
-    kind === 'existing'
-      ? { kind, instrumentId: text('instrumentId') }
-      : {
-          kind,
-          provider: text('instrumentProvider'),
-          symbol: text('instrumentSymbol'),
-          name: text('instrumentName'),
-        };
-
-  const selectInstrument = makeSelectInstrument({
-    instruments: getInstruments(),
-    symbols: getSymbols(),
-    provider: getInstrumentSearchProvider(),
-  });
-
-  const resolved = await selectInstrument(input);
-  if (!resolved.ok) return { ok: false, issues: onInstrumentFields(kind, resolved.issues) };
-
-  return { ok: true, id: resolved.value.id };
 }
 
 export async function createTransactionAction(
