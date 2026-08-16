@@ -47,6 +47,43 @@ live: the Neon-Managed integration creates a `preview/<git-branch>` database per
 preview deployment. That is also what makes the branch budget below a real
 constraint rather than a theoretical one.
 
+## Migrations rehearse before they land
+
+Migrations run **twice** on a merge to `main`: against `pre-production` first,
+then against production only if that succeeded (ADR 0017). `migrate-production`
+`needs: migrate-preproduction`, so there is no path to production that skips the
+rehearsal.
+
+`pre-production` is a **persistent** Neon branch, cloned from production. It is
+the one branch deliberately exempt from rule 18's "never create a branch by
+hand" — it is owned by no PR and nothing reaps it, on purpose. Reset it from
+production ("reset from parent") whenever it has drifted far enough that a
+migration passing there stops meaning anything.
+
+It is also what local development points at: `vercel env pull --environment=development`
+hands out its connection string, so a hand-run `db:migrate` lands somewhere that
+is checked rather than on a branch nobody looks at again.
+
+### Why this exists, concretely
+
+**`neon-http` cannot run a multi-statement transaction.** A migration that fails
+partway leaves the statements that already ran committed and never records its
+journal row. The next run restarts the same file and dies on its first
+`CREATE TYPE`; the database stays wedged until someone drops the half-created
+objects by hand.
+
+On 2026-08-16 that happened to production. `check` stayed green, so five further
+merges landed on a database that was no longer being migrated. `drizzle-kit
+migrate` exits 1 with no message, so the log said nothing about why.
+
+Both halves are addressed: the rehearsal moves the wedge to a disposable branch,
+and `packages/db/scripts/migrate.ts` replaces `drizzle-kit migrate` so the
+failing statement and the driver's own error reach the log.
+
+**A failed migration does not roll back.** Recovering means dropping whatever the
+partial run created, then re-running — which is survivable on `pre-production`
+and unpleasant on production. That asymmetry is the whole reason for the gate.
+
 ## Environments
 
 `apps/web/.env.example` is committed, with variable names matching exactly what
@@ -113,11 +150,11 @@ detection — Testing Tokens work on development instances only. The
 ## The Neon branch budget
 
 **Neon's free tier allows 10 branches, and the integration spends them without
-asking.** Production holds one. Every preview deployment takes another, for as
-long as the git branch it was built from exists. That leaves nine slots shared
-between everyone's open work, and the eleventh branch does not queue — it fails
-the deployment, so a PR that would otherwise be reviewable arrives without a
-preview.
+asking.** Production holds one and `pre-production` holds another (ADR 0017).
+Every preview deployment takes a third, for as long as the git branch it was
+built from exists. That leaves **eight** slots shared between everyone's open
+work, and the ninth branch does not queue — it fails the deployment, so a PR
+that would otherwise be reviewable arrives without a preview.
 
 ### Why deleting the git branch is not enough
 
