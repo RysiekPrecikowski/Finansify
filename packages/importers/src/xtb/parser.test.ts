@@ -101,11 +101,22 @@ describe('xtbStatementParser.parse — against the real fixture', () => {
     }
   });
 
-  it('imports SPLT.PL’s Fractional shares row as a dividend with a warning', () => {
+  it('imports SPLT.PL’s Fractional shares row as a sell with a quantity-unknown warning', () => {
     const fs1 = findRow(rows, 'FS1');
-    expect(fs1.type).toBe('dividend');
+    expect(fs1.type).toBe('sell'); // positive amount
+    expect(fs1.quantity.toString()).toBe('0'); // never guessed
+    expect(fs1.instrument?.symbol).toBe('SPLT.WA');
     expect(fs1.warnings).toHaveLength(1);
-    expect(fs1.warnings[0]).toContain('Fractional shares');
+    expect(fs1.warnings[0]).toContain('SPLT.PL split 2 for 1');
+    expect(fs1.warnings[0]).toMatch(/quantity|fraction/i);
+  });
+
+  it('normalizes every ticker to market-symbol form on the parsed rows', () => {
+    expect(findRow(rows, 'T1').instrument?.symbol).toBe('ETFX.WA'); // .PL -> .WA
+    expect(findRow(rows, 'T5').instrument?.symbol).toBe('FORX'); // .US suffix dropped
+    expect(findRow(rows, 'FS1').instrument?.symbol).toBe('SPLT.WA');
+    expect(findRow(rows, 'T7').instrument?.symbol).toBe('MISM.WA');
+    expect(findRow(rows, 'T8').instrument?.symbol).toBe('LOST.WA');
   });
 
   it('drops the zero-amount Commission/Correction/Close trade rows for the SPLT.PL cluster', () => {
@@ -117,18 +128,24 @@ describe('xtbStatementParser.parse — against the real fixture', () => {
     }
   });
 
-  it('attaches the reconciliation-mismatch warning to MISM.PL’s row', () => {
+  it('attaches the reconciliation-mismatch warning to MISM.PL’s row, keyed by its normalized ticker', () => {
     const t7 = findRow(rows, 'T7');
     expect(t7.warnings).toHaveLength(1);
     expect(t7.warnings[0]).toMatch(/Reconciliation mismatch/);
-    expect(t7.warnings[0]).toContain('MISM.PL');
+    // The warning is built from row.instrument.symbol, which is normalized —
+    // MISM.PL's Cash Operations ticker and Open Positions ticker both go
+    // through normalizeXtbTicker, so the reconciliation join (and this
+    // message) uses MISM.WA, never the raw MISM.PL.
+    expect(t7.warnings[0]).toContain('MISM.WA');
+    expect(t7.warnings[0]).not.toContain('MISM.PL');
   });
 
-  it('attaches the missing-position warning to LOST.PL’s row', () => {
+  it('attaches the missing-position warning to LOST.PL’s row, keyed by its normalized ticker', () => {
     const t8 = findRow(rows, 'T8');
     expect(t8.warnings).toHaveLength(1);
     expect(t8.warnings[0]).toMatch(/no counterpart/);
-    expect(t8.warnings[0]).toContain('LOST.PL');
+    expect(t8.warnings[0]).toContain('LOST.WA');
+    expect(t8.warnings[0]).not.toContain('LOST.PL');
   });
 
   it('never produces a row for the Cash Operations "Total" or Closed Positions "Profit/loss" footer', () => {

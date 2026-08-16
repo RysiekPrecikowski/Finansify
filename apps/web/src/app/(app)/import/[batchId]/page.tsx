@@ -143,7 +143,10 @@ export default async function ImportBatchReviewPage({
                 )}
                 <span className="text-muted-foreground"> — {rowCountLabel(group.rowCount)}</span>
               </p>
-              <InstrumentCombobox initial={null} errors={undefined} />
+              <InstrumentCombobox
+                initial={{ kind: 'query', text: group.symbol }}
+                errors={undefined}
+              />
               <Button type="submit" size="sm" className="self-start">
                 {strings.resolveAction}
               </Button>

@@ -15,7 +15,7 @@ import { interpolate } from '@/lib/i18n/dictionaries';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { formatMoney, formatPlainDate } from '@/lib/format';
 import { scopedImportsFor } from '@/server/container';
-import { acceptRowAction } from '../../actions';
+import { acceptAllPendingAction, acceptRowAction } from '../../actions';
 
 function descriptionOf(row: ImportRow): string {
   if (row.parsed.instrument !== null) {
@@ -56,6 +56,12 @@ export default async function ImportBatchReviewListPage({
 
   const unresolvedCount = rows.filter(
     (row) => row.parsed.instrument !== null && row.resolvedInstrumentId === null,
+  ).length;
+
+  const acceptableCount = rows.filter(
+    (row) =>
+      row.status === 'pending' &&
+      (row.parsed.instrument === null || row.resolvedInstrumentId !== null),
   ).length;
 
   const counts: Readonly<Record<ImportRowStatus, number>> = {
@@ -191,6 +197,15 @@ export default async function ImportBatchReviewListPage({
           {statusLabel.rejected}: {counts.rejected} · {statusLabel.duplicate}: {counts.duplicate}
         </p>
       </div>
+
+      {acceptableCount > 0 && (
+        <form action={acceptAllPendingAction} className="w-fit">
+          <input type="hidden" name="batchId" value={batchId} />
+          <Button size="sm" type="submit">
+            {interpolate(strings.acceptAll, { count: String(acceptableCount) })}
+          </Button>
+        </form>
+      )}
 
       {unresolvedCount > 0 && (
         <div className="border-border bg-muted/30 flex items-center justify-between gap-3 rounded-md border p-3 text-sm">

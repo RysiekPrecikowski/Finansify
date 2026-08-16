@@ -80,7 +80,7 @@ export function reconcile(
   for (const [ticker, openVolume] of openVolumeByTicker) {
     if (netQuantityByTicker.has(ticker)) continue; // already handled above
     statementWarnings.push(
-      `${ticker} appears in Open Positions with ${openVolume.toFixed()} units, but this statement has no buy/sell row for it at all — it likely predates this export's date range. Review before accepting.`,
+      `${ticker} appears in Open Positions with ${openVolume.toFixed()} units, but this statement has no buy/sell row for it at all — most likely a spin-off with no cash trace (nothing to import from), or the position predates this export's date range. Review before accepting; a spin-off's cost basis needs entering by hand.`,
     );
   }
 

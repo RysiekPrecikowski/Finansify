@@ -63,25 +63,27 @@ describe('mapCashOperationRow — plain cash types', () => {
     expect(result?.grossAmount?.toString()).toBe('0.61 PLN');
   });
 
-  it('maps Dividend to dividend, carrying the ticker as the instrument candidate', () => {
+  it('maps Dividend to dividend, carrying the normalized ticker as the instrument candidate', () => {
     const result = mapCashOperationRow(
       row({ type: 'Dividend', ticker: 'ETFX.PL', amount: new Decimal(12.34) }),
       ctx(),
     );
 
     expect(result?.type).toBe('dividend');
-    expect(result?.instrument).toEqual({ symbol: 'ETFX.PL', exchange: null, name: null });
+    // .PL is XTB's listing-country suffix, not the market symbol — normalized
+    // to .WA (Warsaw) the same way instrumentOf normalizes every ticker.
+    expect(result?.instrument).toEqual({ symbol: 'ETFX.WA', exchange: null, name: null });
     expect(result?.grossAmount?.toString()).toBe('12.34 PLN');
   });
 
-  it('maps Withholding tax to tax, carrying the ticker and stripping the sign', () => {
+  it('maps Withholding tax to tax, carrying the normalized ticker and stripping the sign', () => {
     const result = mapCashOperationRow(
       row({ type: 'Withholding tax', ticker: 'ETFX.PL', amount: new Decimal(-1.85) }),
       ctx(),
     );
 
     expect(result?.type).toBe('tax');
-    expect(result?.instrument?.symbol).toBe('ETFX.PL');
+    expect(result?.instrument?.symbol).toBe('ETFX.WA');
     expect(result?.grossAmount?.toString()).toBe('1.85 PLN');
   });
 });
@@ -181,8 +183,8 @@ describe('mapCashOperationRow — zero-sum transfers', () => {
   });
 });
 
-describe('mapCashOperationRow — unrecognized types', () => {
-  it('falls back to dividend for a positive amount, with a warning naming the type and comment', () => {
+describe('mapCashOperationRow — Fractional shares', () => {
+  it('maps a positive amount to sell, quantity 0, with a warning that the quantity is unknown', () => {
     const result = mapCashOperationRow(
       row({
         type: 'Fractional shares',
@@ -193,11 +195,87 @@ describe('mapCashOperationRow — unrecognized types', () => {
       ctx(),
     );
 
-    expect(result?.type).toBe('dividend');
+    expect(result?.type).toBe('sell');
+    expect(result?.quantity.toString()).toBe('0');
+    expect(result?.grossAmount?.toString()).toBe('2.5 PLN');
+    // Same ticker normalization every other row type goes through.
+    expect(result?.instrument).toEqual({ symbol: 'SPLT.WA', exchange: null, name: null });
+    expect(result?.warnings).toHaveLength(1);
+    // Substance, not exact wording: names the row's own comment, and makes
+    // clear the fractional quantity closed was not imported.
+    expect(result?.warnings[0]).toContain('SPLT.PL split 2 for 1');
+    expect(result?.warnings[0]).toMatch(/quantity|fraction/i);
+  });
+
+  it('maps a negative amount to buy, quantity 0', () => {
+    const result = mapCashOperationRow(
+      row({
+        type: 'Fractional shares',
+        ticker: 'SPLT.PL',
+        amount: new Decimal(-2.5),
+        comment: 'SPLT.PL split 2 for 1',
+      }),
+      ctx(),
+    );
+
+    expect(result?.type).toBe('buy');
+    expect(result?.quantity.toString()).toBe('0');
     expect(result?.grossAmount?.toString()).toBe('2.5 PLN');
     expect(result?.warnings).toHaveLength(1);
-    expect(result?.warnings[0]).toContain('Fractional shares');
-    expect(result?.warnings[0]).toContain('SPLT.PL split 2 for 1');
+    expect(result?.warnings[0]).toMatch(/quantity|fraction/i);
+  });
+
+  it('drops a zero-amount row, same as a zero-amount unrecognized row', () => {
+    const result = mapCashOperationRow(
+      row({
+        type: 'Fractional shares',
+        ticker: 'SPLT.PL',
+        amount: new Decimal(0),
+        comment: 'SPLT.PL split 2 for 1',
+      }),
+      ctx(),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('never falls through to the unrecognized-type dividend/fee-by-sign guess', () => {
+    // Regression guard: before this type had its own case, it fell into
+    // mapUnrecognized, which would produce 'dividend' here (positive amount)
+    // — booking what is really a capital-gain sale as ordinary income.
+    const result = mapCashOperationRow(
+      row({
+        type: 'Fractional shares',
+        ticker: 'SPLT.PL',
+        amount: new Decimal(2.5),
+        comment: 'SPLT.PL split 2 for 1',
+      }),
+      ctx(),
+    );
+
+    expect(result?.type).not.toBe('dividend');
+    expect(result?.warnings[0]).not.toMatch(/has no specific mapping/);
+  });
+});
+
+describe('mapCashOperationRow — unrecognized types', () => {
+  it('falls back to dividend for a positive amount, with a warning naming the type and comment', () => {
+    const result = mapCashOperationRow(
+      row({
+        type: 'Some Future Type',
+        ticker: 'ETFX.PL',
+        amount: new Decimal(2.5),
+        comment: 'a type this parser has never seen',
+      }),
+      ctx(),
+    );
+
+    expect(result?.type).toBe('dividend');
+    expect(result?.grossAmount?.toString()).toBe('2.5 PLN');
+    expect(result?.instrument?.symbol).toBe('ETFX.WA');
+    expect(result?.warnings).toHaveLength(1);
+    expect(result?.warnings[0]).toContain('Some Future Type');
+    expect(result?.warnings[0]).toContain('a type this parser has never seen');
   });
 
   it('falls back to fee for a negative amount', () => {

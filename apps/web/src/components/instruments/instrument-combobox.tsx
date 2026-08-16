@@ -17,11 +17,17 @@ const MIN_QUERY_LENGTH = 2;
  * transaction is never saved with an instrument the user didn't pick from
  * this list.
  */
-export type InstrumentComboboxInitial = {
-  readonly kind: 'existing';
-  readonly instrumentId: string;
-  readonly label: string;
-} | null;
+export type InstrumentComboboxInitial =
+  | { readonly kind: 'existing'; readonly instrumentId: string; readonly label: string }
+  /**
+   * A search seeded but not yet answered for — the import resolve screen's
+   * fallback, where the parser already knows a normalized ticker (e.g. a
+   * broker's raw `XTB.PL` turned into the market symbol `XTB.WA`) but nothing
+   * has been picked from the results yet. Runs the same debounced search a
+   * user's own typing would, once, on mount — never a selection by itself.
+   */
+  | { readonly kind: 'query'; readonly text: string }
+  | null;
 
 /**
  * Search-as-you-type instrument selection. The user never sees "add a new
@@ -41,9 +47,11 @@ export function InstrumentCombobox({
   const { dictionary } = useI18n();
   const strings = dictionary.transactions.instrumentSearch;
 
-  const [query, setQuery] = useState(initial?.label ?? '');
+  const [query, setQuery] = useState(
+    initial?.kind === 'existing' ? initial.label : (initial?.text ?? ''),
+  );
   const [selection, setSelection] = useState<InstrumentOption | null>(
-    initial === null ? null : { ...initial },
+    initial?.kind === 'existing' ? { ...initial } : null,
   );
   const [options, setOptions] = useState<readonly InstrumentOption[]>([]);
   const [open, setOpen] = useState(false);
@@ -59,6 +67,26 @@ export function InstrumentCombobox({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
+  function runSearch(trimmed: string) {
+    startTransition(async () => {
+      const results = await searchInstrumentsAction(trimmed);
+      setOptions(results);
+      setOpen(true);
+    });
+  }
+
+  // Runs once for a `kind: 'query'` initial — the import resolve screen's own
+  // seeded search, so a group whose parser-normalized ticker is already
+  // search-ready shows results immediately instead of an empty box waiting
+  // for the user to type the exact thing the parser already knows.
+  useEffect(() => {
+    if (initial?.kind === 'query' && initial.text.trim().length >= MIN_QUERY_LENGTH) {
+      runSearch(initial.text.trim());
+    }
+    // Mount-time only, by design: `initial` seeds this instance once and is
+    // never expected to change under the same component.
+  }, []);
+
   function onQueryChange(value: string) {
     setQuery(value);
     setSelection(null);
@@ -71,13 +99,7 @@ export function InstrumentCombobox({
       return;
     }
 
-    debounceRef.current = setTimeout(() => {
-      startTransition(async () => {
-        const results = await searchInstrumentsAction(trimmed);
-        setOptions(results);
-        setOpen(true);
-      });
-    }, DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => runSearch(trimmed), DEBOUNCE_MS);
   }
 
   function onPick(option: InstrumentOption) {

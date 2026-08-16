@@ -10,6 +10,7 @@ import {
 import { type CashOperationRow } from './cash-operations';
 import { parseTradeComment } from './comment-grammar';
 import { instantToWarsawDate } from './layout';
+import { normalizeXtbTicker } from './ticker-suffix';
 
 export interface MapContext {
   readonly accountCurrency: Currency;
@@ -28,7 +29,7 @@ export interface MapContext {
 const ZERO_SUM_TYPES = new Set(['Subaccount transfer', 'Transfer']);
 
 const instrumentOf = (ticker: string | null): ParsedInstrumentCandidate | null =>
-  ticker === null ? null : { symbol: ticker, exchange: null, name: null };
+  ticker === null ? null : { symbol: normalizeXtbTicker(ticker), exchange: null, name: null };
 
 function cashOnlyRow(
   row: CashOperationRow,
@@ -74,6 +75,30 @@ function mapUnrecognized(row: CashOperationRow, currency: Currency): ParsedRow |
     ...base,
     warnings: [
       `XTB operation type "${row.type}" has no specific mapping; imported as a ${type} by the amount's sign — comment: "${row.comment}". Verify and reclassify if needed.`,
+    ],
+  };
+}
+
+/**
+ * XTB's own `Type` for a stock split's fractional remainder — when a forward
+ * split (comment reads `"<ticker> split N for M"`) leaves a fraction that
+ * doesn't round to a whole new share, XTB closes it for cash instead of
+ * crediting a fractional position. The cash effect is real and known; the
+ * quantity closed is not — the comment carries no `@ price`/quantity the way
+ * a `Stock purchase`/`Stock sell` comment does, so this takes `mapTrade`'s own
+ * "comment didn't parse" shape: the correct transaction type with
+ * `quantity: 0` and a warning, never `mapUnrecognized`'s dividend/fee guess by
+ * sign, which would book a capital-gain sale as ordinary income.
+ */
+function mapFractionalShareClose(row: CashOperationRow, currency: Currency): ParsedRow | null {
+  if (row.amount.isZero()) return null;
+
+  const type: TransactionType = row.amount.isPositive() ? 'sell' : 'buy';
+  const base = cashOnlyRow(row, type, currency, instrumentOf(row.ticker));
+  return {
+    ...base,
+    warnings: [
+      `XTB closed a fractional share for cash after a split (comment: "${row.comment}") — imported as a ${type} with the cash amount only; the fractional quantity closed isn't in the export. Adjust the position's quantity by hand if this affects cost basis.`,
     ],
   };
 }
@@ -161,6 +186,8 @@ export function mapCashOperationRow(row: CashOperationRow, ctx: MapContext): Par
     case 'Stock purchase':
     case 'Stock sell':
       return mapTrade(row, ctx);
+    case 'Fractional shares':
+      return mapFractionalShareClose(row, currency);
   }
 
   if (ZERO_SUM_TYPES.has(row.type)) return null;
