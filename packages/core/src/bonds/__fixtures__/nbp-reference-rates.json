@@ -1,0 +1,70 @@
+[
+ {
+  "effectiveFrom": "2022-01-05",
+  "valueFraction": "0.0225"
+ },
+ {
+  "effectiveFrom": "2022-02-09",
+  "valueFraction": "0.0275"
+ },
+ {
+  "effectiveFrom": "2022-03-09",
+  "valueFraction": "0.035"
+ },
+ {
+  "effectiveFrom": "2022-04-07",
+  "valueFraction": "0.045"
+ },
+ {
+  "effectiveFrom": "2022-05-06",
+  "valueFraction": "0.0525"
+ },
+ {
+  "effectiveFrom": "2022-06-09",
+  "valueFraction": "0.06"
+ },
+ {
+  "effectiveFrom": "2022-07-08",
+  "valueFraction": "0.065"
+ },
+ {
+  "effectiveFrom": "2022-09-08",
+  "valueFraction": "0.0675"
+ },
+ {
+  "effectiveFrom": "2023-09-07",
+  "valueFraction": "0.06"
+ },
+ {
+  "effectiveFrom": "2023-10-05",
+  "valueFraction": "0.0575"
+ },
+ {
+  "effectiveFrom": "2025-05-08",
+  "valueFraction": "0.0525"
+ },
+ {
+  "effectiveFrom": "2025-07-03",
+  "valueFraction": "0.05"
+ },
+ {
+  "effectiveFrom": "2025-09-04",
+  "valueFraction": "0.0475"
+ },
+ {
+  "effectiveFrom": "2025-10-09",
+  "valueFraction": "0.045"
+ },
+ {
+  "effectiveFrom": "2025-11-06",
+  "valueFraction": "0.0425"
+ },
+ {
+  "effectiveFrom": "2025-12-04",
+  "valueFraction": "0.04"
+ },
+ {
+  "effectiveFrom": "2026-03-05",
+  "valueFraction": "0.0375"
+ }
+]

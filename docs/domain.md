@@ -184,6 +184,13 @@ all three are load-bearing. See ADR 0016.
 2. **Rounding is per bond, then multiplied.** The tables are published "dla 1
    sztuki obligacji" and interest is paid per bond; rounding a 25-bond holding
    as a whole pays a different number.
+   **A capitalizing family carries its interest forward unrounded.** There is no
+   cash amount to round to a grosz until redemption, so the Ministry keeps the
+   running balance exact and rounds only what it reports. Capitalizing the
+   rounded figure compounds the error: it agrees for two years and then
+   disagrees with the published TOS0727 table on 166 of year three's 365 days.
+   A paying family is the opposite — each period's interest really does leave
+   the account in whole grosze, so that one _is_ rounded.
 3. **Periods are anchored to the purchase, not the issue.** Period _n_ runs
    `settledOn.add({months: n × periodMonths})` — measured from the settlement
    date every time, never stepped period by period, which drifts on short

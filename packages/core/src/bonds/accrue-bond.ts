@@ -109,10 +109,13 @@ function interestPerBond(
   periodMonths: number,
   elapsedDays: number,
   totalDays: number,
-): Money {
+): { readonly exact: Money; readonly rounded: Money } {
   const periodRate = annualRate.times(periodMonths).dividedBy(MONTHS_PER_YEAR);
   const raw = base.amount.times(periodRate).times(elapsedDays).dividedBy(totalDays);
-  return Money.of(raw.toDecimalPlaces(2, Decimal.ROUND_HALF_UP), PLN);
+  return {
+    exact: Money.of(raw, PLN),
+    rounded: Money.of(raw.toDecimalPlaces(2, Decimal.ROUND_HALF_UP), PLN),
+  };
 }
 
 /**
@@ -210,27 +213,40 @@ export function accrueBond(
       endsOn,
       annualRate,
       base: basePerBond.times(quantity),
-      interest: interest.times(quantity),
+      interest: interest.rounded.times(quantity),
     });
 
     if (Temporal.PlainDate.compare(upTo, endsOn) <= 0) {
-      currentPerBond = interest;
+      currentPerBond = interest.exact;
       currentOrdinal = ordinal;
       break;
     }
 
     if (rules.capitalizes) {
-      capitalizedPerBond = capitalizedPerBond.plus(interest);
-      basePerBond = basePerBond.plus(interest);
+      // **Unrounded.** A capitalizing family carries its interest forward
+      // rather than paying it, so there is no cash amount to round to a grosz
+      // — the Ministry keeps the running balance exact and rounds only what it
+      // reports. Capitalizing the rounded figure instead compounds the
+      // rounding error, and the published TOS0727 table disagrees with it on
+      // 166 of year three's 365 days, by a grosz each time. Years one and two
+      // agree either way, which is why a single first-period table never
+      // showed this.
+      capitalizedPerBond = capitalizedPerBond.plus(interest.exact);
+      basePerBond = basePerBond.plus(interest.exact);
     } else {
-      paidPerBond = paidPerBond.plus(interest);
+      // Paid out, so this one *is* a cash amount: the holder receives whole
+      // grosze each period and the rounded figure is what leaves the account.
+      paidPerBond = paidPerBond.plus(interest.rounded);
     }
   }
 
   // Capitalized interest is still the holder's and still unpaid, so it belongs
   // to accrued rather than to paid; that is also what keeps `currentValue` a
   // plain `nominal + accruedInterest` for every family.
-  const accruedInterest = capitalizedPerBond.plus(currentPerBond).times(quantity);
+  const accruedInterest = Money.of(
+    capitalizedPerBond.plus(currentPerBond).amount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
+    PLN,
+  ).times(quantity);
   const paidInterest = paidPerBond.times(quantity);
 
   return {
