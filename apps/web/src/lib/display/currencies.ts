@@ -8,59 +8,18 @@
 // client bundle. The branded `Currency` is built on the server, in `server.ts`.
 
 /**
- * Everything NBP table A carries, which is everything this app can convert at
- * all. Offering fewer would be an arbitrary limit, not a saving: `fetchTableTo`
- * pulls the **whole** table in one request and `refreshFxRates` stores every
- * row of it, so a rate for TRY is already on file the moment a rate for USD is.
+ * The currencies a **portfolio** can be read in. Five, deliberately, and not
+ * the same list the FX pair pickers use (`lib/fx-pairs.ts`, all of table A).
  *
- * PLN leads because table A is PLN-based and has no row of its own; the four
- * after it are the ones anyone here actually holds, and the rest is
- * alphabetical. Verified against a live table on 2026-08-14 (32 rows + PLN).
- *
- * XDR is the IMF's basket rather than a currency anyone is paid in. It stays,
- * because table A quotes it and excluding it would be a judgement this list has
- * no business making.
+ * The two answer different questions. A pair chart is a lookup — any two
+ * currencies, asked once, out of curiosity. A presentation currency is a
+ * standing decision about how you read your own money, and the honest set there
+ * is the handful you might actually hold or think in. Thirty-three entries turn
+ * a two-click decision into a scroll, and offer thirty of them to nobody.
  */
-export const displayCurrencies = [
-  'PLN',
-  'EUR',
-  'USD',
-  'GBP',
-  'CHF',
-  'AUD',
-  'BRL',
-  'CAD',
-  'CLP',
-  'CNY',
-  'CZK',
-  'DKK',
-  'HKD',
-  'HUF',
-  'IDR',
-  'ILS',
-  'INR',
-  'ISK',
-  'JPY',
-  'KRW',
-  'MXN',
-  'MYR',
-  'NOK',
-  'NZD',
-  'PHP',
-  'RON',
-  'SEK',
-  'SGD',
-  'THB',
-  'TRY',
-  'UAH',
-  'XDR',
-  'ZAR',
-] as const;
+export const displayCurrencies = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'] as const;
 
 export type DisplayCurrencyCode = (typeof displayCurrencies)[number];
-
-/** The five at the head of the list, kept together above a separator in every picker. */
-export const commonCurrencies = displayCurrencies.slice(0, 5) as readonly DisplayCurrencyCode[];
 
 export const defaultDisplayCurrency: DisplayCurrencyCode = 'PLN';
 

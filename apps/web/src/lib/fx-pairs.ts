@@ -5,22 +5,68 @@
 // Kept free of `@finansify/core` so the pickers can import it from a client
 // component; the branded `Currency` is built on the server side.
 
-import {
-  defaultDisplayCurrency,
-  displayCurrencies,
-  isDisplayCurrency,
-  type DisplayCurrencyCode,
-} from './display/currencies';
-
 /**
- * Any table-A currency against any other, rather than a handful of named
- * pairs. The legs share one list with the presentation switcher
- * (`display/currencies.ts`) — they are the same question asked twice, and two
- * lists would drift.
+ * Everything NBP table A carries — any of it against any other. Deliberately
+ * **not** the presentation list (`display/currencies.ts`, five): a pair chart
+ * is a one-off lookup, so breadth costs the reader nothing, while a
+ * presentation currency is a standing choice that a 33-entry menu would make
+ * worse.
+ *
+ * Breadth is free on the fetch side too. `fetchTableTo` pulls the whole table
+ * in one request and `refreshFxRates` stores every row, so a rate for TRY is
+ * already on file the moment a rate for USD is.
+ *
+ * PLN leads because table A is PLN-based and has no row of its own; the four
+ * after it are the ones anyone here actually holds, and the rest is
+ * alphabetical. Verified against a live table on 2026-08-14 (32 rows + PLN).
+ * XDR is the IMF's basket rather than a currency anyone is paid in; it stays,
+ * because table A quotes it and excluding it is a judgement this list has no
+ * business making.
  */
-export type FxCurrency = DisplayCurrencyCode;
+export const fxCurrencies = [
+  'PLN',
+  'EUR',
+  'USD',
+  'GBP',
+  'CHF',
+  'AUD',
+  'BRL',
+  'CAD',
+  'CLP',
+  'CNY',
+  'CZK',
+  'DKK',
+  'HKD',
+  'HUF',
+  'IDR',
+  'ILS',
+  'INR',
+  'ISK',
+  'JPY',
+  'KRW',
+  'MXN',
+  'MYR',
+  'NOK',
+  'NZD',
+  'PHP',
+  'RON',
+  'SEK',
+  'SGD',
+  'THB',
+  'TRY',
+  'UAH',
+  'XDR',
+  'ZAR',
+] as const;
 
-export const fxCurrencies = displayCurrencies;
+export type FxCurrency = (typeof fxCurrencies)[number];
+
+/** The five kept together above a separator in each leg's picker. */
+export const commonFxCurrencies = fxCurrencies.slice(0, 5) as readonly FxCurrency[];
+
+export function isFxCurrency(value: unknown): value is FxCurrency {
+  return typeof value === 'string' && (fxCurrencies as readonly string[]).includes(value);
+}
 
 export interface FxPair {
   readonly base: FxCurrency;
@@ -85,8 +131,8 @@ export function fxParamsFrom(raw: RawSearchParams): FxParams {
   const range = first(raw.range);
 
   const pair: FxPair = {
-    base: isDisplayCurrency(base) ? base : defaultFxPair.base,
-    quote: isDisplayCurrency(quote) ? quote : defaultFxPair.quote,
+    base: isFxCurrency(base) ? base : defaultFxPair.base,
+    quote: isFxCurrency(quote) ? quote : defaultFxPair.quote,
   };
 
   return {
@@ -97,7 +143,7 @@ export function fxParamsFrom(raw: RawSearchParams): FxParams {
 
 /** X/X is not a pair; quote it against PLN, or against USD when X *is* PLN. */
 function fallbackFor(base: FxCurrency): FxPair {
-  return { base, quote: base === defaultDisplayCurrency ? 'USD' : defaultDisplayCurrency };
+  return { base, quote: base === 'PLN' ? 'USD' : 'PLN' };
 }
 
 export interface FxHref {

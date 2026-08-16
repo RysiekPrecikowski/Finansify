@@ -12,8 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { commonCurrencies, displayCurrencies } from '@/lib/display/currencies';
-import { type FxCurrency } from '@/lib/fx-pairs';
+import { commonFxCurrencies, fxCurrencies, type FxCurrency } from '@/lib/fx-pairs';
 
 /**
  * One leg of the pair, over all 33 table-A currencies.
@@ -67,9 +66,9 @@ export function CurrencyPicker({
       {/* 33 entries need a scroll box; without the cap the menu runs off the
           viewport on a phone and the last currencies are unreachable. */}
       <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-        {commonCurrencies.map(item)}
+        {commonFxCurrencies.map(item)}
         <DropdownMenuSeparator />
-        {displayCurrencies.filter((code) => !commonCurrencies.includes(code)).map(item)}
+        {fxCurrencies.filter((code) => !commonFxCurrencies.includes(code)).map(item)}
       </DropdownMenuContent>
     </DropdownMenu>
   );

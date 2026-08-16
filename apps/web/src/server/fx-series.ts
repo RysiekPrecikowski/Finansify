@@ -56,18 +56,32 @@ export async function readFxPairSeries(pairId: FxPair, rangeId: FxRangeId): Prom
   const today = clock.now().toZonedDateTimeISO(displayTimeZone).toPlainDate();
   const window = windowFor(rangeId, today);
 
-  const fx = getFxRates();
-  const refresh = makeRefreshFxSeries({ fx, provider: getFxProvider(), today: () => today });
+  // Nothing in here may throw past this point. `makeRefreshFxSeries` already
+  // reports a provider failure rather than raising it, but the repository reads
+  // around it were left bare — and one failing `seriesFor` took down the whole
+  // page, including the two macro cards that had nothing to do with it.
+  // `data-sources.md` is explicit: serve what is known, labelled, or serve
+  // nothing; never turn a data gap into an error boundary.
+  try {
+    const fx = getFxRates();
+    const refresh = makeRefreshFxSeries({ fx, provider: getFxProvider(), today: () => today });
 
-  const report = await refresh(pair, window);
+    const report = await refresh(pair, window);
 
-  const wanted = [pair.base, pair.quote].filter((code) => code !== toCurrency('PLN'));
-  const stored = await fx.seriesFor(wanted, window.from, window.to);
-  const history = pairSeries(pair, stored);
+    const wanted = [pair.base, pair.quote].filter((code) => code !== toCurrency('PLN'));
+    const stored = await fx.seriesFor(wanted, window.from, window.to);
+    const history = pairSeries(pair, stored);
 
-  return {
-    summary: summarizeFxSeries(pair, history),
-    history,
-    error: report.error,
-  };
+    return {
+      summary: summarizeFxSeries(pair, history),
+      history,
+      error: report.error,
+    };
+  } catch (cause) {
+    return {
+      summary: null,
+      history: [],
+      error: cause instanceof Error ? cause.message : String(cause),
+    };
+  }
 }
