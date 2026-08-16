@@ -22,9 +22,10 @@
       "Bash(git switch:*)",
       "Bash(npm view:*)",
       "Bash(gh pr view:*)",
-      "Bash(gh pr diff:*)"
+      "Bash(gh pr diff:*)",
+      "Bash(.claude/scripts/clickup.sh:*)"
     ],
     "ask": ["Bash(git push:*)", "Bash(gh pr create:*)"],
-    "deny": ["Read(./.env.local)", "Read(./.env)"]
+    "deny": ["Read(./.env.local)", "Read(./.env)", "Read(~/.config/clickup/token)"]
   }
 }

@@ -49,13 +49,20 @@ the change is allowed to reach it at all.
 
 **5. Wait for CI, then hand the ticket over.** Run `gh pr checks --watch`. If a
 check fails, stop and report it — do not touch the ticket while CI is red.
-Once every check passes: set the ClickUp ticket to `in review`, clear its
-assignee (`assignees: []`), leave its `Implementer` field alone, and comment
-the PR link on it. An unassigned `in review` ticket is
-what "waiting for a reviewer" looks like; `Implementer` is what restores the
-assignee at merge — see `docs/clickup.md`. If `Implementer` is empty because
-the ticket was started outside this flow, set it to yourself here. Report the
-ticket id and its new status in the final line.
+Once every check passes, via `.claude/scripts/clickup.sh` (`docs/clickup.md`
+has the full endpoint reference):
+
+1. `GET /v2/task/<taskId>` to read current `assignees` and `Implementer`.
+2. `PUT /v2/task/<taskId>` with
+   `{"status":"in review","assignees":{"add":[],"rem":[<currentAssigneeIds>]}}`
+   — clearing the assignee is what "waiting for a reviewer" looks like.
+   `Implementer` is untouched here; it's what restores the assignee at merge.
+3. If `Implementer` came back empty (ticket started outside this flow), set it
+   to yourself: `POST /v2/task/<taskId>/field/4aaf7617-f6d2-4b03-aa0c-2e30d7e3294d`
+   with `{"value":{"add":[<yourId>],"rem":[]}}`.
+4. `POST /v2/task/<taskId>/comment` with `{"comment_text":"<PR link>"}`.
+
+Report the ticket id and its new status in the final line.
 
 **Tone.** This text is read and acted on by the other teammate, which makes it
 different from the terse stage-reporting a session emits while working.

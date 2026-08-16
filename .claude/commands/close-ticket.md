@@ -22,15 +22,15 @@ or the PR title's trailing `(CU-<taskId>)`. If neither carries an id, stop and
 ask which ticket this PR was for rather than guessing.
 
 **3. Read the ticket before writing to it** (`docs/clickup.md`'s "before every
-session of work" rule) — `clickup_get_task` with `include: ["custom_fields"]`.
+session of work" rule) — `.claude/scripts/clickup.sh GET /v2/task/<taskId>`.
 
 - If status is not `in review`, stop and report the actual status instead of
   overwriting it — something moved it since `/review` ran.
-- Read `Implementer`. If it's empty, stop and ask who implemented this rather
-  than guessing an owner.
+- Read `Implementer` from the response's custom fields. If it's empty, stop
+  and ask who implemented this rather than guessing an owner. Note the current
+  `assignees` too — they need removing in step 4.
 
-**4. Close it.** `clickup_update_task`: status `complete`, `assignees` set to
-`Implementer`'s user id (via the `{"add":[...]}` custom-field shape only
-applies to `Implementer` itself, which is untouched here — `assignees` takes a
-plain id array). Report the ticket id, its new status, and who it's now
-assigned to.
+**4. Close it.** `.claude/scripts/clickup.sh PUT /v2/task/<taskId>
+'{"status":"complete","assignees":{"add":[<implementerId>],"rem":[<currentAssigneeIds>]}}'`
+— `Implementer` itself is untouched, only `assignees` moves. Report the ticket
+id, its new status, and who it's now assigned to.
