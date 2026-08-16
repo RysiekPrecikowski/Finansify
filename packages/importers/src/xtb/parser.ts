@@ -58,16 +58,29 @@ async function sniff(file: RawFile): Promise<Confidence> {
  * The account's own cash currency isn't a column anywhere in the export — it
  * is implicit in every `Amount` on the `Cash Operations` sheet, the same way
  * a real XTB filename carries it (`EUR_2434935_...xlsx`) without it ever
- * appearing as a cell. The upload flow (its own ticket) is what actually
- * knows the target account's currency; until that wiring exists, this
- * resolves to the account the statement's own `Currency` column on
- * `Open Positions`' summary block reports, which is the one place the
- * currency genuinely appears as data.
+ * appearing as a cell. `Open Positions`' summary block is the one place it
+ * genuinely appears as data, so that is what this reads.
+ *
+ * `null` when that cell is absent or is not an ISO 4217 code — never a
+ * default. A guessed currency is the one wrong answer this parser must not
+ * give: it does not produce a visibly odd number a reviewer would catch, it
+ * relabels every correct amount in the statement, and the summary block is
+ * exactly what an account with nothing currently open has no rows for. Rule 7
+ * ("a missing price is an error, never an estimate") is the same principle
+ * one field over; `parse()` turns this into a failed batch with a reason,
+ * which `makeUploadStatement` already surfaces.
  */
-function accountCurrencyOf(workbook: Awaited<ReturnType<typeof loadWorkbook>>) {
+function accountCurrencyOf(
+  workbook: Awaited<ReturnType<typeof loadWorkbook>>,
+): ReturnType<typeof currency> | null {
   const openPositions = workbook.getWorksheet(SHEET_NAMES.openPositions);
   const code = openPositions === undefined ? null : cellString(openPositions, 5, 4);
-  return currency(code ?? 'PLN');
+  if (code === null) return null;
+  try {
+    return currency(code);
+  } catch {
+    return null;
+  }
 }
 
 async function parse(file: RawFile): Promise<ParsedStatement> {
@@ -80,6 +93,14 @@ async function parse(file: RawFile): Promise<ParsedStatement> {
   }
 
   const accountCurrency = accountCurrencyOf(workbook);
+  if (accountCurrency === null) {
+    throw new Error(
+      `"${SHEET_NAMES.openPositions}" carries no readable account currency in its summary block — ` +
+        'every amount in this statement would have to be guessed. Re-export the statement, or ' +
+        'enter these transactions by hand.',
+    );
+  }
+
   const rawRows = readCashOperations(cashOperations);
 
   // Pass 1: recover every trade's own fill quantity/price from its comment,
