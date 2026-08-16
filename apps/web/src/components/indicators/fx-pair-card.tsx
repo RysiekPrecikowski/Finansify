@@ -3,12 +3,19 @@ import Link from 'next/link';
 
 import { cn } from '@/lib/utils';
 import { formatFxRate, formatPlainDate } from '@/lib/format';
-import { fxHref, fxPairLabel, fxRanges, type FxCurrency, type FxParams } from '@/lib/fx-pairs';
+import {
+  fxCurrencies,
+  fxHref,
+  fxPairLabel,
+  fxRanges,
+  type FxCurrency,
+  type FxParams,
+} from '@/lib/fx-pairs';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
 import { type FxPairSeries } from '@/server/fx-series';
 
-import { CurrencyPicker } from './currency-picker';
+import { CurrencyPicker, type CurrencyOption } from './currency-picker';
 import { SeriesChart } from './series-chart';
 
 /**
@@ -47,10 +54,7 @@ export function FxPairCard({
         <CurrencyPicker
           value={params.pair.base}
           label={strings.fxBase}
-          disabled={params.pair.quote}
-          urlFor={(code: FxCurrency) =>
-            urlOf(fxHref(params, { pair: { ...params.pair, base: code } }))
-          }
+          options={legOptions(params, 'base')}
         />
         <Link
           href={fxHref(params, { pair: { base: params.pair.quote, quote: params.pair.base } })}
@@ -63,10 +67,7 @@ export function FxPairCard({
         <CurrencyPicker
           value={params.pair.quote}
           label={strings.fxQuote}
-          disabled={params.pair.base}
-          urlFor={(code: FxCurrency) =>
-            urlOf(fxHref(params, { pair: { ...params.pair, quote: code } }))
-          }
+          options={legOptions(params, 'quote')}
         />
       </div>
 
@@ -122,10 +123,24 @@ export function FxPairCard({
 }
 
 /**
- * The same href as a string, for the leg pickers — they navigate from a client
- * component and need a URL, not the object `<Link>` takes. Kept beside
- * `fxHref` so the query shape stays known to one module.
+ * Every destination one leg's picker can navigate to, as plain data.
+ *
+ * Built here rather than in the picker because a callback cannot cross into a
+ * client component — React refuses to serialize a function prop and the page
+ * 500s. Thirty-three short strings is a cheap payload, and it keeps the query
+ * shape known to this module and `fxHref` alone.
  */
+function legOptions(params: FxParams, leg: 'base' | 'quote'): readonly CurrencyOption[] {
+  const other = leg === 'base' ? params.pair.quote : params.pair.base;
+
+  return fxCurrencies.map((code: FxCurrency) => ({
+    code,
+    href: urlOf(fxHref(params, { pair: { ...params.pair, [leg]: code } })),
+    swaps: code === other,
+  }));
+}
+
+/** The href as a string — the pickers navigate with `router.push`, not `<Link>`. */
 function urlOf(href: ReturnType<typeof fxHref>): string {
   const query = new URLSearchParams(href.query).toString();
   return query === '' ? href.pathname : `${href.pathname}?${query}`;
