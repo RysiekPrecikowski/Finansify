@@ -39,10 +39,19 @@ const COLUMN = { presentation: 2, year: 3, month: 4, value: 5 } as const;
 const MIN_INDEX = new Decimal('50');
 const MAX_INDEX = new Decimal('2000');
 
+/**
+ * Two genuinely different failures, so the message says which happened. The
+ * band is interpolated rather than written out: the last time it was a literal
+ * it went stale against the constant, and the number it named — 1000 — was the
+ * exact ceiling that had already taken the series down once. Whoever reads the
+ * next refusal should not go hunting a band that no longer exists.
+ */
 export class ImplausibleCpiError extends Error {
-  constructor(raw: string, year: string, month: string) {
+  constructor(raw: string, year: string, month: string, reason: 'unreadable' | 'out_of_band') {
     super(
-      `CPI index "${raw}" for ${year}-${month} is outside the plausible band (50–1000) — refusing to write it`,
+      reason === 'unreadable'
+        ? `CPI cell "${raw}" for ${year}-${month} is not a number — refusing to write it`
+        : `CPI index "${raw}" for ${year}-${month} is outside the plausible band (${MIN_INDEX.toFixed()}–${MAX_INDEX.toFixed()}) — refusing to write it`,
     );
     this.name = 'ImplausibleCpiError';
   }
@@ -95,10 +104,11 @@ export function parseCpiCsv(text: string): readonly IndexObservation[] {
     try {
       index = new Decimal(raw.replace(',', '.'));
     } catch {
-      throw new ImplausibleCpiError(raw, year, month);
+      throw new ImplausibleCpiError(raw, year, month, 'unreadable');
     }
-    if (!index.isFinite() || index.lessThan(MIN_INDEX) || index.greaterThan(MAX_INDEX)) {
-      throw new ImplausibleCpiError(raw, year, month);
+    if (!index.isFinite()) throw new ImplausibleCpiError(raw, year, month, 'unreadable');
+    if (index.lessThan(MIN_INDEX) || index.greaterThan(MAX_INDEX)) {
+      throw new ImplausibleCpiError(raw, year, month, 'out_of_band');
     }
 
     // `PlainYearMonth.from` rejects a malformed month without any hand-rolled
