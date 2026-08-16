@@ -633,3 +633,161 @@ describe('importRepository — resolveInstruments', () => {
     expect(result.every((row) => row.resolvedInstrumentId === target)).toBe(true);
   });
 });
+
+const ROW_ID = importRowId('77777777-7777-4777-8777-777777777777');
+const OUTCOME_TRANSACTION_ID = transactionId('66666666-6666-4666-8666-666666666666');
+
+/**
+ * `getRow`/`recordRowOutcome` both join `import_rows` to `import_batches` to
+ * check ownership (`import-repository.ts`), rather than the plain
+ * `select().from().where().limit()` shape `makeDb` mocks — a different chain
+ * needs a different mock, same rationale as `makeRowsForBatchDb` above.
+ */
+function makeJoinedRowDb(config: {
+  selectRows: { row: ImportRowRow }[][];
+  updateResults?: ImportRowRow[][];
+}): {
+  db: Database;
+  select: Mock;
+  from: Mock;
+  innerJoin: Mock;
+  selectWhere: Mock;
+  limit: Mock;
+  update: Mock;
+  updateSet: Mock;
+  updateWhere: Mock;
+  updateReturning: Mock;
+} {
+  const limit = vi.fn();
+  for (const rows of config.selectRows) limit.mockResolvedValueOnce(rows);
+  const selectWhere = vi.fn().mockReturnValue({ limit });
+  const innerJoin = vi.fn().mockReturnValue({ where: selectWhere });
+  const from = vi.fn().mockReturnValue({ innerJoin });
+  const select = vi.fn().mockReturnValue({ from });
+
+  const updateReturning = vi.fn();
+  for (const rows of config.updateResults ?? []) updateReturning.mockResolvedValueOnce(rows);
+  const updateWhere = vi.fn().mockReturnValue({ returning: updateReturning });
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set: updateSet });
+
+  return {
+    db: { select, update } as unknown as Database,
+    select,
+    from,
+    innerJoin,
+    selectWhere,
+    limit,
+    update,
+    updateSet,
+    updateWhere,
+    updateReturning,
+  };
+}
+
+describe('importRepository — getRow', () => {
+  it('returns the row mapped from the joined result when it is found and owned by this user', async () => {
+    const row = rowRow({ id: ROW_ID });
+    const { db, select } = makeJoinedRowDb({ selectRows: [[{ row }]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const found = await repo.getRow(ROW_ID);
+
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(found).not.toBeNull();
+    expect(found!.id).toBe(ROW_ID);
+    expect(found!.batchId).toBe(BATCH_ID);
+  });
+
+  // The inner join filters on `import_batches.user_id`, so a row that exists
+  // but belongs to another user's batch comes back as the same empty result
+  // set as an id that does not exist at all — same convention as `getBatch`
+  // above.
+  it("resolves null, without throwing, for a row that exists but belongs to another user's batch", async () => {
+    const { db } = makeJoinedRowDb({ selectRows: [[]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await expect(repo.getRow(ROW_ID)).resolves.toBeNull();
+  });
+
+  it('resolves null, without throwing, for a row id that does not exist at all', async () => {
+    const { db } = makeJoinedRowDb({ selectRows: [[]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await expect(repo.getRow(ROW_ID)).resolves.toBeNull();
+  });
+});
+
+describe('importRepository — recordRowOutcome', () => {
+  it('throws without updating when the row does not belong to this user (or does not exist)', async () => {
+    const { db, update } = makeJoinedRowDb({ selectRows: [[]] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await expect(
+      repo.recordRowOutcome(ROW_ID, { status: 'accepted', transactionId: OUTCOME_TRANSACTION_ID }),
+    ).rejects.toThrow(`No import row ${ROW_ID}`);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('sets status and transactionId and clears rejectionReason to null for an accepted outcome', async () => {
+    const owned = rowRow({ id: ROW_ID });
+    const updated = rowRow({
+      id: ROW_ID,
+      status: 'accepted',
+      transactionId: OUTCOME_TRANSACTION_ID,
+      rejectionReason: null,
+    });
+    const { db, updateSet } = makeJoinedRowDb({
+      selectRows: [[{ row: owned }]],
+      updateResults: [[updated]],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.recordRowOutcome(ROW_ID, {
+      status: 'accepted',
+      transactionId: OUTCOME_TRANSACTION_ID,
+    });
+
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'accepted',
+        transactionId: OUTCOME_TRANSACTION_ID,
+        rejectionReason: null,
+      }),
+    );
+    expect(result.status).toBe('accepted');
+    expect(result.transactionId).toBe(OUTCOME_TRANSACTION_ID);
+    expect(result.rejectionReason).toBeNull();
+  });
+
+  it('sets status, transactionId, and rejectionReason for a duplicate outcome', async () => {
+    const owned = rowRow({ id: ROW_ID });
+    const updated = rowRow({
+      id: ROW_ID,
+      status: 'duplicate',
+      transactionId: OUTCOME_TRANSACTION_ID,
+      rejectionReason: 'edited by hand since import',
+    });
+    const { db, updateSet } = makeJoinedRowDb({
+      selectRows: [[{ row: owned }]],
+      updateResults: [[updated]],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.recordRowOutcome(ROW_ID, {
+      status: 'duplicate',
+      transactionId: OUTCOME_TRANSACTION_ID,
+      reason: 'edited by hand since import',
+    });
+
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'duplicate',
+        transactionId: OUTCOME_TRANSACTION_ID,
+        rejectionReason: 'edited by hand since import',
+      }),
+    );
+    expect(result.status).toBe('duplicate');
+    expect(result.rejectionReason).toBe('edited by hand since import');
+  });
+});

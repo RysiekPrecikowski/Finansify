@@ -1,8 +1,8 @@
-import { type AccountId, type InstrumentId } from '../ledger/types';
+import { type AccountId, type InstrumentId, type TransactionId } from '../ledger/types';
 import { type UserId } from '../ports/session';
 import { type BrokerId, type ParsedRow } from '../ports/statement-parser';
 
-import { type ImportBatch, type ImportBatchId, type ImportRow } from './types';
+import { type ImportBatch, type ImportBatchId, type ImportRow, type ImportRowId } from './types';
 
 export interface CreateImportBatchInput {
   readonly accountId: AccountId;
@@ -21,6 +21,23 @@ export interface InstrumentResolution {
   readonly exchange: string | null;
   readonly instrumentId: InstrumentId;
 }
+
+/**
+ * What accepting one row settles it to — the import use case's two possible
+ * endings for a pending row. `accepted` covers both a fresh transaction and an
+ * unedited existing one refreshed in place: either way the row is now backed
+ * by a real transaction. `duplicate` is the conflict case — an existing
+ * transaction for this `external_id` was hand-edited since it was imported
+ * (`Transaction.editedAfterImport`), so nothing was written to it; `reason` is
+ * what the review UI (its own ticket) shows for why.
+ */
+export type ImportRowOutcome =
+  | { readonly status: 'accepted'; readonly transactionId: TransactionId }
+  | {
+      readonly status: 'duplicate';
+      readonly transactionId: TransactionId;
+      readonly reason: string;
+    };
 
 /**
  * Everything a signed-in user can do to their own import batches — same
@@ -46,6 +63,10 @@ export interface ScopedImportRepository {
     batchId: ImportBatchId,
     resolutions: readonly InstrumentResolution[],
   ): Promise<readonly ImportRow[]>;
+  /** `null` if the row doesn't exist or its batch isn't owned by this user — never throws on a missing id. */
+  getRow(id: ImportRowId): Promise<ImportRow | null>;
+  /** Settles a pending row to `accepted` or `duplicate`. Throws if the row isn't owned by this user. */
+  recordRowOutcome(id: ImportRowId, outcome: ImportRowOutcome): Promise<ImportRow>;
 }
 
 export interface ImportRepository {

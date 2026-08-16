@@ -4,6 +4,7 @@ import { Temporal } from '../time';
 import {
   type CreateImportBatchInput,
   type ImportRepository,
+  type ImportRowOutcome,
   type InstrumentResolution,
   type ScopedImportRepository,
 } from './ports';
@@ -13,6 +14,7 @@ import {
   type ImportBatch,
   type ImportBatchId,
   type ImportRow,
+  type ImportRowId,
 } from './types';
 
 /**
@@ -150,6 +152,27 @@ export class InMemoryImports implements ImportRepository {
           });
         }
         return Promise.resolve(touched);
+      },
+
+      getRow: (id: ImportRowId) => {
+        const row = this.rowRows.find((candidate) => candidate.id === id);
+        if (row === undefined) return Promise.resolve(null);
+        return Promise.resolve(ownedBatch(row.batchId) === undefined ? null : row);
+      },
+
+      recordRowOutcome: (id: ImportRowId, outcome: ImportRowOutcome) => {
+        const index = this.rowRows.findIndex((candidate) => candidate.id === id);
+        if (index === -1 || ownedBatch(this.rowRows[index]!.batchId) === undefined) {
+          return Promise.reject(new Error(`No import row ${id}`));
+        }
+        const updated: ImportRow = {
+          ...this.rowRows[index]!,
+          status: outcome.status,
+          transactionId: outcome.transactionId,
+          rejectionReason: outcome.status === 'duplicate' ? outcome.reason : null,
+        };
+        this.rowRows[index] = updated;
+        return Promise.resolve(updated);
       },
     };
   }

@@ -1,6 +1,7 @@
 import { type UserId } from '../ports/session';
 import {
   type Account,
+  type AccountId,
   type AccountInput,
   type Instrument,
   type InstrumentId,
@@ -11,6 +12,22 @@ import {
   type TransactionInput,
 } from './types';
 import { type Currency } from '../money';
+
+/**
+ * Everything the import use case knows about a transaction it is about to
+ * create that `TransactionInput` deliberately does not carry — `source`,
+ * `externalId` and `importBatchId` are never user-submittable fields (there is
+ * no form field for any of them), so they travel as a separate, narrower
+ * argument rather than being added to the shared schema every manual-entry
+ * caller also validates against. `importBatchId` is a plain `string`, not the
+ * branded `ImportBatchId`: `ledger` and `imports` are siblings that never
+ * import from each other (`docs/architecture.md`), and `Transaction.importBatchId`
+ * itself is already typed as a plain string for the same reason.
+ */
+export interface ImportedTransactionOrigin {
+  readonly externalId: string;
+  readonly importBatchId: string;
+}
 
 /**
  * Everything a signed-in user can do to their own ledger.
@@ -40,6 +57,34 @@ export interface ScopedLedgerRepository {
   updateTransaction(id: TransactionId, input: TransactionInput): Promise<Transaction>;
   /** Sets `deleted_at`. A hard delete would break import idempotency (ADR 0004). */
   softDeleteTransaction(id: TransactionId): Promise<void>;
+
+  /**
+   * The dedup lookup a re-import runs before creating anything — the partial
+   * unique index on `(account_id, external_id)` is what this query mirrors.
+   * `null` for a manually entered transaction, which never carries an
+   * `external_id` at all.
+   */
+  findByExternalId(accountId: AccountId, externalId: string): Promise<Transaction | null>;
+  /**
+   * The only way a transaction is ever created with `source: 'import'` — see
+   * `ImportedTransactionOrigin`. Not reachable from `createTransaction`, so a
+   * manual form submission can never forge an import provenance.
+   */
+  createImportedTransaction(
+    input: TransactionInput,
+    origin: ImportedTransactionOrigin,
+  ): Promise<Transaction>;
+  /**
+   * Refreshes an import-sourced transaction's fields from a re-import,
+   * without touching `editedAfterImport` — unlike `updateTransaction`, which
+   * always sets that flag when the transaction's `source` is `'import'`, on
+   * the assumption that whoever calls it is a human correcting a row by
+   * hand. The import use case is the other caller: it refreshes a row
+   * nobody has touched, and that row has to stay refreshable by the *next*
+   * re-import too, or a single restatement would look like a hand edit
+   * forever and every later re-import would misreport it as a conflict.
+   */
+  refreshImportedTransaction(id: TransactionId, input: TransactionInput): Promise<Transaction>;
 }
 
 export interface LedgerRepository {

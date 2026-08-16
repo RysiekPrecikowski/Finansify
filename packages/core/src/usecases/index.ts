@@ -1,5 +1,6 @@
 export * from './result';
 export * from './export-ledger';
+export * from './accept-import-row';
 export * from './list-positions';
 export * from './match-import-instruments';
 export * from './open-account';
