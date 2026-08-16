@@ -2,32 +2,39 @@
 // controls (`lib/dashboard-params.ts`): the card renders on the server, every
 // control is a real link, and the view survives a reload and a share.
 //
-// Kept free of `@finansify/core` so the picker can import it from a client
+// Kept free of `@finansify/core` so the pickers can import it from a client
 // component; the branded `Currency` is built on the server side.
 
-/** Base first, quote second — `usd_pln` is "PLN per USD". */
-export const fxPairs = ['usd_pln', 'eur_pln', 'gbp_pln', 'chf_pln', 'eur_usd'] as const;
+import {
+  defaultDisplayCurrency,
+  displayCurrencies,
+  isDisplayCurrency,
+  type DisplayCurrencyCode,
+} from './display/currencies';
 
-export type FxPairId = (typeof fxPairs)[number];
+/**
+ * Any table-A currency against any other, rather than a handful of named
+ * pairs. The legs share one list with the presentation switcher
+ * (`display/currencies.ts`) — they are the same question asked twice, and two
+ * lists would drift.
+ */
+export type FxCurrency = DisplayCurrencyCode;
 
-export const defaultFxPair: FxPairId = 'usd_pln';
+export const fxCurrencies = displayCurrencies;
 
-export function isFxPair(value: unknown): value is FxPairId {
-  return typeof value === 'string' && (fxPairs as readonly string[]).includes(value);
+export interface FxPair {
+  readonly base: FxCurrency;
+  readonly quote: FxCurrency;
 }
 
-/** `usd_pln` → `['USD', 'PLN']`. The label is the same thing with a slash. */
-export function codesOf(pair: FxPairId): readonly [string, string] {
-  const [base, quote] = pair.split('_');
-  return [base!.toUpperCase(), quote!.toUpperCase()];
-}
+export const defaultFxPair: FxPair = { base: 'USD', quote: 'PLN' };
 
-export function fxPairLabel(pair: FxPairId): string {
-  return codesOf(pair).join('/');
+export function fxPairLabel(pair: FxPair): string {
+  return `${pair.base}/${pair.quote}`;
 }
 
 /**
- * Window lengths, not calendar buckets. `max` is bounded by the data rather
+ * Window lengths, not calendar buckets. `MAX` is bounded by the data rather
  * than by a preference: NBP's own archive starts on 2002-01-02, and asking for
  * anything earlier returns a 404 per chunk — see the adapter.
  */
@@ -52,7 +59,7 @@ export const fxRangeMonths: Record<Exclude<FxRangeId, 'MAX'>, number> = {
 export const NBP_ARCHIVE_START = '2002-01-02';
 
 export interface FxParams {
-  readonly pair: FxPairId;
+  readonly pair: FxPair;
   readonly range: FxRangeId;
 }
 
@@ -64,15 +71,33 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** Anything unrecognised falls back rather than throwing — these come from the URL bar. */
+/**
+ * Anything unrecognised falls back rather than throwing — these come from the
+ * URL bar.
+ *
+ * A pair of one currency is refused the same way. `core`'s `pairSeries` throws
+ * on it deliberately (a flat line at 1 is not a fact about anything), so it
+ * must never reach the server from a hand-edited URL.
+ */
 export function fxParamsFrom(raw: RawSearchParams): FxParams {
-  const pair = first(raw.pair);
+  const base = first(raw.base);
+  const quote = first(raw.quote);
   const range = first(raw.range);
 
+  const pair: FxPair = {
+    base: isDisplayCurrency(base) ? base : defaultFxPair.base,
+    quote: isDisplayCurrency(quote) ? quote : defaultFxPair.quote,
+  };
+
   return {
-    pair: isFxPair(pair) ? pair : defaultFxPair,
+    pair: pair.base === pair.quote ? fallbackFor(pair.base) : pair,
     range: isFxRange(range) ? range : defaultFxRange,
   };
+}
+
+/** X/X is not a pair; quote it against PLN, or against USD when X *is* PLN. */
+function fallbackFor(base: FxCurrency): FxPair {
+  return { base, quote: base === defaultDisplayCurrency ? 'USD' : defaultDisplayCurrency };
 }
 
 export interface FxHref {
@@ -80,13 +105,29 @@ export interface FxHref {
   readonly query: Record<string, string>;
 }
 
-/** Keeps the parameter you are not changing, so the two pickers compose. */
+/**
+ * Keeps the parameters you are not changing, so the three pickers compose.
+ *
+ * Picking a currency that is already the other leg **swaps** rather than
+ * producing X/X: choosing USD as the quote of USD/PLN gives PLN/USD, which is
+ * what someone clicking it meant.
+ */
 export function fxHref(current: FxParams, changes: Partial<FxParams>): FxHref {
-  const next = { ...current, ...changes };
-  const query: Record<string, string> = {};
+  const merged = { ...current, ...changes };
+  const next: FxParams = {
+    ...merged,
+    pair: normalize(current.pair, merged.pair),
+  };
 
-  if (next.pair !== defaultFxParams.pair) query.pair = next.pair;
+  const query: Record<string, string> = {};
+  if (next.pair.base !== defaultFxParams.pair.base) query.base = next.pair.base;
+  if (next.pair.quote !== defaultFxParams.pair.quote) query.quote = next.pair.quote;
   if (next.range !== defaultFxParams.range) query.range = next.range;
 
   return { pathname: '/indicators', query };
+}
+
+function normalize(current: FxPair, next: FxPair): FxPair {
+  if (next.base !== next.quote) return next;
+  return { base: current.quote, quote: current.base };
 }

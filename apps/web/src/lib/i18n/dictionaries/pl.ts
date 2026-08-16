@@ -30,7 +30,9 @@ export const pl = {
     stale: 'nieaktualne',
     filterByAssetClass: 'Filtruj według klasy aktywów',
     chartRange: 'Zakres wykresu',
-    currencyLocked: 'Przewalutowanie pojawi się w Fazie 2, razem z kursami NBP.',
+    currencyLocked:
+      'Pulpit działa jeszcze na danych demonstracyjnych w PLN — wybór waluty nie dotyczy tych liczb. Działa na stronie Portfel.',
+    currencyIgnored: 'wybrano {currency} — pulpit na danych demonstracyjnych',
     ranges: {
       '1D': '1D',
       '1W': '1T',
@@ -289,6 +291,9 @@ export const pl = {
     seeAll: 'Zobacz wskaźniki',
     fxBy: 'NBP, tabela A — kurs średni',
     fxPair: 'Para walutowa',
+    fxBase: 'Waluta bazowa',
+    fxQuote: 'Waluta kwotowana',
+    fxSwap: 'Zamień strony',
     fxRange: 'Zakres',
     fixedOn: 'Kurs z dnia',
     fxNote:

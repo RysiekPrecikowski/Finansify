@@ -29,7 +29,9 @@ export const en: Dictionary = {
     stale: 'stale',
     filterByAssetClass: 'Filter by asset class',
     chartRange: 'Chart range',
-    currencyLocked: 'Currency conversion arrives in Phase 2, together with NBP rates.',
+    currencyLocked:
+      'The dashboard still runs on demo data in PLN — the currency you picked does not apply to these figures. It applies on Portfolio.',
+    currencyIgnored: '{currency} picked — dashboard is on demo data',
     ranges: {
       '1D': '1D',
       '1W': '1W',
@@ -279,6 +281,9 @@ export const en: Dictionary = {
     seeAll: 'See indicators',
     fxBy: 'NBP table A — mid rate',
     fxPair: 'Currency pair',
+    fxBase: 'Base currency',
+    fxQuote: 'Quote currency',
+    fxSwap: 'Swap sides',
     fxRange: 'Range',
     fixedOn: 'Fixed on',
     fxNote:

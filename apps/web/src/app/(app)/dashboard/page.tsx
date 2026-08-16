@@ -10,6 +10,7 @@ import { IndicatorStrip } from '@/components/indicators/indicator-strip';
 import { chartPointCount, resample, type ChartSeries } from '@/lib/chart-series';
 import { parseDashboardParams } from '@/lib/dashboard-params';
 import { directionOf, formatMoney } from '@/lib/format';
+import { getDisplaySettings } from '@/lib/display/server';
 import { getLocale } from '@/lib/i18n/server';
 import { type Locale } from '@/lib/i18n/locales';
 import { dictionaryFor } from '@/lib/i18n/dictionaries';
@@ -79,7 +80,11 @@ function chartSeriesFor(
 export default async function DashboardPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
-  const [locale, raw] = await Promise.all([getLocale(), searchParams]);
+  const [locale, raw, display] = await Promise.all([
+    getLocale(),
+    searchParams,
+    getDisplaySettings(),
+  ]);
   const dictionary = dictionaryFor(locale);
   const params = parseDashboardParams(raw);
 
@@ -124,7 +129,12 @@ export default async function DashboardPage({
 
       <AssetClassChips present={present} dictionary={dictionary} />
 
-      <PortfolioHeadline snapshot={snapshot} locale={locale} dictionary={dictionary} />
+      <PortfolioHeadline
+        snapshot={snapshot}
+        locale={locale}
+        dictionary={dictionary}
+        display={display.total}
+      />
 
       <ChartCard
         series={chartSeries}

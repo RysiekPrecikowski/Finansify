@@ -8,14 +8,59 @@
 // client bundle. The branded `Currency` is built on the server, in `server.ts`.
 
 /**
- * What the switcher offers. Deliberately short: every code here joins the set
- * of currencies refreshed from NBP table A on a `/portfolio` render, so the
- * list is a cost, not a menu. Table A carries far more — add one when someone
- * actually wants to read their portfolio in it.
+ * Everything NBP table A carries, which is everything this app can convert at
+ * all. Offering fewer would be an arbitrary limit, not a saving: `fetchTableTo`
+ * pulls the **whole** table in one request and `refreshFxRates` stores every
+ * row of it, so a rate for TRY is already on file the moment a rate for USD is.
+ *
+ * PLN leads because table A is PLN-based and has no row of its own; the four
+ * after it are the ones anyone here actually holds, and the rest is
+ * alphabetical. Verified against a live table on 2026-08-14 (32 rows + PLN).
+ *
+ * XDR is the IMF's basket rather than a currency anyone is paid in. It stays,
+ * because table A quotes it and excluding it would be a judgement this list has
+ * no business making.
  */
-export const displayCurrencies = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'] as const;
+export const displayCurrencies = [
+  'PLN',
+  'EUR',
+  'USD',
+  'GBP',
+  'CHF',
+  'AUD',
+  'BRL',
+  'CAD',
+  'CLP',
+  'CNY',
+  'CZK',
+  'DKK',
+  'HKD',
+  'HUF',
+  'IDR',
+  'ILS',
+  'INR',
+  'ISK',
+  'JPY',
+  'KRW',
+  'MXN',
+  'MYR',
+  'NOK',
+  'NZD',
+  'PHP',
+  'RON',
+  'SEK',
+  'SGD',
+  'THB',
+  'TRY',
+  'UAH',
+  'XDR',
+  'ZAR',
+] as const;
 
 export type DisplayCurrencyCode = (typeof displayCurrencies)[number];
+
+/** The five at the head of the list, kept together above a separator in every picker. */
+export const commonCurrencies = displayCurrencies.slice(0, 5) as readonly DisplayCurrencyCode[];
 
 export const defaultDisplayCurrency: DisplayCurrencyCode = 'PLN';
 

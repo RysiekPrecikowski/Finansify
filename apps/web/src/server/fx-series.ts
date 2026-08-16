@@ -9,13 +9,7 @@ import {
   type FxSeriesSummary,
 } from '@finansify/core';
 
-import {
-  codesOf,
-  fxRangeMonths,
-  NBP_ARCHIVE_START,
-  type FxPairId,
-  type FxRangeId,
-} from '@/lib/fx-pairs';
+import { fxRangeMonths, NBP_ARCHIVE_START, type FxPair, type FxRangeId } from '@/lib/fx-pairs';
 import { clock, getFxProvider, getFxRates } from '@/server/container';
 
 export interface FxPairSeries {
@@ -28,9 +22,8 @@ export interface FxPairSeries {
 
 const displayTimeZone = 'Europe/Warsaw';
 
-export function pairOf(pairId: FxPairId): CurrencyPair {
-  const [base, quote] = codesOf(pairId);
-  return { base: toCurrency(base), quote: toCurrency(quote) };
+export function pairOf(pair: FxPair): CurrencyPair {
+  return { base: toCurrency(pair.base), quote: toCurrency(pair.quote) };
 }
 
 export function windowFor(
@@ -58,10 +51,7 @@ export function windowFor(
  * chart and the number above it can never disagree: they are the same rows.
  * That is the whole argument for NBP over a market feed here — see ADR 0017.
  */
-export async function readFxPairSeries(
-  pairId: FxPairId,
-  rangeId: FxRangeId,
-): Promise<FxPairSeries> {
+export async function readFxPairSeries(pairId: FxPair, rangeId: FxRangeId): Promise<FxPairSeries> {
   const pair = pairOf(pairId);
   const today = clock.now().toZonedDateTimeISO(displayTimeZone).toPlainDate();
   const window = windowFor(rangeId, today);
