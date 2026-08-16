@@ -55,11 +55,13 @@ describe('xtbStatementParser.parse — against the real fixture', () => {
     statementWarnings = result.warnings;
   });
 
-  it('returns exactly the rows the fixture’s own cash operations produce', () => {
+  it('returns exactly the rows the fixture’s own cash operations produce, plus the recovered SPIN.PL row', () => {
     // 24 Cash Operations data rows in fixture/generate.ts, minus 4 zero-sum
     // transfer rows (ST1, ST2, TR1, TR2) and 3 zero-amount unrecognized rows
-    // tied to the SPLT.PL split cluster (C1, CR1, CT1) = 17.
-    expect(rows).toHaveLength(17);
+    // tied to the SPLT.PL split cluster (C1, CR1, CT1) = 17, plus one row
+    // recovered from Open Positions for SPIN.PL, which has zero Cash
+    // Operations rows at all = 18.
+    expect(rows).toHaveLength(18);
   });
 
   it('reports no statement-level warnings — every Open Positions ticker has a cash row', () => {
@@ -146,6 +148,28 @@ describe('xtbStatementParser.parse — against the real fixture', () => {
     expect(t8.warnings[0]).toMatch(/no counterpart/);
     expect(t8.warnings[0]).toContain('LOST.WA');
     expect(t8.warnings[0]).not.toContain('LOST.PL');
+  });
+
+  it('recovers SPIN.PL as a transfer_in row from Open Positions’ own lot, since Cash Operations has nothing for it at all', () => {
+    const spin = findRow(rows, 'xtb-position:1000000009');
+
+    expect(spin.type).toBe('transfer_in');
+    expect(spin.instrument?.symbol).toBe('SPIN.WA'); // .PL -> .WA, same normalization as every other row
+    expect(spin.quantity.toString()).toBe('8');
+    expect(spin.price?.toString()).toBe('0.01 PLN');
+    expect(spin.grossAmount?.toString()).toBe('0.08 PLN');
+    expect(spin.currency).toBe(currency('PLN'));
+    expect(spin.warnings).toHaveLength(1);
+    expect(spin.warnings[0]).toMatch(/Open Positions/);
+    expect(spin.warnings[0]).toMatch(/Cash Operations/);
+  });
+
+  it('does not produce the old statement-level "no buy/sell row for it at all" warning for SPIN.PL, since it now reconciles', () => {
+    // The recovered transfer_in row's quantity (8) matches SPIN.PL's own
+    // Open Positions aggregate (8) exactly, so it reconciles cleanly —
+    // proven by the blanket "no statement-level warnings" assertion above,
+    // and reasserted here by name so a future regression names the ticker.
+    expect(statementWarnings.some((w) => w.includes('SPIN'))).toBe(false);
   });
 
   it('never produces a row for the Cash Operations "Total" or Closed Positions "Profit/loss" footer', () => {

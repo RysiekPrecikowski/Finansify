@@ -12,9 +12,13 @@ import {
 import { readCashOperations } from './cash-operations';
 import { inferFxRatios, type TradeObservation } from './fx-inference';
 import { SHEET_NAMES, cellString } from './layout';
-import { mapCashOperationRow } from './map-operation';
+import { mapCashOperationRow, mapOpenPositionLot } from './map-operation';
 import { parseTradeComment } from './comment-grammar';
-import { readClosedPositionTickers, readOpenPositionAggregates } from './positions';
+import {
+  readClosedPositionTickers,
+  readOpenPositionAggregates,
+  readOpenPositionLots,
+} from './positions';
 import { reconcile } from './reconciliation';
 
 async function loadWorkbook(file: RawFile) {
@@ -132,8 +136,22 @@ async function parse(file: RawFile): Promise<ParsedStatement> {
   const closedPositionTickers =
     closedPositions === undefined ? new Set<string>() : readClosedPositionTickers(closedPositions);
 
+  // A ticker with an open lot but zero Cash Operations evidence at all (a
+  // spin-off with no cash trace, confirmed against a real account) gets a
+  // transaction recovered from Open Positions' own per-lot record instead of
+  // only a warning — see `mapOpenPositionLot`.
+  const tickersWithCashEvidence = new Set(
+    parsedRows
+      .filter((row) => (row.type === 'buy' || row.type === 'sell') && row.instrument !== null)
+      .map((row) => row.instrument!.symbol),
+  );
+  const openPositionLots = openPositions === undefined ? [] : readOpenPositionLots(openPositions);
+  const recoveredRows = openPositionLots
+    .filter((lot) => !tickersWithCashEvidence.has(lot.ticker))
+    .map((lot) => mapOpenPositionLot(lot, accountCurrency));
+
   const { rows, statementWarnings } = reconcile(
-    parsedRows,
+    [...parsedRows, ...recoveredRows],
     openVolumeByTicker,
     closedPositionTickers,
   );

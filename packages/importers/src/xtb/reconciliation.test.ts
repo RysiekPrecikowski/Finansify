@@ -134,6 +134,64 @@ describe('reconcile', () => {
     expect(result.statementWarnings[0]).toMatch(/spin-off/i);
   });
 
+  describe('transfer_in counting — regression for recovered Open Positions rows', () => {
+    // These rows are constructed directly with type: 'transfer_in', not via
+    // mapOpenPositionLot — reconcile() has no notion of "this row was
+    // recovered", it only ever looks at row.type, so a transfer_in row from
+    // any source must count identically.
+
+    it('counts a transfer_in row toward net quantity the same way a buy does', () => {
+      const rows = [row('SPIN.PL', 'transfer_in', 8, 'R1')];
+
+      const result = reconcile(rows, new Map([['SPIN.PL', new Decimal(8)]]), new Set());
+
+      expect(result.rows[0]?.warnings).toEqual([]);
+      expect(result.statementWarnings).toEqual([]);
+    });
+
+    it('still raises a reconciliation-mismatch warning for a transfer_in row that disagrees with Open Positions', () => {
+      const rows = [row('SPIN.PL', 'transfer_in', 8, 'R1')];
+
+      const result = reconcile(rows, new Map([['SPIN.PL', new Decimal(5)]]), new Set());
+
+      expect(result.rows[0]?.warnings).toHaveLength(1);
+      expect(result.rows[0]?.warnings[0]).toMatch(/Reconciliation mismatch/);
+    });
+
+    it('sums a transfer_in row together with buy/sell rows for the same ticker, not special-cased separately', () => {
+      const rows = [
+        row('SPIN.PL', 'buy', 3, 'T1'),
+        row('SPIN.PL', 'transfer_in', 2, 'R1'),
+        row('SPIN.PL', 'sell', 1, 'T2'),
+      ];
+
+      // Net: 3 + 2 - 1 = 4, matching Open Positions — no warning if transfer_in
+      // is summed in exactly the same way buy/sell are.
+      const result = reconcile(rows, new Map([['SPIN.PL', new Decimal(4)]]), new Set());
+
+      expect(result.rows.every((r) => r.warnings.length === 0)).toBe(true);
+      expect(result.statementWarnings).toEqual([]);
+    });
+
+    it('flags a nonzero transfer_in-only ticker with no counterpart anywhere, same as a buy would', () => {
+      const rows = [row('SPIN.PL', 'transfer_in', 8, 'R1')];
+
+      const result = reconcile(rows, new Map(), new Set());
+
+      expect(result.rows[0]?.warnings).toHaveLength(1);
+      expect(result.rows[0]?.warnings[0]).toMatch(/no counterpart/);
+    });
+
+    it('does not change how a pre-existing buy/sell-only ticker reconciles — no transfer_in rows present', () => {
+      const rows = [row('ETFX.PL', 'buy', 10, 'T1'), row('ETFX.PL', 'sell', 3, 'T2')];
+
+      const result = reconcile(rows, new Map([['ETFX.PL', new Decimal(7)]]), new Set());
+
+      expect(result.rows.every((r) => r.warnings.length === 0)).toBe(true);
+      expect(result.statementWarnings).toEqual([]);
+    });
+  });
+
   it('ignores non-trade rows (e.g. dividend) when computing net quantity', () => {
     const dividendRow = row('ETFX.PL', 'dividend', 999, 'DIV1');
 
