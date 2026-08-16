@@ -1,7 +1,6 @@
 import {
   makeRefreshIndexSeries,
   summarizeIndexSeries,
-  Temporal,
   type IndexId,
   type IndexObservation,
   type IndexSummary,
@@ -66,5 +65,3 @@ export async function readAllIndicators(): Promise<readonly IndicatorSeries[]> {
     ),
   );
 }
-
-export { Temporal };

@@ -10,7 +10,6 @@ export const en: Dictionary = {
     portfolio: 'Portfolio',
     transactions: 'Transactions',
     more: 'More',
-    indicators: 'Indicators',
   },
   actions: {
     toggleTheme: 'Toggle theme',

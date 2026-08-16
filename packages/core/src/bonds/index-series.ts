@@ -56,9 +56,11 @@ export function summarizeIndexSeries(
  *   calendar month would miss a second change inside one month, so this one is
  *   a plain age check instead.
  *
- * Neither is a scheduler — `architecture.md` forbids one. This is the
- * stale-while-revalidate test a read performs on itself, and the `use cache`
- * boundary above it keeps that to roughly once a day.
+ * Neither is a scheduler — `architecture.md` forbids one. This check *is* the
+ * throttle: a read performs it on itself, and it costs one `latest()` query per
+ * render. There is no `use cache` boundary above it — nothing in `apps/web` uses
+ * one — so the network hop is held to roughly once a day by this rule alone,
+ * not by a cache.
  */
 const REFERENCE_RATE_MAX_AGE_DAYS = 7;
 

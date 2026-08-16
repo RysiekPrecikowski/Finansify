@@ -11,7 +11,6 @@ export const pl = {
     portfolio: 'Portfel',
     transactions: 'Transakcje',
     more: 'Więcej',
-    indicators: 'Wskaźniki',
   },
   actions: {
     toggleTheme: 'Przełącz motyw',
