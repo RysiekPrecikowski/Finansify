@@ -59,16 +59,29 @@ const CONFLICT_REASON =
  *   exactly what `editedAfterImport` exists to prevent.
  *
  * A row whose `parsed.instrument` is set but not yet `resolvedInstrumentId`
- * is refused — instrument resolution (its own ticket) has to finish first.
- * A row with no instrument candidate at all (a cash line: deposit, fee, tax,
- * interest) never needed resolution and sails through with `instrumentId:
- * null`.
+ * is refused — instrument resolution (its own ticket) has to finish first,
+ * unless `overrides.instrumentId` supplies one right here (the review UI's
+ * edit-and-accept form can pick an instrument in the same submit). A row with
+ * no instrument candidate at all (a cash line: deposit, fee, tax, interest)
+ * never needed resolution and sails through with `instrumentId: null`.
+ *
+ * `overrides` is what the review UI's edit-and-accept form contributes —
+ * the same fields a hand-entered transaction submits, laid over the values
+ * `ParsedRow` would otherwise supply. `accountId` and `instrumentId` are
+ * never taken from it directly: `accountId` is always the batch's own
+ * account (a row cannot be re-pointed at a different one a form happened to
+ * submit), and `instrumentId` is folded into the instrument-resolved check
+ * above before the merge, so both land in `validateTransactionInput` exactly
+ * once, from one place.
  */
 export function makeAcceptImportRow(deps: {
   imports: ScopedImportRepository;
   ledger: ScopedLedgerRepository;
 }) {
-  return async function acceptImportRow(rowId: unknown): Promise<UseCaseResult<ImportRow>> {
+  return async function acceptImportRow(
+    rowId: unknown,
+    overrides?: Record<string, unknown>,
+  ): Promise<UseCaseResult<ImportRow>> {
     const parsedId = importRowIdSchema.safeParse(rowId);
     if (!parsedId.success) return failure([{ path: 'rowId', message: 'Not an import row id' }]);
 
@@ -77,7 +90,12 @@ export function makeAcceptImportRow(deps: {
     if (row.status !== 'pending') {
       return failure([{ path: 'rowId', message: 'This row has already been reviewed' }]);
     }
-    if (row.parsed.instrument !== null && row.resolvedInstrumentId === null) {
+
+    const resolvedInstrumentId =
+      overrides !== undefined && 'instrumentId' in overrides
+        ? (overrides.instrumentId as string | null)
+        : row.resolvedInstrumentId;
+    if (row.parsed.instrument !== null && resolvedInstrumentId === null) {
       return failure([{ path: 'rowId', message: 'Resolve this row’s instrument first' }]);
     }
 
@@ -86,10 +104,19 @@ export function makeAcceptImportRow(deps: {
 
     const rawInput = transactionInputFromParsedRow(
       row.parsed,
-      row.resolvedInstrumentId,
+      resolvedInstrumentId,
       batch.accountId,
     );
-    const validated = await validateTransactionInput(deps.ledger, rawInput);
+    const merged =
+      overrides === undefined
+        ? rawInput
+        : {
+            ...rawInput,
+            ...overrides,
+            accountId: batch.accountId,
+            instrumentId: resolvedInstrumentId,
+          };
+    const validated = await validateTransactionInput(deps.ledger, merged);
     if (!validated.ok) return validated;
 
     const existing = await deps.ledger.findByExternalId(batch.accountId, row.parsed.externalId);

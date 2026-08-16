@@ -6,6 +6,7 @@ import { useActionState } from 'react';
 
 import { uploadStatementAction, type UploadStatementState } from '@/app/(app)/import/actions';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/lib/i18n/client';
 
 const idle: UploadStatementState = { status: 'idle' };
 
@@ -25,20 +26,16 @@ interface Props {
   readonly accounts: readonly AccountOption[];
 }
 
-/**
- * Deliberately plain — this screen exists to prove upload → sniff → store →
- * parse → stage works end to end (ticket 4), not to be the review
- * experience. That's its own ticket, with resolved instruments, dedup, and
- * accept/reject per row; this one only ever shows a batch's own summary.
- */
 export function ImportUploadForm({ accounts }: Props) {
   const [state, formAction, isPending] = useActionState(uploadStatementAction, idle);
+  const { dictionary } = useI18n();
+  const strings = dictionary.imports;
 
   return (
     <form action={formAction} className="flex max-w-md flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="accountId" className="text-sm font-medium">
-          Account
+          {strings.account}
         </label>
         <select
           id="accountId"
@@ -56,7 +53,7 @@ export function ImportUploadForm({ accounts }: Props) {
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="file" className="text-sm font-medium">
-          Statement file
+          {strings.file}
         </label>
         <input
           id="file"
@@ -69,7 +66,7 @@ export function ImportUploadForm({ accounts }: Props) {
       </div>
 
       <Button type="submit" disabled={isPending} className="self-start">
-        {isPending ? 'Uploading…' : 'Upload'}
+        {isPending ? strings.uploading : strings.upload}
       </Button>
 
       {state.status === 'error' && <p className="text-destructive text-sm">{state.message}</p>}
@@ -77,15 +74,15 @@ export function ImportUploadForm({ accounts }: Props) {
       {state.status === 'done' && (
         <div className="border-border flex flex-col gap-1 rounded-md border p-3 text-sm">
           <p>
-            <span className="text-muted-foreground">Status: </span>
+            <span className="text-muted-foreground">{strings.status}: </span>
             {state.batch.status}
           </p>
           <p>
-            <span className="text-muted-foreground">Broker: </span>
+            <span className="text-muted-foreground">{strings.broker}: </span>
             {state.batch.broker}
           </p>
           <p>
-            <span className="text-muted-foreground">Rows staged: </span>
+            <span className="text-muted-foreground">{strings.rowsStaged}: </span>
             {state.batch.totalRows}
           </p>
           {state.batch.failureReason !== null && (
@@ -105,7 +102,7 @@ export function ImportUploadForm({ accounts }: Props) {
               render={<Link href={`/import/${state.batch.id}` as Route} />}
               className="self-start"
             >
-              Resolve instruments
+              {strings.resolveInstruments}
             </Button>
           )}
         </div>

@@ -261,8 +261,9 @@ function scopedTo(db: Database, userId: UserId): ScopedImportRepository {
         .update(importRows)
         .set({
           status: outcome.status,
-          transactionId: outcome.transactionId,
-          rejectionReason: outcome.status === 'duplicate' ? outcome.reason : null,
+          transactionId: outcome.status === 'rejected' ? null : outcome.transactionId,
+          rejectionReason:
+            outcome.status === 'rejected' || outcome.status === 'duplicate' ? outcome.reason : null,
           updatedAt: new Date(),
         })
         .where(eq(importRows.id, id))

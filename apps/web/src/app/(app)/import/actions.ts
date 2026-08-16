@@ -2,8 +2,11 @@
 
 import {
   importBatchIdSchema,
+  importRowIdSchema,
   instrumentId,
   instrumentIdSchema,
+  makeAcceptImportRow,
+  makeRejectImportRow,
   makeUploadStatement,
   type ImportBatch,
   type InstrumentResolution,
@@ -13,7 +16,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { getCurrentUser } from '@/lib/auth';
+import { byField, submittedValues, type FormState } from '@/lib/form-state';
+import { getDictionary } from '@/lib/i18n/server';
 import { resolveInstrumentSelection } from '@/lib/instrument-selection';
+import { transactionInputFrom } from '@/lib/transaction-form';
 import {
   clock,
   getFileStore,
@@ -186,4 +192,127 @@ export async function confirmManualMatchAction(formData: FormData): Promise<void
 
   revalidatePath(`/import/${batchId}`);
   redirect(`/import/${batchId}` as Route);
+}
+
+function revalidateAfterAccept(batchId: string): void {
+  revalidatePath(`/import/${batchId}/review`);
+  revalidatePath('/transactions');
+  revalidatePath('/portfolio');
+}
+
+/**
+ * The one-click path for the common case — a row accepted exactly as the
+ * broker exported it, no edits. `acceptImportRow` is given no overrides, so
+ * it validates and dedups the parsed row as-is. A void action rather than
+ * `useActionState`: there is no form to echo a failure back into here, so a
+ * failure sends the reviewer to the row's own page (`edit-and-accept` does
+ * have somewhere to show it).
+ */
+export async function acceptRowAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (user === null) redirect('/sign-in' as Route);
+
+  const rowIdResult = importRowIdSchema.safeParse(formData.get('rowId'));
+  if (!rowIdResult.success) redirect('/import' as Route);
+  const rowId = rowIdResult.data;
+
+  const row = await scopedImportsFor(user.id).getRow(rowId);
+  if (row === null) redirect('/import' as Route);
+
+  const acceptImportRow = makeAcceptImportRow({
+    imports: scopedImportsFor(user.id),
+    ledger: scopedLedgerFor(user.id),
+  });
+  const result = await acceptImportRow(rowId);
+  revalidateAfterAccept(row.batchId);
+
+  if (!result.ok) redirect(`/import/${row.batchId}/review/${rowId}?error=1` as Route);
+  redirect(`/import/${row.batchId}/review` as Route);
+}
+
+/**
+ * The edit-and-accept form's target — reuses `<TransactionForm>`,
+ * `transactionInputFrom` and `resolveInstrumentSelection` exactly as
+ * `createTransactionAction` does, so a reviewer edits a staged row with the
+ * same fields and the same validation a hand-entered transaction gets. What
+ * it submits becomes `acceptImportRow`'s `overrides` — `accountId` is never
+ * taken from the form (the use case forces the batch's own account
+ * regardless of what a submission carries).
+ */
+export async function acceptImportRowAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await getCurrentUser();
+  if (user === null) redirect('/sign-in' as Route);
+
+  // `<TransactionForm>` renders `values.id` as a hidden field named `id` (the
+  // same field `updateTransactionAction` reads for a transaction id) —
+  // here it carries the import row id instead, not a transaction id.
+  const rowIdResult = importRowIdSchema.safeParse(formData.get('id'));
+  if (!rowIdResult.success) redirect('/import' as Route);
+  const rowId = rowIdResult.data;
+
+  const row = await scopedImportsFor(user.id).getRow(rowId);
+  if (row === null) redirect('/import' as Route);
+
+  const instrument = await resolveInstrumentSelection(formData);
+  if (!instrument.ok) {
+    const values = submittedValues(formData);
+    return { status: 'error', fieldErrors: byField(instrument.issues), values };
+  }
+
+  const acceptImportRow = makeAcceptImportRow({
+    imports: scopedImportsFor(user.id),
+    ledger: scopedLedgerFor(user.id),
+  });
+  const result = await acceptImportRow(rowId, {
+    ...transactionInputFrom(formData),
+    instrumentId: instrument.id,
+  });
+
+  if (!result.ok) {
+    const values = submittedValues(formData);
+    const dictionary = await getDictionary();
+    return {
+      status: 'error',
+      fieldErrors: byField(result.issues),
+      values,
+      formError: dictionary.transactions.errors.invalid,
+    };
+  }
+
+  revalidateAfterAccept(row.batchId);
+  redirect(`/import/${row.batchId}/review` as Route);
+}
+
+/**
+ * Settles a row to `rejected` without ever creating or touching a
+ * transaction. `reason` is free text from the row page's own form; an empty
+ * submission gets a default rather than a validation round trip — there is
+ * nothing risky about a generic reason, and `rejectImportRow` still refuses
+ * an empty string at its own boundary regardless of what this layer sends.
+ */
+export async function rejectRowAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (user === null) redirect('/sign-in' as Route);
+
+  const rowIdResult = importRowIdSchema.safeParse(formData.get('rowId'));
+  if (!rowIdResult.success) redirect('/import' as Route);
+  const rowId = rowIdResult.data;
+
+  const row = await scopedImportsFor(user.id).getRow(rowId);
+  if (row === null) redirect('/import' as Route);
+
+  const rawReason = formData.get('reason');
+  const reason =
+    typeof rawReason === 'string' && rawReason.trim() !== ''
+      ? rawReason.trim()
+      : 'Skipped during review.';
+
+  const rejectImportRow = makeRejectImportRow({ imports: scopedImportsFor(user.id) });
+  await rejectImportRow(rowId, reason);
+
+  revalidatePath(`/import/${row.batchId}/review`);
+  redirect(`/import/${row.batchId}/review` as Route);
 }

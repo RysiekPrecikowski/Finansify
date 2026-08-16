@@ -169,7 +169,15 @@ had been blocked on them went first — see "Phase 4 — Imports" below for what
       which always flags `editedAfterImport` — that distinction is what makes
       repeated re-imports of the same statement idempotent); an edited match is
       left untouched and the row settles `duplicate` with a reason
-- [ ] Import review UI
+- [x] Import review UI — batch counts and reconciliation warnings on
+      `/import/[batchId]/review`, a `<DataList>` of every staged row; per-row
+      accept-as-is, reject with a reason, or edit-and-accept reusing
+      `<TransactionForm>` (a new `overrides` parameter on `acceptImportRow`
+      lets the edited fields flow through the same dedup/conflict logic, with
+      `accountId` always forced to the batch's own account regardless of what
+      a submission carries); `rejectImportRow` is the new use case behind
+      reject. The whole `/import` flow is now bilingual and linked from
+      `/more`.
 
 ### Phase 2 — Valuation
 
