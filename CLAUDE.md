@@ -84,8 +84,17 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
 10. **Next 16 diverges from training data** — `proxy.ts` rather than
     `middleware.ts`, Cache Components, `after()`. Check the docs; do not recall.
 11. **All technical content is English** — code, identifiers, comments, commit
-    messages, PR titles and descriptions, and everything under `docs/`. Talk to
-    the team in Polish; nothing that lands in the repository is.
+    messages, everything under `docs/`, and **everything written on GitHub**:
+    PR titles, descriptions, review comments and replies to them. Talk to the
+    team in Polish in chat; nothing that lands in the repository or on a pull
+    request is.
+
+    **Keep a review reply short.** State what changed and, when it is not
+    obvious, why that option over the other one — a few sentences, not a
+    summary of the whole diff. The reviewer already read the code; they are
+    checking whether their point was understood, not being briefed. If a reply
+    needs headings, it belongs in the PR description instead.
+
 12. **`main` is protected.** Every change lands through a pull request,
     reviewed and explicitly approved by the other teammate, before merge. No
     direct pushes, no force-pushes, no `--no-verify`.
