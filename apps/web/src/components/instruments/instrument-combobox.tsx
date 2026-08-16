@@ -23,8 +23,11 @@ export type InstrumentComboboxInitial =
    * A search seeded but not yet answered for — the import resolve screen's
    * fallback, where the parser already knows a normalized ticker (e.g. a
    * broker's raw `XTB.PL` turned into the market symbol `XTB.WA`) but nothing
-   * has been picked from the results yet. Runs the same debounced search a
-   * user's own typing would, once, on mount — never a selection by itself.
+   * has been picked from the results yet. Runs once on mount; a single result
+   * whose own symbol matches the seeded query exactly is selected right away
+   * (the normalized ticker is already a high-confidence guess — requiring a
+   * click to confirm what is visibly the only possible answer reads as
+   * broken, not as a safety check), anything less exact still waits for one.
    */
   | { readonly kind: 'query'; readonly text: string }
   | null;
@@ -67,9 +70,27 @@ export function InstrumentCombobox({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  function runSearch(trimmed: string) {
+  /**
+   * `autoSelectIfSingle` only ever fires from the seeded-query mount effect
+   * below, never from a keystroke — auto-picking while the user is still
+   * typing would select out from under them before they finished. The seeded
+   * query is the parser's own normalized ticker (`XTB.PL` → `XTB.WA`), so a
+   * single hit whose own symbol matches that query exactly is as trustworthy
+   * as the bulk auto-match screen's pre-checked exact hits; anything looser
+   * (multiple results, or a fuzzy single result for a different symbol) still
+   * waits for a click, same as before.
+   */
+  function runSearch(trimmed: string, autoSelectIfSingle = false) {
     startTransition(async () => {
       const results = await searchInstrumentsAction(trimmed);
+      if (
+        autoSelectIfSingle &&
+        results.length === 1 &&
+        leadingSymbol(results[0]!.label).toUpperCase() === trimmed.toUpperCase()
+      ) {
+        onPick(results[0]!);
+        return;
+      }
       setOptions(results);
       setOpen(true);
     });
@@ -81,7 +102,7 @@ export function InstrumentCombobox({
   // for the user to type the exact thing the parser already knows.
   useEffect(() => {
     if (initial?.kind === 'query' && initial.text.trim().length >= MIN_QUERY_LENGTH) {
-      runSearch(initial.text.trim());
+      runSearch(initial.text.trim(), true);
     }
     // Mount-time only, by design: `initial` seeds this instance once and is
     // never expected to change under the same component.
@@ -197,4 +218,9 @@ function optionKey(option: InstrumentOption): string {
     default:
       return `candidate:${option.provider}:${option.symbol}`;
   }
+}
+
+/** `label` is always `"<symbol> · <name>[ (<exchange>)]"` for both option kinds. */
+function leadingSymbol(label: string): string {
+  return label.split(' · ')[0] ?? label;
 }
