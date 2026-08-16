@@ -9,7 +9,7 @@ import { type Locale } from '@/lib/i18n/locales';
 import { type FxPairSeries } from '@/server/fx-series';
 
 import { CurrencyPicker } from './currency-picker';
-import { Sparkline } from './indicator-sparkline';
+import { SeriesChart } from './series-chart';
 
 /**
  * One currency pair, its history over the chosen window, and the three pickers
@@ -87,9 +87,15 @@ export function FxPairCard({
             {strings.fixedOn} {formatPlainDate(summary.latest.date, locale)}
           </p>
 
-          <Sparkline
-            points={series.history.map((point) => ({ value: Number(point.rate.toFixed(6)) }))}
+          <SeriesChart
+            points={series.history.map((point) => ({
+              date: point.date.toString(),
+              value: Number(point.rate.toFixed(6)),
+            }))}
             shape="line"
+            format="rate"
+            locale={locale}
+            label={fxPairLabel(params.pair)}
           />
         </>
       )}
