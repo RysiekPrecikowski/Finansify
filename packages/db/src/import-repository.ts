@@ -13,6 +13,8 @@ import {
   type ImportBatchId,
   type ImportRepository,
   type ImportRow,
+  type ImportRowId,
+  type ImportRowOutcome,
   type InstrumentResolution,
   type ParsedInstrumentCandidate,
   type ParsedRow,
@@ -234,6 +236,38 @@ function scopedTo(db: Database, userId: UserId): ScopedImportRepository {
         updated.push(...rows);
       }
       return updated.map(toImportRow);
+    },
+
+    async getRow(id: ImportRowId) {
+      const [found] = await db
+        .select({ row: importRows })
+        .from(importRows)
+        .innerJoin(importBatches, eq(importRows.batchId, importBatches.id))
+        .where(and(eq(importRows.id, id), owned))
+        .limit(1);
+      return found === undefined ? null : toImportRow(found.row);
+    },
+
+    async recordRowOutcome(id: ImportRowId, outcome: ImportRowOutcome) {
+      const [found] = await db
+        .select({ row: importRows })
+        .from(importRows)
+        .innerJoin(importBatches, eq(importRows.batchId, importBatches.id))
+        .where(and(eq(importRows.id, id), owned))
+        .limit(1);
+      if (found === undefined) throw new Error(`No import row ${id}`);
+
+      const [updated] = await db
+        .update(importRows)
+        .set({
+          status: outcome.status,
+          transactionId: outcome.transactionId,
+          rejectionReason: outcome.status === 'duplicate' ? outcome.reason : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(importRows.id, id))
+        .returning();
+      return toImportRow(updated!);
     },
   };
 }

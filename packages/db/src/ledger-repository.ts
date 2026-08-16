@@ -8,6 +8,7 @@ import {
   transactionId as toTransactionId,
   type Account,
   type AccountInput,
+  type ImportedTransactionOrigin,
   type Instrument,
   type InstrumentInput,
   type InstrumentRepository,
@@ -283,6 +284,48 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
         // against, so the next import silently recreates it (ADR 0004).
         .set({ deletedAt: new Date(), updatedAt: new Date() })
         .where(and(owned.transaction, eq(transactions.id, id)));
+    },
+
+    async findByExternalId(accountId, externalId) {
+      const [row] = await db
+        .select()
+        .from(transactions)
+        .where(
+          and(
+            owned.transaction,
+            eq(transactions.accountId, accountId),
+            eq(transactions.externalId, externalId),
+            isNull(transactions.deletedAt),
+          ),
+        )
+        .limit(1);
+      return row === undefined ? null : toTransaction(row);
+    },
+
+    async createImportedTransaction(input: TransactionInput, origin: ImportedTransactionOrigin) {
+      const [row] = await db
+        .insert(transactions)
+        .values({
+          ...toRow(input, userId),
+          source: 'import',
+          externalId: origin.externalId,
+          importBatchId: origin.importBatchId,
+        })
+        .returning();
+      return toTransaction(row!);
+    },
+
+    async refreshImportedTransaction(id: TransactionId, input: TransactionInput) {
+      await requireOwnTransaction(id);
+      const [row] = await db
+        .update(transactions)
+        // Deliberately no `editedAfterImport` write — this is a re-import
+        // refreshing a row nobody has touched, not a hand correction, and it
+        // must stay `false` so the *next* re-import can still refresh it too.
+        .set({ ...toRow(input, userId), updatedAt: new Date() })
+        .where(and(owned.transaction, eq(transactions.id, id)))
+        .returning();
+      return toTransaction(row!);
     },
   };
 }

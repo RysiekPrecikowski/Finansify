@@ -163,8 +163,12 @@ had been blocked on them went first — see "Phase 4 — Imports" below for what
       `InstrumentRepository.search`, bulk-confirm for the common case, manual
       fallback reusing `<InstrumentCombobox>`; every mapping stays editable
       via `resolveInstruments` until the batch is accepted
-- [ ] Import use case — dedup, conflicts, reconciliation flags written to
-      `import_rows`
+- [x] Import use case — `acceptImportRow` dedups on `(account_id, external_id)`
+      via `findByExternalId`; an unedited match is refreshed in place through
+      the dedicated `refreshImportedTransaction` (never `updateTransaction`,
+      which always flags `editedAfterImport` — that distinction is what makes
+      repeated re-imports of the same statement idempotent); an edited match is
+      left untouched and the row settles `duplicate` with a reason
 - [ ] Import review UI
 
 ### Phase 2 — Valuation

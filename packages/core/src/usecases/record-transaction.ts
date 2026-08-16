@@ -24,7 +24,7 @@ import { failure, issuesOf, success, type FieldIssue, type UseCaseResult } from 
  * `account_id` in the caller's ledger — an integrity hole the FK does not
  * close, because the FK is global and only `user_id` is scoped (ADR 0009).
  */
-async function validate(
+export async function validateTransactionInput(
   ledger: ScopedLedgerRepository,
   input: unknown,
 ): Promise<UseCaseResult<TransactionInput>> {
@@ -53,7 +53,7 @@ function parseId(id: unknown): UseCaseResult<Transaction['id']> {
 
 export function makeRecordTransaction(deps: { ledger: ScopedLedgerRepository }) {
   return async function recordTransaction(input: unknown): Promise<UseCaseResult<Transaction>> {
-    const validated = await validate(deps.ledger, input);
+    const validated = await validateTransactionInput(deps.ledger, input);
     if (!validated.ok) return validated;
 
     return success(await deps.ledger.createTransaction(validated.value));
@@ -76,7 +76,7 @@ export function makeUpdateTransaction(deps: { ledger: ScopedLedgerRepository }) 
     const transactionId = parseId(id);
     if (!transactionId.ok) return transactionId;
 
-    const validated = await validate(deps.ledger, input);
+    const validated = await validateTransactionInput(deps.ledger, input);
     if (!validated.ok) return validated;
 
     return success(await deps.ledger.updateTransaction(transactionId.value, validated.value));

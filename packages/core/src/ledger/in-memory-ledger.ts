@@ -4,6 +4,7 @@ import { Money, currency } from '../money';
 import { type UserId } from '../ports/session';
 import { Temporal } from '../time';
 import {
+  type ImportedTransactionOrigin,
   type InstrumentInput,
   type InstrumentRepository,
   type LedgerRepository,
@@ -15,6 +16,7 @@ import {
   portfolioId,
   transactionId,
   type Account,
+  type AccountId,
   type AccountInput,
   type Instrument,
   type InstrumentId,
@@ -120,7 +122,22 @@ export class InMemoryLedger implements LedgerRepository {
       updateTransaction: (id: TransactionId, input: TransactionInput) => {
         const row = visible(id);
         if (row === undefined) return Promise.reject(new TransactionNotFoundError(id));
-        row.transaction = materialise(id, input);
+        const current = row.transaction;
+        const refreshed = materialise(id, input);
+        row.transaction = {
+          ...refreshed,
+          // `TransactionInput` carries none of these — an update must not
+          // silently strip a row's import provenance, so they survive from
+          // whatever the row already had, exactly as the real adapter's
+          // `.set()` never touching these columns leaves them in place.
+          source: current.source,
+          externalId: current.externalId,
+          importBatchId: current.importBatchId,
+          // Mirrors `packages/db/src/ledger-repository.ts`: any update to a
+          // row that originated as an import is treated as the hand
+          // correction `editedAfterImport` exists to flag (ADR 0004).
+          editedAfterImport: current.source === 'import' ? true : current.editedAfterImport,
+        };
         return Promise.resolve(row.transaction);
       },
 
@@ -129,6 +146,47 @@ export class InMemoryLedger implements LedgerRepository {
         if (row === undefined) return Promise.reject(new TransactionNotFoundError(id));
         row.deleted = true;
         return Promise.resolve();
+      },
+
+      findByExternalId: (accountId: AccountId, externalId: string) =>
+        Promise.resolve(
+          this.transactionRows.find(
+            (row) =>
+              row.owner === user &&
+              !row.deleted &&
+              row.transaction.accountId === accountId &&
+              row.transaction.externalId === externalId,
+          )?.transaction ?? null,
+        ),
+
+      createImportedTransaction: (input: TransactionInput, origin: ImportedTransactionOrigin) => {
+        const base = materialise(transactionId(this.nextId()), input);
+        const transaction: Transaction = {
+          ...base,
+          source: 'import',
+          externalId: origin.externalId,
+          importBatchId: origin.importBatchId,
+        };
+        this.transactionRows.push({ owner: user, transaction, deleted: false });
+        return Promise.resolve(transaction);
+      },
+
+      refreshImportedTransaction: (id: TransactionId, input: TransactionInput) => {
+        const row = visible(id);
+        if (row === undefined) return Promise.reject(new TransactionNotFoundError(id));
+        const current = row.transaction;
+        const refreshed = materialise(id, input);
+        row.transaction = {
+          ...refreshed,
+          source: current.source,
+          externalId: current.externalId,
+          importBatchId: current.importBatchId,
+          // The whole point of this method versus `updateTransaction`: a
+          // re-import refresh must leave this exactly as it was, never
+          // recompute it — mirrors the real adapter never writing the column.
+          editedAfterImport: current.editedAfterImport,
+        };
+        return Promise.resolve(row.transaction);
       },
     };
   }
