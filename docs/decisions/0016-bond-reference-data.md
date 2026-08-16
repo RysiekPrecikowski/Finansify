@@ -70,11 +70,31 @@ table view are ignored, always returning the default series.
 the manual-override tier is a permanent escape hatch rather than a temporary
 one. Automation covers the current month, the NBP rate and CPI; nothing else.
 
-**Golden test data is transcribed by hand.** The one interest table reachable by
-GET is whichever the page happens to default to. Adding a family's golden test
-means a person opening the site in an ordinary browser and saving a PDF — a
-one-off authoring step, never a runtime path. `packages/core/src/bonds/__fixtures__/`
-holds the result, and each fixture names the PDF it came from.
+**Golden test data comes from Bank Pekao's JSON API, not from PDFs.** This
+supersedes an earlier conclusion in this ADR that the tables could only be
+obtained by hand: that was true of obligacjeskarbowe.pl and false of the market.
+Bank Pekao S.A. is also an emission agent for the State Treasury and publishes
+the same tables over a plain, unauthenticated REST API:
+
+```
+GET /.rest/gb-emission-lists/{FAMILY}                     → current series + emission-letter PDFs
+GET /.rest/gb-interest-tables/emissions/{SERIES}          → its interest periods
+GET /.rest/gb-interest-tables/emissions/{SERIES}/{PERIOD} → the daily table, as JSON
+```
+
+No form, no CSRF, no WAF. It covers ROR, DOR, TOS, COI and EDO — 1162 published
+day-values for the current issues, which the engine reproduces to the grosz.
+
+The lesson worth keeping is not about this endpoint. It is that "the official
+source is unreachable" was a statement about **one** publisher, and the
+Ministry distributes through several agents. The first conclusion was reached
+after genuinely thorough testing of obligacjeskarbowe.pl — including a real
+headless browser — and was still wrong, because thoroughness inside one source
+does not substitute for asking who else publishes the same thing.
+
+OTS has no daily table (it pays one sum at redemption), and ROS and ROD are
+family bonds distributed only by PKO, so those three remain unverified against a
+published table.
 
 **A day-count rule was discovered rather than assumed, and it is not the obvious
 one.** The published ROR0827 table (purchased 2026-08-31, 4.00%) disagrees with

@@ -1,5 +1,6 @@
 import {
   FractionalBondError,
+  makeRefreshIndexSeries,
   parseSeriesCode,
   valueBondPosition,
   type InstrumentId,
@@ -7,7 +8,13 @@ import {
   type PriceLookup,
 } from '@finansify/core';
 
-import { clock, getBondTermsResolver, getIndexObservations } from '@/server/container';
+import {
+  clock,
+  getBondTermsResolver,
+  getCpiProvider,
+  getIndexObservations,
+  getReferenceRateProvider,
+} from '@/server/container';
 
 const displayTimeZone = 'Europe/Warsaw';
 
@@ -35,6 +42,22 @@ export async function bondPriceLookups(
   const asOf = clock.now().toZonedDateTimeISO(displayTimeZone).toPlainDate();
   const resolver = getBondTermsResolver();
   const repository = getIndexObservations();
+
+  // Refresh before reading. `/portfolio` is the screen a user with bonds
+  // actually opens, and until this was here it only ever *read* the macro
+  // series — someone who never visited `/indicators` or the dashboard would
+  // have their bonds valued against whatever was last fetched, silently, for
+  // as long as that lasted. `isIndexSeriesDue` keeps the cost near zero: CPI
+  // asks again only once the calendar month has moved past the newest print,
+  // and the reference rate only after a week.
+  const refresh = makeRefreshIndexSeries({
+    repository,
+    providers: [getReferenceRateProvider(), getCpiProvider()],
+    today: () => asOf,
+  });
+  // Failures are reported, not thrown, so a down GUS degrades to valuing on
+  // the last known print rather than taking `/portfolio` with it.
+  await Promise.all([refresh('nbp_reference'), refresh('pl_cpi_yoy')]);
 
   // Both series, once, rather than per position: the accrual engine needs the
   // whole history to rebuild past periods, and two holdings of the same family
