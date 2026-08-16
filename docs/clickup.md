@@ -8,13 +8,33 @@ Read this before starting any piece of work, not after finishing it.
 
 ## Setup
 
-Each of us connects our own ClickUp account through Claude's official ClickUp
-connector — claude.ai → Settings → Connectors → ClickUp, or `/mcp` in an
-interactive Claude Code session. Not a project `.mcp.json`: the connector is
-per-person, which is what makes `me` in a tool call resolve to whoever is
-actually running the agent (see Members, below). `/pr` and `/review` depend on
-it for steps 3 and 4 of the flow; if it isn't connected, stop and say so
-instead of skipping the ClickUp write silently.
+Each of us calls the ClickUp API v2 directly with our own personal API token —
+not the OAuth connector, and not a project `.mcp.json`. ClickUp rate-limits
+per token (Free/Unlimited/Business: 100 requests/minute), so a shared or
+proxied token means one person's usage throttles the other; a personal token
+keeps the buckets separate.
+
+Generate yours at ClickUp → Settings → Apps → API Token, and save it to
+`~/.config/clickup/token` (`chmod 600`, outside the repo — this project's
+GitHub is public). All calls go through `.claude/scripts/clickup.sh`:
+
+```bash
+.claude/scripts/clickup.sh METHOD /v2/path '{"json":"body"}'
+```
+
+It reads the token from that file, never echoes it, and enforces the rate
+limit itself: on a `429` it records the reset time and refuses every call
+until that time passes, printing `RETRY_AFTER=<seconds>` on stderr instead of
+hammering an already-throttled token. If a call is refused this way, wait for
+`RETRY_AFTER` (or retry automatically once it elapses) rather than retrying
+immediately — the connector-based throttling this replaced came from ignoring
+exactly that signal.
+
+Because the token is personal, `me` does not resolve automatically the way it
+did through the connector — use the numeric id from Members, below. `/pr` and
+`/review` depend on this script for steps 3 and 4 of the flow; if the token
+file is missing, stop and say so instead of skipping the ClickUp write
+silently.
 
 ## The board
 
@@ -25,11 +45,9 @@ instead of skipping the ClickUp write silently.
 | Folder    | `901213038300` |
 | List      | `901220376152` |
 
-These ids are what every tool call actually needs (`list_ids` in
-`clickup_filter_tasks`, etc.); names are not load-bearing and drift — the list
-above has already been renamed once. Resolve a current name with
-`clickup_get_list({list_id: "901220376152"})` rather than trusting a name
-written here.
+These ids are what every request actually needs — they go directly into the
+endpoint path or JSON body. Names are cosmetic and drift (the list above has
+already been renamed once); nothing here depends on looking one up.
 
 Members: Rysiek Pręcikowski (`105625477`), Filip Adamiak (`105625478`). Each of
 us has our own ClickUp user, so `me` in any tool call resolves to whoever is
@@ -87,33 +105,35 @@ overwrite a status you did not expect — report it instead.
 
 ### Tools
 
-`clickup_get_task` (`include: ["custom_fields"]` to read `Implementer`,
-`expand_statuses` when unsure of a status name), `clickup_filter_tasks`
-(`list_ids: ["901220376152"]`, `statuses: ["to do"]`) to find work,
-`clickup_update_task` for status, assignees and custom fields,
-`clickup_create_comment` for the PR link and anything a reviewer needs to know.
+Four endpoints cover the whole flow, all via `.claude/scripts/clickup.sh`:
 
-`Implementer` is a `users` field, so its value goes through the add/remove
-shape rather than a bare id — to set it to the current user:
+- **Read a task** — `GET /v2/task/<taskId>` (custom fields, including
+  `Implementer`, come back in the response by default).
+- **Find work** — `GET /v2/list/901220376152/task?statuses[]=to%20do` to list
+  candidates for step 1.
+- **Status and assignee** — `PUT /v2/task/<taskId>` with a body of
+  `status` and/or `assignees: {"add":[...], "rem":[...]}`.
+- **The `Implementer` custom field** — a separate call, because ClickUp
+  handles custom fields outside the task-update body:
+  `POST /v2/task/<taskId>/field/4aaf7617-f6d2-4b03-aa0c-2e30d7e3294d` with
+  `{"value": {"add":["<new>"], "rem":["<old>"]}}`. Single-user field, so
+  reassigning always removes the previous holder in the same call.
+- **The PR-link comment** — `POST /v2/task/<taskId>/comment` with
+  `{"comment_text": "..."}`.
 
-```jsonc
-// clickup_update_task
-{
-  "task_id": "869ej7nzv",
-  "status": "in progress",
-  "assignees": ["105625477"],
-  "custom_fields": [
-    {
-      "id": "4aaf7617-f6d2-4b03-aa0c-2e30d7e3294d",
-      "value": "{\"add\":[\"105625477\"]}",
-    },
-  ],
-}
+Example — step 2 ("Start"), setting status, assignee and `Implementer` to
+Rysiek in one status write plus one field write:
+
+```bash
+.claude/scripts/clickup.sh PUT /v2/task/869ej7nzv \
+  '{"status":"in progress","assignees":{"add":[105625477],"rem":[]}}'
+
+.claude/scripts/clickup.sh POST /v2/task/869ej7nzv/field/4aaf7617-f6d2-4b03-aa0c-2e30d7e3294d \
+  '{"value":{"add":[105625477],"rem":[]}}'
 ```
 
-Resolve `me` to a numeric id with `clickup_resolve_assignees` first; the custom
-field takes ids only. Since the field is single-user, re-assigning it means
-also removing the previous holder: `{"add":["<new>"],"rem":["<old>"]}`.
+Member ids come straight from the table above — there is no `me` to resolve
+anymore.
 
 ## Git naming
 

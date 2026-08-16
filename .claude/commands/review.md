@@ -82,8 +82,11 @@ Do not silently fix anything. This command reviews; `/code-review --fix` or a
 human applies the fix.
 
 **Take the ticket while reviewing.** When reviewing a PR that carries a ClickUp
-id (branch or title, `CU-<id>`), assign the reviewer to that ticket and leave
-its status at `in review` — an unassigned `in review` ticket means nobody has
-picked the review up. Do not touch the `Implementer` field; it names the author
-and stays that way. Never review a ticket whose `Implementer` is you
-(`docs/clickup.md`, CLAUDE.md rule 12).
+id (branch or title, `CU-<id>`), read it first — `.claude/scripts/clickup.sh
+GET /v2/task/<taskId>` — and confirm `Implementer` is not you (never review
+your own PR, CLAUDE.md rule 12). Then assign the reviewer:
+`.claude/scripts/clickup.sh PUT /v2/task/<taskId>
+'{"assignees":{"add":[<reviewerId>],"rem":[]}}'` — omit `status` so `in
+review` is left as-is; an unassigned `in review` ticket means nobody has
+picked the review up. Do not touch `Implementer`; it names the author and
+stays that way.
