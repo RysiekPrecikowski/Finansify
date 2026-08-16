@@ -790,4 +790,35 @@ describe('importRepository — recordRowOutcome', () => {
     expect(result.status).toBe('duplicate');
     expect(result.rejectionReason).toBe('edited by hand since import');
   });
+
+  it('sets rejectionReason and clears transactionId to null for a rejected outcome', async () => {
+    const owned = rowRow({ id: ROW_ID, transactionId: OUTCOME_TRANSACTION_ID });
+    const updated = rowRow({
+      id: ROW_ID,
+      status: 'rejected',
+      transactionId: null,
+      rejectionReason: 'some reason',
+    });
+    const { db, updateSet } = makeJoinedRowDb({
+      selectRows: [[{ row: owned }]],
+      updateResults: [[updated]],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.recordRowOutcome(ROW_ID, {
+      status: 'rejected',
+      reason: 'some reason',
+    });
+
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'rejected',
+        transactionId: null,
+        rejectionReason: 'some reason',
+      }),
+    );
+    expect(result.status).toBe('rejected');
+    expect(result.transactionId).toBeNull();
+    expect(result.rejectionReason).toBe('some reason');
+  });
 });

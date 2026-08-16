@@ -109,6 +109,20 @@ export interface Transaction {
 }
 
 /**
+ * The four fields the gross-value rule reads. Stated structurally rather than
+ * as `Transaction`, because a `ParsedRow` staged by an importer answers the
+ * same question with the same rule before it is a `Transaction` at all — and
+ * the rule below is a domain decision, not a display convenience, so there is
+ * exactly one copy of it.
+ */
+export interface GrossValued {
+  readonly quantity: Decimal;
+  readonly price: Money | null;
+  readonly grossAmount: Money | null;
+  readonly currency: Currency;
+}
+
+/**
  * The gross value of a transaction's own leg.
  *
  * `grossAmount` wins whenever it is present, because it is what the broker
@@ -116,10 +130,10 @@ export interface Transaction {
  * by a grosz or two the moment a broker rounds. Picking one and saying so is
  * the difference between a cost basis that is right and one that drifts.
  */
-export function grossValueOf(transaction: Transaction): Money {
-  if (transaction.grossAmount !== null) return transaction.grossAmount;
-  if (transaction.price !== null) return transaction.price.times(transaction.quantity);
-  return Money.zero(transaction.currency);
+export function grossValueOf(leg: GrossValued): Money {
+  if (leg.grossAmount !== null) return leg.grossAmount;
+  if (leg.price !== null) return leg.price.times(leg.quantity);
+  return Money.zero(leg.currency);
 }
 
 /**

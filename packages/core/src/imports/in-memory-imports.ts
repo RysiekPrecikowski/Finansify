@@ -168,8 +168,9 @@ export class InMemoryImports implements ImportRepository {
         const updated: ImportRow = {
           ...this.rowRows[index]!,
           status: outcome.status,
-          transactionId: outcome.transactionId,
-          rejectionReason: outcome.status === 'duplicate' ? outcome.reason : null,
+          transactionId: outcome.status === 'rejected' ? null : outcome.transactionId,
+          rejectionReason:
+            outcome.status === 'rejected' || outcome.status === 'duplicate' ? outcome.reason : null,
         };
         this.rowRows[index] = updated;
         return Promise.resolve(updated);

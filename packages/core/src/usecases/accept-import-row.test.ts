@@ -365,3 +365,101 @@ describe('makeAcceptImportRow', () => {
     expect(await ledger.forUser(USER).listTransactions()).toHaveLength(1);
   });
 });
+
+describe('makeAcceptImportRow — overrides', () => {
+  it('applies an override field onto a cash row, replacing the parsed value', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row } = await seedRow(imports, account, cashRow({ note: 'original note' }));
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id, { note: 'edited note' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const transaction = await ledger.forUser(USER).getTransaction(result.value.transactionId!);
+    expect(transaction!.note).toBe('edited note');
+  });
+
+  it('never lets an override hijack accountId away from the batch’s own account', async () => {
+    const { ledger, imports, account } = await setup();
+    const otherAccount = await ledger.forUser(USER).createAccount({
+      name: 'A different brokerage',
+      broker: 'Revolut',
+      wrapper: 'brokerage',
+      currency: currency('PLN'),
+      openedAt: Temporal.PlainDate.from('2024-01-01'),
+    });
+    const { row } = await seedRow(imports, account, cashRow());
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id, { accountId: otherAccount.id });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const transaction = await ledger.forUser(USER).getTransaction(result.value.transactionId!);
+    expect(transaction!.accountId).toBe(account.id);
+    expect(transaction!.accountId).not.toBe(otherAccount.id);
+  });
+
+  it('accepts an unresolved instrument-bearing row when overrides.instrumentId supplies one directly', async () => {
+    const { ledger, imports, account } = await setup();
+    // Default `parsedRow()` carries an instrument candidate; `seedRow` never
+    // calls `resolveInstruments`, so `resolvedInstrumentId` stays null — the
+    // override has to be what unblocks the "resolve first" check.
+    const { row } = await seedRow(imports, account);
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id, { instrumentId: INSTRUMENT });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const transaction = await ledger.forUser(USER).getTransaction(result.value.transactionId!);
+    expect(transaction!.instrumentId).toBe(INSTRUMENT);
+  });
+
+  it('still refuses an instrument-bearing row when overrides explicitly nulls out instrumentId', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row } = await seedRow(imports, account);
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id, { instrumentId: null });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(issueAt(result.issues, 'rowId')).toBeDefined();
+    expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
+  });
+
+  it('applies an override on a refresh-in-place re-import, keeping it idempotent on the same transaction', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row: firstRow } = await seedRow(
+      imports,
+      account,
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1000', currency('PLN')) }),
+    );
+    const acceptImportRow = makeUseCase(ledger, imports);
+    const first = await acceptImportRow(firstRow.id);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const originalTransactionId = first.value.transactionId!;
+
+    const { row: secondRow } = await seedRow(
+      imports,
+      account,
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1250', currency('PLN')) }),
+    );
+
+    const second = await acceptImportRow(secondRow.id, { note: 'reviewed on re-import' });
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value.status).toBe('accepted');
+    expect(second.value.transactionId).toBe(originalTransactionId);
+
+    const transactions = await ledger.forUser(USER).listTransactions();
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0]!.id).toBe(originalTransactionId);
+    expect(transactions[0]!.grossAmount?.equals(Money.of('1250', currency('PLN')))).toBe(true);
+    expect(transactions[0]!.note).toBe('reviewed on re-import');
+  });
+});

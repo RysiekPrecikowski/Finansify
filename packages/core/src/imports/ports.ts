@@ -23,13 +23,15 @@ export interface InstrumentResolution {
 }
 
 /**
- * What accepting one row settles it to — the import use case's two possible
- * endings for a pending row. `accepted` covers both a fresh transaction and an
- * unedited existing one refreshed in place: either way the row is now backed
- * by a real transaction. `duplicate` is the conflict case — an existing
- * transaction for this `external_id` was hand-edited since it was imported
- * (`Transaction.editedAfterImport`), so nothing was written to it; `reason` is
- * what the review UI (its own ticket) shows for why.
+ * What settles a pending row — three possible endings. `accepted` covers both
+ * a fresh transaction and an unedited existing one refreshed in place: either
+ * way the row is now backed by a real transaction. `duplicate` is the
+ * conflict case — an existing transaction for this `external_id` was
+ * hand-edited since it was imported (`Transaction.editedAfterImport`), so
+ * nothing was written to it. `rejected` is the reviewer's own choice to skip
+ * the row — never written by `acceptImportRow` itself, only by
+ * `rejectImportRow`. `reason` on both `duplicate` and `rejected` is what the
+ * review UI shows for why.
  */
 export type ImportRowOutcome =
   | { readonly status: 'accepted'; readonly transactionId: TransactionId }
@@ -37,7 +39,8 @@ export type ImportRowOutcome =
       readonly status: 'duplicate';
       readonly transactionId: TransactionId;
       readonly reason: string;
-    };
+    }
+  | { readonly status: 'rejected'; readonly reason: string };
 
 /**
  * Everything a signed-in user can do to their own import batches — same

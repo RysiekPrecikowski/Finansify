@@ -1,4 +1,4 @@
-import { ChevronRight, Download, Landmark } from 'lucide-react';
+import { ChevronRight, Download, Landmark, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 import { getDictionary } from '@/lib/i18n/server';
@@ -30,6 +30,14 @@ export default async function MorePage() {
         >
           <Download className="text-muted-foreground size-4 shrink-0" aria-hidden />
           <span className="flex-1">{dictionary.export.title}</span>
+          <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        </Link>
+        <Link
+          href="/import"
+          className="hover:bg-muted/50 flex items-center gap-3 px-1 py-3 text-sm"
+        >
+          <Upload className="text-muted-foreground size-4 shrink-0" aria-hidden />
+          <span className="flex-1">{dictionary.imports.title}</span>
           <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
         </Link>
       </nav>
