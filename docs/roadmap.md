@@ -135,6 +135,32 @@ transaction.
 - [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
       ADR 0014 and the ingestion plan's "poza zakresem" section
 
+**Phase 4 — in progress**, started ahead of Phase 3 (bonds, not yet begun):
+real XTB exports became available during import planning, so the work that
+had been blocked on them went first — see "Phase 4 — Imports" below for what
+`Blocked` used to mean and no longer does for XTB specifically.
+
+- [x] ADR 0015 — the import boundary: `StatementParser`'s shape, why
+      sub-accounts and eWallet/card modeling are declined (verified, not just
+      assumed — `Subaccount transfer` and `Transfer` rows net to exactly zero
+      in a real export), `external_id` as the only dedup signal that survives
+      a re-export (file-hash dedup was tried and disproven)
+- [x] `core`: `StatementParser` port — `RawFile`, `ParsedRow`,
+      `ParsedStatement`, three-state `Confidence`
+- [x] `db`: `import_batches` / `import_rows` + migration;
+      `transactions.import_batch_id` finally has the FK it was missing
+- [x] `importers` (new package): `XtbStatementParser` — comment-grammar
+      parsing (`OPEN|CLOSE BUY|SELL qty[/total] @ price`), FX-rate inference
+      by median ratio (XTB's export has no explicit rate column),
+      reconciliation against `Open`/`Closed Positions` surfaced as warnings,
+      never blocking; a synthetic fixture covering every case found in real
+      exports (never the real exports themselves, which stay gitignored)
+- [ ] `FileStore` Blob adapter + upload
+- [ ] Instrument-resolution UI
+- [ ] Import use case — dedup, conflicts, reconciliation flags written to
+      `import_rows`
+- [ ] Import review UI
+
 ### Phase 2 — Valuation
 
 Turns a correct ledger into a portfolio worth looking at. ADR 0014 revised
@@ -177,8 +203,11 @@ The most bespoke code in the project, because no provider prices these.
 - Dedup on `external_id`; `edited_after_import` surfaces a conflict instead of
   overwriting a hand correction.
 
-**Blocked**: needs real exported statements from real accounts. Profiles built
-from guesses are worse than no profiles.
+**XTB unblocked.** Real exports were examined during planning and
+`XtbStatementParser` is built and tested against a synthetic fixture derived
+from them — see "Where we are" above. **Boś stays blocked**: no real exported
+statement from a Boś account has been examined yet, and a profile built from
+guesses is worse than no profile.
 
 ### Phase 5 — Performance
 
@@ -301,7 +330,9 @@ error page or, far worse, a silently wrong number.
 
 ## Open questions
 
-1. **XTB and Boś export formats.** Parsers need real files before Phase 4.
+1. **Boś export format.** Resolved for XTB — `XtbStatementParser` exists,
+   built from real files (see "Where we are", Phase 4). Boś still needs a real
+   exported statement before its parser can be more than a guess.
 2. **Benchmark set.** WIG, an accumulating world ETF and the S&P 500 are
    proposed; each becomes a tracked instrument with its own price history.
 3. **KMS choice and key scheme** — see Data protection.
