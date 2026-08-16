@@ -4,6 +4,7 @@ import { Temporal } from '../time';
 import {
   type CreateImportBatchInput,
   type ImportRepository,
+  type InstrumentResolution,
   type ScopedImportRepository,
 } from './ports';
 import {
@@ -106,11 +107,49 @@ export class InMemoryImports implements ImportRepository {
             status: 'pending',
             transactionId: null,
             rejectionReason: null,
+            resolvedInstrumentId: null,
           };
           this.rowRows.push(row);
           return row;
         });
         return Promise.resolve(created);
+      },
+
+      getBatch: (id) => Promise.resolve(ownedBatch(id)?.batch ?? null),
+
+      rowsForBatch: (batchId) => {
+        const found = ownedBatch(batchId);
+        if (found === undefined) return Promise.reject(new Error(`No import batch ${batchId}`));
+        return Promise.resolve(
+          this.rowRows
+            .filter((row) => row.batchId === batchId)
+            .sort((left, right) => left.rowIndex - right.rowIndex),
+        );
+      },
+
+      resolveInstruments: (batchId, resolutions: readonly InstrumentResolution[]) => {
+        const found = ownedBatch(batchId);
+        if (found === undefined) return Promise.reject(new Error(`No import batch ${batchId}`));
+        if (resolutions.length === 0) return Promise.resolve([]);
+
+        const touched: ImportRow[] = [];
+        for (const resolution of resolutions) {
+          this.rowRows.forEach((row, index) => {
+            if (row.batchId !== batchId) return;
+            const candidate = row.parsed.instrument;
+            if (candidate === null) return;
+            if (candidate.symbol !== resolution.symbol) return;
+            if (candidate.exchange !== resolution.exchange) return;
+
+            const updated: ImportRow = {
+              ...row,
+              resolvedInstrumentId: resolution.instrumentId,
+            };
+            this.rowRows[index] = updated;
+            touched.push(updated);
+          });
+        }
+        return Promise.resolve(touched);
       },
     };
   }

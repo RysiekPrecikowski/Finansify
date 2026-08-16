@@ -158,8 +158,11 @@ had been blocked on them went first — see "Phase 4 — Imports" below for what
       reconciliation against `Open`/`Closed Positions` surfaced as warnings,
       never blocking; a synthetic fixture covering every case found in real
       exports (never the real exports themselves, which stay gitignored)
-- [ ] `FileStore` Blob adapter + upload
-- [ ] Instrument-resolution UI
+- [x] `FileStore` Blob adapter + upload
+- [x] Instrument-resolution UI — auto-match by exact `(symbol, exchange)` against
+      `InstrumentRepository.search`, bulk-confirm for the common case, manual
+      fallback reusing `<InstrumentCombobox>`; every mapping stays editable
+      via `resolveInstruments` until the batch is accepted
 - [ ] Import use case — dedup, conflicts, reconciliation flags written to
       `import_rows`
 - [ ] Import review UI

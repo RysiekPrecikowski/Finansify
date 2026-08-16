@@ -3,6 +3,7 @@ import {
   currency as toCurrency,
   importBatchId as toImportBatchId,
   importRowId as toImportRowId,
+  instrumentId as toInstrumentId,
   Money,
   Temporal,
   transactionId as toTransactionId,
@@ -12,6 +13,7 @@ import {
   type ImportBatchId,
   type ImportRepository,
   type ImportRow,
+  type InstrumentResolution,
   type ParsedInstrumentCandidate,
   type ParsedRow,
   type ScopedImportRepository,
@@ -19,7 +21,7 @@ import {
   type UserId,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { type Database } from './client';
 import { importBatches, type ImportBatchRow } from './schema/import-batches';
@@ -110,6 +112,8 @@ function toImportRow(row: ImportRowRow): ImportRow {
     status: row.status,
     transactionId: row.transactionId === null ? null : toTransactionId(row.transactionId),
     rejectionReason: row.rejectionReason,
+    resolvedInstrumentId:
+      row.resolvedInstrumentId === null ? null : toInstrumentId(row.resolvedInstrumentId),
   };
 }
 
@@ -180,6 +184,56 @@ function scopedTo(db: Database, userId: UserId): ScopedImportRepository {
         )
         .returning();
       return inserted.map(toImportRow);
+    },
+
+    async getBatch(id) {
+      const [row] = await db
+        .select()
+        .from(importBatches)
+        .where(and(owned, eq(importBatches.id, id)))
+        .limit(1);
+      return row === undefined ? null : toImportBatch(row);
+    },
+
+    async rowsForBatch(batchId) {
+      await requireOwnBatch(batchId);
+      const rows = await db
+        .select()
+        .from(importRows)
+        .where(eq(importRows.batchId, batchId))
+        .orderBy(importRows.rowIndex);
+      return rows.map(toImportRow);
+    },
+
+    async resolveInstruments(batchId, resolutions: readonly InstrumentResolution[]) {
+      await requireOwnBatch(batchId);
+      if (resolutions.length === 0) return [];
+
+      // One `UPDATE` per distinct ticker, not per row: `resolutions.length` is
+      // the count of tickers being confirmed in this call — a handful, even
+      // for a statement with hundreds of lines — so this stays a handful of
+      // queries, not one per row.
+      const updated: ImportRowRow[] = [];
+      for (const resolution of resolutions) {
+        const exchangeMatch =
+          resolution.exchange === null
+            ? sql`(${importRows.parsed}->'instrument'->>'exchange') IS NULL`
+            : sql`(${importRows.parsed}->'instrument'->>'exchange') = ${resolution.exchange}`;
+
+        const rows = await db
+          .update(importRows)
+          .set({ resolvedInstrumentId: resolution.instrumentId, updatedAt: new Date() })
+          .where(
+            and(
+              eq(importRows.batchId, batchId),
+              sql`(${importRows.parsed}->'instrument'->>'symbol') = ${resolution.symbol}`,
+              exchangeMatch,
+            ),
+          )
+          .returning();
+        updated.push(...rows);
+      }
+      return updated.map(toImportRow);
     },
   };
 }
