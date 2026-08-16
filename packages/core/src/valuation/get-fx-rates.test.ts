@@ -49,6 +49,8 @@ describe('makeRefreshFxRates', () => {
     let calls = 0;
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () => {
         calls += 1;
         return Promise.resolve([
@@ -72,6 +74,8 @@ describe('makeRefreshFxRates', () => {
     const fx = new InMemoryFxRates(clock);
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () =>
         Promise.resolve([rate(USD, '2026-08-13', '0'), rate(EUR, '2026-08-13', '4.3058')]),
     };
@@ -89,6 +93,8 @@ describe('makeRefreshFxRates', () => {
     const fx = new InMemoryFxRates(clock);
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () => Promise.resolve([rate(USD, '2026-08-13', '-3.7362')]),
     };
 
@@ -106,6 +112,8 @@ describe('makeRefreshFxRates', () => {
     let calls = 0;
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () => {
         calls += 1;
         return Promise.resolve([]);

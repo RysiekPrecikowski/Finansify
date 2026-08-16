@@ -57,9 +57,27 @@ export interface SymbolRepository {
 export interface FxRateProvider {
   readonly name: ProviderName;
   fetchTableTo(base: Currency): Promise<readonly FxRate[]>;
+
+  /**
+   * One currency's history over a date range, for charting a pair. Business
+   * days only — a range containing no publication comes back empty, never
+   * padded, and the adapter owns whatever per-request range limit its upstream
+   * imposes.
+   */
+  fetchSeriesTo(
+    code: Currency,
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ): Promise<readonly FxRate[]>;
 }
 
 export interface FxRateRepository {
   latestFor(currencies: readonly Currency[]): Promise<ReadonlyMap<Currency, StoredFxRate>>;
+  /** Oldest first per currency; a currency with no rows in the range is absent from the map. */
+  seriesFor(
+    currencies: readonly Currency[],
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ): Promise<ReadonlyMap<Currency, readonly StoredFxRate[]>>;
   save(rates: readonly FxRate[], source: ProviderName): Promise<void>;
 }

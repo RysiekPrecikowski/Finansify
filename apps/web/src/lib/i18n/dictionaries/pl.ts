@@ -287,6 +287,12 @@ export const pl = {
     unavailable: 'Brak danych — nic jeszcze nie pobrano.',
     refreshFailed: 'Nie udało się odświeżyć — pokazujemy ostatnią znaną wartość.',
     seeAll: 'Zobacz wskaźniki',
+    fxBy: 'NBP, tabela A — kurs średni',
+    fxPair: 'Para walutowa',
+    fxRange: 'Zakres',
+    fixedOn: 'Kurs z dnia',
+    fxNote:
+      'Ten sam kurs, po którym przeliczana jest wartość portfela. Tylko dni robocze — w święta i weekendy nie ma notowania.',
   },
   instruments: {
     bondName: 'Obligacja skarbowa',

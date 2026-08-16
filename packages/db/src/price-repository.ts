@@ -16,7 +16,7 @@ import {
   type SymbolRepository,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { type Database } from './client';
 import { instruments } from './schema/instruments';
@@ -182,6 +182,38 @@ export function fxRateRepository(db: Database): FxRateRepository {
 
       const result = new Map<Currency, StoredFxRate>();
       for (const row of rows) result.set(toCurrency(row.currency), toStoredFxRate(row));
+      return result;
+    },
+
+    async seriesFor(
+      currencies: readonly Currency[],
+      from: Temporal.PlainDate,
+      to: Temporal.PlainDate,
+    ) {
+      if (currencies.length === 0) return new Map();
+
+      const rows = await db
+        .select()
+        .from(fxRates)
+        .where(
+          and(
+            inArray(fxRates.currency, [...currencies]),
+            gte(fxRates.date, from.toString()),
+            lte(fxRates.date, to.toString()),
+          ),
+        )
+        .orderBy(fxRates.currency, fxRates.date);
+
+      // Grouped here rather than in one query per currency: the whole range
+      // for a handful of currencies is a few hundred rows, and `orderBy` has
+      // already put them in the order the chart wants.
+      const result = new Map<Currency, StoredFxRate[]>();
+      for (const row of rows) {
+        const code = toCurrency(row.currency);
+        const series = result.get(code) ?? [];
+        series.push(toStoredFxRate(row));
+        result.set(code, series);
+      }
       return result;
     },
 

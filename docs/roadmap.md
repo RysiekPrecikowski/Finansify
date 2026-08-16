@@ -129,6 +129,11 @@ transaction.
       line currency separately, so the sum can be read in one currency while
       positions stay in their own; a cookie-backed switcher beside the locale
       one. Presentation only: neither realized nor unrealized P&L moves
+- [x] FX pair history on `/indicators` — USD/PLN and four more, with a range
+      picker, from NBP's own archive into the existing `fx_rates` table (no
+      migration: `(currency, date)` was already the key). Sourced from the same
+      mids the total is converted at, so the chart and the number agree by
+      construction — ADR 0017
 - [ ] Dashboard on real data — still renders `lib/fixtures/portfolio.ts`;
       deferred rather than done in the same change, since it touches every
       dashboard component and deserves its own PR

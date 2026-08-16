@@ -277,6 +277,12 @@ export const en: Dictionary = {
     unavailable: 'No data — nothing has been fetched yet.',
     refreshFailed: 'Could not refresh — showing the last known value.',
     seeAll: 'See indicators',
+    fxBy: 'NBP table A — mid rate',
+    fxPair: 'Currency pair',
+    fxRange: 'Range',
+    fixedOn: 'Fixed on',
+    fxNote:
+      'The same rate the portfolio total is converted at. Business days only — no fixing on weekends or public holidays.',
   },
   instruments: {
     bondName: 'Treasury bond',
