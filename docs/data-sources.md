@@ -65,8 +65,15 @@ order:
    history — so a cold start never depends on crawling years of archive, and the
    automated fetcher only ever has to handle recent data. For bonds this is not
    a cold-start convenience but the **only** route to a past issue, since the
-   archive is WAF-blocked (ADR 0015); adding an entry is a data change that gets
+   archive is WAF-blocked (ADR 0016); adding an entry is a data change that gets
    reviewed like code.
+
+   **Bond issue parameters invert tiers 1 and 2 on purpose**: a series' terms are
+   fixed for its life, so a committed row is consulted before the network and a
+   known series never causes a fetch. The cost is that a corrected offer page
+   cannot override a stale committed row, which is why a wrong entry gets fixed
+   in the file rather than waited out.
+
 3. **Manual override in the UI**, so a parser breaking on a redesigned page
    degrades to "one value needs typing in" rather than "bond valuations are
    silently wrong".

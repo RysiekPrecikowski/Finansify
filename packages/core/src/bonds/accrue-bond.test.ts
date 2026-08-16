@@ -363,3 +363,42 @@ describe('accrueBond — the golden table', () => {
     }
   });
 });
+
+describe('accrueBond — which CPI print governs a period', () => {
+  // Two prints a month apart. Period 2 of an August bond opens in August 2027,
+  // so the print announced in July is the one its terms name; the August print
+  // did not exist when the period opened.
+  const prints = [cpi('2027-07-01', '0.02'), cpi('2027-08-01', '0.09')];
+
+  it.each(['2026-08-01', '2026-08-15', '2026-08-31'])(
+    'picks the same print whichever day of August the bond settled (%s)',
+    (settledOn) => {
+      const result = accrueBond(
+        termsFor('EDO0836', settledOn, '0.0535', '0'),
+        purchase('EDO0836', settledOn),
+        date('2028-09-01'),
+        prints,
+      );
+
+      // Without a month-based cut-off for CPI, a mid-month settlement reads the
+      // August print instead — 9% rather than 2% — and the rate a holder gets
+      // depends on which day they happened to buy. For a ten-year EDO that is
+      // wrong for every period after the first.
+      expect(result.periods[1]?.annualRate.toFixed(4)).toBe('0.0200');
+    },
+  );
+
+  it('still uses the exact date for the NBP reference rate', () => {
+    // The reference rate genuinely changes on its `obowiazuje_od`, so a period
+    // opening on the 15th must see a cut made on the 10th. Applying CPI's
+    // month rule here would hide it until the following month.
+    const result = accrueBond(
+      termsFor('ROR0827', '2026-08-15', '0.04'),
+      purchase('ROR0827', '2026-08-15'),
+      date('2026-10-01'),
+      [nbp('2026-08-01', '0.05'), nbp('2026-09-10', '0.03')],
+    );
+
+    expect(result.periods[1]?.annualRate.toFixed(4)).toBe('0.0300');
+  });
+});

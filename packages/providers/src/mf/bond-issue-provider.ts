@@ -13,11 +13,20 @@ import { bootstrapIssueParameters } from './data/issue-parameters';
  * Per-issue parameters — the first-period rate and the margin, the only two
  * numbers `bond_series_terms` stores.
  *
- * Two tiers, in the order `docs/data-sources.md` prescribes:
+ * Two tiers, and **committed data is consulted first** — which is deliberate,
+ * and the opposite of the order `docs/data-sources.md` states for the feeds
+ * where tier 1 is a live value:
  *
- * 1. The family's **current offer page**, one GET, which states both numbers in
- *    prose. This covers the month currently on sale.
- * 2. **Committed bootstrap data** for everything older.
+ * 1. **Committed bootstrap data.** A series' published terms are fixed for its
+ *    whole life, so a known series never needs a network call at all.
+ * 2. The family's **current offer page**, one GET, which states both numbers in
+ *    prose. This covers the month currently on sale, and anything the
+ *    committed file has not caught up with.
+ *
+ * The consequence worth naming: a corrected offer page cannot override a
+ * committed row. That is the right trade for a value that does not change —
+ * and it is why a wrong committed entry has to be fixed in the file rather
+ * than waited out. The cross-tier test asserts the two agree for every family.
  *
  * There is no tier-1 route to history and there will not be one: the emission-
  * letter archive and the interest tables are POST forms that PKO's WAF answers

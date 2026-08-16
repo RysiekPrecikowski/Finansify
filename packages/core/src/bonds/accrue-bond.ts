@@ -30,20 +30,39 @@ export class MissingIndexObservationError extends Error {
 }
 
 /**
- * The index value that governs a period: the latest observation effective
- * *strictly before* the period opens. `IndexObservation.effectiveFrom` already
- * encodes announcement date for CPI, so "the print announced in the month
- * preceding the period" is this one comparison rather than two rules.
+ * The index value that governs a period.
+ *
+ * The two series need different cut-offs, and collapsing them into one
+ * comparison is a valuation defect rather than a simplification:
+ *
+ * - **NBP reference rate** — an exact-date rule. The rate in force the day
+ *   before the period opens is the rate that governs it, and `effectiveFrom`
+ *   is the real `obowiazuje_od`, so `< startsOn` is literally correct.
+ * - **PL CPI** — a *month* rule. The terms say "the print announced in the
+ *   month preceding the period's first month", and the adapter dates an
+ *   observation to the 1st of its announcement month (which is what GUS
+ *   published, and worth keeping). Comparing that against an exact start date
+ *   picks the print announced *during* the period's own first month for any
+ *   bond not settled on the 1st — a figure that did not exist when the period
+ *   opened. Same EDO, same prints, period 2: settled on the 1st gives 2.00%,
+ *   settled on the 15th gives 9.00%. The rate must not depend on which day of
+ *   the month someone happened to buy.
+ *
+ * So CPI compares against the first day of the period's start month, which is
+ * the same thing the terms say in the units the terms use.
  */
 function indexValueFor(
   indexId: IndexId,
   startsOn: Temporal.PlainDate,
   observations: readonly IndexObservation[],
 ): Decimal {
+  const cutOff =
+    indexId === 'pl_cpi_yoy' ? startsOn.toPlainYearMonth().toPlainDate({ day: 1 }) : startsOn;
+
   let latest: IndexObservation | undefined;
   for (const observation of observations) {
     if (observation.indexId !== indexId) continue;
-    if (Temporal.PlainDate.compare(observation.effectiveFrom, startsOn) >= 0) continue;
+    if (Temporal.PlainDate.compare(observation.effectiveFrom, cutOff) >= 0) continue;
     if (
       latest === undefined ||
       Temporal.PlainDate.compare(observation.effectiveFrom, latest.effectiveFrom) > 0

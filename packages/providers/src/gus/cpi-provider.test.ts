@@ -96,3 +96,33 @@ describe('refusing implausible values', () => {
     expect(() => parseCpiCsv(row('7'))).toThrow(ImplausibleCpiError);
   });
 });
+
+describe('the refusal message', () => {
+  const row = (value: string) =>
+    [
+      'Nazwa;Jednostka;Sposób prezentacji;Rok;Miesiąc;Wartość;Flaga',
+      `CPI;Polska;Analogiczny miesiąc poprzedniego roku = 100;2026;7;${value};`,
+    ].join('\n');
+
+  it('names the band it actually enforces', () => {
+    // The band was once written into the message as a literal and went stale
+    // against the constant — naming 1000, the exact ceiling that had already
+    // taken the series down, and sending the next reader after a fixed bug.
+    try {
+      parseCpiCsv(row('3000,0'));
+      expect.unreachable('should have refused');
+    } catch (error) {
+      expect((error as Error).message).toContain('2000');
+      expect((error as Error).message).not.toContain('1000');
+    }
+  });
+
+  it('says "not a number" for a cell it cannot read, not "outside the band"', () => {
+    try {
+      parseCpiCsv(row('b.d.'));
+      expect.unreachable('should have refused');
+    } catch (error) {
+      expect((error as Error).message).toContain('not a number');
+    }
+  });
+});
