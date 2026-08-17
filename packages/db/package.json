@@ -10,7 +10,7 @@
     "transit": "exit 0",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "tsx scripts/migrate.ts"
   },
   "dependencies": {
     "@finansify/core": "workspace:*",
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "26.2.0",
-    "drizzle-kit": "0.31.10"
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.20.6"
   }
 }

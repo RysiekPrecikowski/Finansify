@@ -138,6 +138,13 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
     no PR behind it has nothing that will ever clean it up.
     (`docs/deployment.md`, "The Neon branch budget")
 
+    **One branch is exempt, deliberately: `pre-production`.** It is owned by no
+    PR and nothing reaps it, which is exactly what the rule warns about — the
+    difference is that it is intended, documented and reset on purpose rather
+    than left behind. Migrations rehearse against it before production sees
+    them (ADR 0017), and it costs one slot: eight remain for previews, not
+    nine. Any _other_ hand-made branch is still a leak.
+
 ## When you change a boundary
 
 A new package, a new port, a swapped provider, or a change to any rule above

@@ -135,6 +135,10 @@ transaction.
       dry-run-check flow: there is no longer a way to create an instrument the
       resolver hasn't already confirmed, so there is no manual mapping screen
       to build
+- [x] ADR 0017 + a `pre-production` Neon branch — migrations rehearse there
+      before production sees them, and `db:migrate` prints the driver's error
+      instead of exiting silently. Written after a partial migration wedged
+      production for three hours behind a green `check`
 - [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
       ADR 0014 and the ingestion plan's "poza zakresem" section
 
