@@ -7,6 +7,35 @@ All of these sit behind ports defined in `packages/core/src/ports/` and are
 implemented in `packages/providers`. Nothing in the domain knows any of these
 names.
 
+## At a glance
+
+What each kind of thing is priced from, and how often that number can change.
+"Refreshed" is our own re-fetch rule; "changes" is how often the upstream number
+actually moves — the two are deliberately different, and confusing them is how
+a 15-minute TTL gets mistaken for a 15-minute rate.
+
+| Asset / figure                | Source                      | Upstream changes                         | We re-fetch                          |
+| ----------------------------- | --------------------------- | ---------------------------------------- | ------------------------------------ |
+| Equity, ETF, fund (global)    | Yahoo Finance               | Continuously while the exchange is open  | 15 min (`PRICE_TTL_MINUTES`)         |
+| Equity, ETF (GPW)             | Yahoo Finance, `.WA`        | Continuously, 09:00–17:00 CET            | 15 min                               |
+| FX rate — **valuation**       | NBP table A (mid)           | **Once per business day**, around midday | 15 min (returns the same row)        |
+| FX rate — pair charts         | NBP table A archive         | Once per business day                    | On gap, or newest print ≥ 4 days     |
+| Polish retail bonds           | Nothing — accrued in `core` | Recomputed per `asOf`; never quoted      | Never; it is a calculation           |
+| Bond interest tables (source) | obligacjeskarbowe.pl, Pekao | Monthly, per issue                       | Bootstrapped; not fetched at runtime |
+| NBP reference rate            | NBP XML (`static.nbp.pl`)   | On an RPP decision — a few times a year  | 7 days                               |
+| Polish CPI                    | GUS monthly CSV             | Monthly                                  | Once the calendar month advances     |
+
+**Google is not a source here.** `GOOGLEFINANCE` exists only inside Google
+Sheets and has no API; where a Google-quoted figure matches ours it is because
+both trace back to the same market data, not because we read Google.
+
+**No free source gives an intraday FX rate except Yahoo.** Measured
+2026-08-17: frankfurter.dev (ECB) and open.er-api.com both publish once a day,
+ECB's XML likewise; Yahoo's `USDPLN=X` moved between two calls twenty seconds
+apart with `exchangeDataDelayedBy: 0`. NBP stays the valuation rate regardless —
+Polish tax uses the NBP rate from the business day before a transaction, so the
+book and the tax return have to agree (ADR 0017, `domain.md`).
+
 ## The feeds
 
 | Need                            | Source                                                                 | Reality                                                                                                                                                                                                                                                                                                                                                                                                                 |
