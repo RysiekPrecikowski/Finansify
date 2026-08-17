@@ -75,14 +75,19 @@ export function SeriesChart({
   );
 
   const formatDate = useCallback(
-    (iso: string, style: 'short' | 'full') =>
-      new Intl.DateTimeFormat(intlLocale[locale], {
-        year: 'numeric',
-        month: style === 'full' ? 'short' : '2-digit',
-        ...(style === 'full' ? { day: 'numeric' } : {}),
-      }).format(new Date(`${iso}T12:00:00Z`)),
+    (iso: string, style: DateStyle) =>
+      new Intl.DateTimeFormat(intlLocale[locale], dateOptions[style]).format(
+        new Date(`${iso}T12:00:00Z`),
+      ),
     [locale],
   );
+
+  // Three ticks over a month all land in the same month or two, so a month-and-
+  // year tick prints the same label twice and the axis stops saying anything.
+  // Driven by the span the points actually cover rather than by the range that
+  // asked for them: this chart never sees the range, and the two indicator
+  // cards have no range at all.
+  const tickStyle = useMemo(() => tickStyleFor(points), [points]);
 
   const geometry = useMemo(() => build(points, width, shape), [points, width, shape]);
 
@@ -164,7 +169,7 @@ export function SeriesChart({
               textAnchor={index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
               className="fill-muted-foreground text-[0.65rem] tabular-nums"
             >
-              {formatDate(points[index]!.date, 'short')}
+              {formatDate(points[index]!.date, tickStyle)}
             </text>
           ))}
 
@@ -229,6 +234,50 @@ export function SeriesChart({
 
 const HEIGHT = 160;
 const PLOT = { top: 8, bottom: 22, left: 52, right: 8 };
+
+/**
+ * `day` and `month` are the two axis ticks; `full` is the hover readout, which
+ * always names the exact day because that is the whole point of hovering.
+ *
+ * The axis pair stays numeric and same-width on purpose — the ticks are
+ * `tabular-nums`, and a `short` month name would set three labels of different
+ * widths under a plot whose columns are evenly spaced.
+ */
+type DateStyle = 'day' | 'month' | 'full';
+
+const dateOptions: Readonly<Record<DateStyle, Intl.DateTimeFormatOptions>> = {
+  day: { day: '2-digit', month: '2-digit' },
+  month: { month: '2-digit', year: 'numeric' },
+  full: { day: 'numeric', month: 'short', year: 'numeric' },
+};
+
+/**
+ * Below this many days apart, a month tick repeats itself and the axis reads as
+ * broken. Four months rather than a tidier three: it has to clear a 3M window
+ * whose ends fall either side of a month boundary, which spans 92 days, without
+ * sitting so close to that number that a leap year or a late business day flips
+ * the format on one render and not the next.
+ */
+const MONTH_TICKS_FROM_DAYS = 120;
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * The year is dropped along with the month, not kept as a third field. A window
+ * this short is read against the quote date printed above the chart, and
+ * `29.07.2026` three times over is the crowding the day tick was added to fix.
+ */
+function tickStyleFor(points: readonly SeriesPoint[]): DateStyle {
+  const first = points.at(0);
+  const last = points.at(-1);
+  if (first === undefined || last === undefined) return 'month';
+
+  const span =
+    (Date.parse(`${last.date}T12:00:00Z`) - Date.parse(`${first.date}T12:00:00Z`)) / MS_PER_DAY;
+  // NaN from an unparseable date falls through to the month tick, which is the
+  // format that was there before and is wrong in fewer cases.
+  return span < MONTH_TICKS_FROM_DAYS ? 'day' : 'month';
+}
 
 function build(points: readonly SeriesPoint[], width: number, shape: 'line' | 'step') {
   if (points.length < 2 || width <= PLOT.left + PLOT.right) return null;
