@@ -196,7 +196,7 @@ export function makeRefreshFxSeries(deps: {
     const wanted = [...new Set([pair.base, pair.quote])].filter((code) => code !== PLN);
     if (wanted.length === 0) return { refreshed: [], error: null };
 
-    const stored = await fx.seriesFor(wanted, window.from, window.to);
+    const stored = await fx.seriesFor(wanted, window.from, window.to, provider.name);
     const now = today();
     const due = wanted.filter((code) => isFxSeriesDue(stored.get(code) ?? [], window, now));
     if (due.length === 0) return { refreshed: [], error: null };

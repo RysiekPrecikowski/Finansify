@@ -71,10 +71,13 @@ export class InMemoryFxRates implements FxRateRepository {
 
   constructor(private readonly clock: Clock) {}
 
-  latestFor(currencies: readonly Currency[]): Promise<ReadonlyMap<Currency, StoredFxRate>> {
+  latestFor(
+    currencies: readonly Currency[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<Currency, StoredFxRate>> {
     const result = new Map<Currency, StoredFxRate>();
     for (const code of currencies) {
-      const newest = this.sorted(code).at(-1);
+      const newest = this.sorted(code).filter((row) => row.source === source).at(-1);
       if (newest !== undefined) result.set(code, newest);
     }
     return Promise.resolve(result);
@@ -84,11 +87,13 @@ export class InMemoryFxRates implements FxRateRepository {
     currencies: readonly Currency[],
     from: Temporal.PlainDate,
     to: Temporal.PlainDate,
+    source: ProviderName,
   ): Promise<ReadonlyMap<Currency, readonly StoredFxRate[]>> {
     const result = new Map<Currency, readonly StoredFxRate[]>();
     for (const code of currencies) {
       const inRange = this.sorted(code).filter(
         (row) =>
+          row.source === source &&
           Temporal.PlainDate.compare(row.date, from) >= 0 &&
           Temporal.PlainDate.compare(row.date, to) <= 0,
       );
@@ -101,7 +106,9 @@ export class InMemoryFxRates implements FxRateRepository {
     const fetchedAt = this.clock.now();
     for (const rate of rates) {
       const byDate = this.rows.get(rate.currency) ?? new Map<string, StoredFxRate>();
-      byDate.set(rate.date.toString(), { ...rate, source, fetchedAt });
+      // Keyed by date *and* source, matching `fx_rates`'s primary key — two
+      // feeds hold a rate for the same day and must not overwrite each other.
+      byDate.set(`${rate.date.toString()}:${source}`, { ...rate, source, fetchedAt });
       this.rows.set(rate.currency, byDate);
     }
     return Promise.resolve();

@@ -3,6 +3,10 @@
 import { cookies } from 'next/headers';
 
 import {
+  fxScopeCookie,
+  fxSourceCookie,
+  isFxScopeOption,
+  isFxSourceOption,
   displayLinesCookie,
   displayTotalCookie,
   isDisplayCurrency,
@@ -39,4 +43,18 @@ async function write(name: string, value: string): Promise<void> {
     maxAge: oneYearInSeconds,
     sameSite: 'lax',
   });
+}
+
+export async function setFxSource(source: string): Promise<void> {
+  if (!isFxSourceOption(source)) {
+    throw new Error(`Unsupported FX source: ${source}`);
+  }
+  await write(fxSourceCookie, source);
+}
+
+export async function setFxScope(scope: string): Promise<void> {
+  if (!isFxScopeOption(scope)) {
+    throw new Error(`Unsupported FX scope: ${scope}`);
+  }
+  await write(fxScopeCookie, scope);
 }

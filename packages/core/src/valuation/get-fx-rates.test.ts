@@ -65,7 +65,7 @@ describe('makeRefreshFxRates', () => {
 
     expect(calls).toBe(1);
     expect([...report.refreshed].sort()).toEqual([EUR, USD].sort());
-    const stored = await fx.latestFor([USD, EUR]);
+    const stored = await fx.latestFor([USD, EUR], 'nbp');
     expect(stored.get(USD)?.mid.toString()).toBe('3.7362');
   });
 
@@ -85,7 +85,7 @@ describe('makeRefreshFxRates', () => {
 
     expect(report.failed).toEqual([USD]);
     expect(report.refreshed).toEqual([EUR]);
-    expect((await fx.latestFor([USD])).get(USD)).toBeUndefined();
+    expect((await fx.latestFor([USD], 'nbp')).get(USD)).toBeUndefined();
   });
 
   it('refuses a negative mid', async () => {
@@ -102,7 +102,7 @@ describe('makeRefreshFxRates', () => {
     const report = await refreshFxRates([USD]);
 
     expect(report.failed).toEqual([USD]);
-    expect((await fx.latestFor([USD])).get(USD)).toBeUndefined();
+    expect((await fx.latestFor([USD], 'nbp')).get(USD)).toBeUndefined();
   });
 
   it('does not call the provider when every requested currency is already fresh', async () => {

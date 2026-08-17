@@ -55,3 +55,42 @@ export const defaultDisplaySettings: DisplaySettings = {
   total: defaultDisplayCurrency,
   lines: defaultLinesMode,
 };
+
+/**
+ * Where FX rates come from, and how far that choice reaches.
+ *
+ * Mirrors `core`'s `FxSourcePreference` as plain strings so the settings form
+ * can import it from a client component. The meaning of each combination — and
+ * the one that puts the portfolio total on a different series from the tax
+ * return — lives in `core/valuation/fx-source.ts`, which is where the rule
+ * belongs.
+ */
+export const fxSourceOptions = ['nbp', 'yahoo'] as const;
+export type FxSourceOption = (typeof fxSourceOptions)[number];
+
+export const fxScopeOptions = ['charts', 'all'] as const;
+export type FxScopeOption = (typeof fxScopeOptions)[number];
+
+export const defaultFxSource: FxSourceOption = 'nbp';
+export const defaultFxScope: FxScopeOption = 'charts';
+
+export const fxSourceCookie = 'finansify_fx_source';
+export const fxScopeCookie = 'finansify_fx_scope';
+
+export function isFxSourceOption(value: unknown): value is FxSourceOption {
+  return value === 'nbp' || value === 'yahoo';
+}
+
+export function isFxScopeOption(value: unknown): value is FxScopeOption {
+  return value === 'charts' || value === 'all';
+}
+
+export interface FxPreference {
+  readonly source: FxSourceOption;
+  readonly scope: FxScopeOption;
+}
+
+export const defaultFxPreference: FxPreference = {
+  source: defaultFxSource,
+  scope: defaultFxScope,
+};

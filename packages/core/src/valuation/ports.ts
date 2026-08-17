@@ -1,8 +1,10 @@
 import { type InstrumentId } from '../ledger/types';
 import { type Currency } from '../money';
 import { type Temporal } from '../time';
+import { type FxQuotePair } from './fx-source';
 import {
   type ConfirmedCandidate,
+  type FxQuote,
   type FxRate,
   type InstrumentCandidate,
   type PriceBar,
@@ -71,13 +73,49 @@ export interface FxRateProvider {
   ): Promise<readonly FxRate[]>;
 }
 
+/**
+ * A market FX feed, which speaks **pairs** rather than a PLN-based table.
+ *
+ * Deliberately a second port rather than another `FxRateProvider`: NBP
+ * publishes one table against PLN and derives every cross from it, while Yahoo
+ * quotes `EUR/USD` as its own instrument and has no table at all. Forcing one
+ * interface over both would mean a `fetchTableTo` on Yahoo that fans out into
+ * thirty-odd requests to answer a question nobody asked.
+ */
+export interface FxQuoteProvider {
+  readonly name: ProviderName;
+
+  /** The rate right now, and the instant it was quoted at. */
+  fetchSpot(pair: FxQuotePair): Promise<FxQuote | null>;
+
+  /**
+   * Daily closes for one pair. Unlike the NBP archive this needs no chunking —
+   * one request returns the whole window — and it does include weekend gaps in
+   * the same shape: a day with no close is absent, never filled.
+   */
+  fetchPairSeries(
+    pair: FxQuotePair,
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ): Promise<readonly FxQuote[]>;
+}
+
+/**
+ * Every read names its source. `fx_rates` is keyed by it (ADR 0018) because two
+ * feeds hold a rate for the same currency-day and disagree, so a query that
+ * omits it is a question with two correct answers.
+ */
 export interface FxRateRepository {
-  latestFor(currencies: readonly Currency[]): Promise<ReadonlyMap<Currency, StoredFxRate>>;
+  latestFor(
+    currencies: readonly Currency[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<Currency, StoredFxRate>>;
   /** Oldest first per currency; a currency with no rows in the range is absent from the map. */
   seriesFor(
     currencies: readonly Currency[],
     from: Temporal.PlainDate,
     to: Temporal.PlainDate,
+    source: ProviderName,
   ): Promise<ReadonlyMap<Currency, readonly StoredFxRate[]>>;
   save(rates: readonly FxRate[], source: ProviderName): Promise<void>;
 }

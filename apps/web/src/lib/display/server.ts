@@ -2,6 +2,12 @@ import { currency as toCurrency, type Currency, type DisplayCurrencies } from '@
 import { cookies } from 'next/headers';
 
 import {
+  defaultFxPreference,
+  fxScopeCookie,
+  fxSourceCookie,
+  isFxScopeOption,
+  isFxSourceOption,
+  type FxPreference,
   defaultDisplayCurrency,
   defaultLinesMode,
   displayLinesCookie,
@@ -47,4 +53,22 @@ export function currenciesToRefresh(
   // PLN is excluded on purpose: NBP table A has no PLN row, and asking for one
   // leaves `fxDue` permanently true — see `open-positions.tsx`.
   return [...new Set([...held, toCurrency(settings.total)])].filter((code) => code !== pln);
+}
+
+/**
+ * The FX source preference for this request, as `core` takes it.
+ *
+ * Unrecognised cookie values fall back rather than throwing, same as the
+ * currency: this is reader-supplied input, and a preference dropped from the
+ * options would otherwise break every page for anyone still carrying it.
+ */
+export async function getFxPreference(): Promise<FxPreference> {
+  const jar = await cookies();
+  const source = jar.get(fxSourceCookie)?.value;
+  const scope = jar.get(fxScopeCookie)?.value;
+
+  return {
+    source: isFxSourceOption(source) ? source : defaultFxPreference.source,
+    scope: isFxScopeOption(scope) ? scope : defaultFxPreference.scope,
+  };
 }

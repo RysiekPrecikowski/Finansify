@@ -69,7 +69,7 @@ export async function readFxPairSeries(pairId: FxPair, rangeId: FxRangeId): Prom
     const report = await refresh(pair, window);
 
     const wanted = [pair.base, pair.quote].filter((code) => code !== toCurrency('PLN'));
-    const stored = await fx.seriesFor(wanted, window.from, window.to);
+    const stored = await fx.seriesFor(wanted, window.from, window.to, 'nbp');
     const history = pairSeries(pair, stored);
 
     return {
