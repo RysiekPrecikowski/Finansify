@@ -43,14 +43,33 @@ never pad a section to make it look complete.
   Never list an unverified step as if it passed.
 
 **4. Show the draft before sending it.** Then push the branch and run
-`gh pr create` (or `gh pr edit $ARGUMENTS` if a PR number was given) with that
-title and body. Base is always `main` — CLAUDE.md rule 12 means this PR is how
-the change is allowed to reach it at all.
+`gh pr create --draft` (or, if a PR number was given and it isn't already a
+draft, `gh pr edit $ARGUMENTS` for the text plus `gh pr ready $ARGUMENTS
+--undo` to put it back into draft) with that title and body. Base is always
+`main` — CLAUDE.md rule 12 means this PR is how the change is allowed to reach
+it at all.
 
-**5. Wait for CI, then hand the ticket over.** Run `gh pr checks --watch`. If a
-check fails, stop and report it — do not touch the ticket while CI is red.
-Once every check passes, via `.claude/scripts/clickup.sh` (`docs/clickup.md`
-has the full endpoint reference):
+A PR opens as a draft by default and stays one through the rest of this
+command. Draft is the "not yet ready for a human to spend time on this"
+signal — CI can still run against it, but nobody should be reading it as a
+finished change. Nothing in the following steps takes it out of draft on its
+own.
+
+**5. Wait for CI.** Run `gh pr checks --watch`. If a check fails, stop and
+report it — the PR stays draft and the ticket stays untouched.
+
+**6. Once CI is green and the change has actually been exercised** (dev
+server, the relevant test, a manual click-through — CLAUDE.md's Definition of
+done, not just a green pipeline), **propose** marking the PR ready for review.
+Do not run `gh pr ready` yourself — this is an outward-facing, visible action
+(the PR starts existing for a reviewer) and belongs with the person who owns
+that judgment call. State what you tested and how, and wait for either an
+explicit go-ahead or the user doing it themselves on GitHub.
+
+**7. Only once the PR is out of draft — by your `gh pr ready` after
+confirmation, or because the user already did it — hand the ticket over.** Via
+`.claude/scripts/clickup.sh` (`docs/clickup.md` has the full endpoint
+reference):
 
 1. `GET /v2/task/<taskId>` to read current `assignees` and `Implementer`.
 2. `PUT /v2/task/<taskId>` with
@@ -60,9 +79,14 @@ has the full endpoint reference):
 3. If `Implementer` came back empty (ticket started outside this flow), set it
    to yourself: `POST /v2/task/<taskId>/field/4aaf7617-f6d2-4b03-aa0c-2e30d7e3294d`
    with `{"value":{"add":[<yourId>],"rem":[]}}`.
-4. `POST /v2/task/<taskId>/comment` with `{"comment_text":"<PR link>"}`.
+4. `POST /v2/task/<taskId>/comment` with a short summary of what was actually
+   done, the new status, and who it's assigned to (or not) now, plus the PR
+   link — `docs/clickup.md`'s "every status write carries a comment" rule, not
+   just the link on its own.
 
-Report the ticket id and its new status in the final line.
+Report the ticket id and its new status in the final line. If the PR is still
+draft when this command ends (proposal not yet confirmed), say that instead —
+the ticket stays wherever it already was, not "in review".
 
 **Tone.** This text is read and acted on by the other teammate, which makes it
 different from the terse stage-reporting a session emits while working.

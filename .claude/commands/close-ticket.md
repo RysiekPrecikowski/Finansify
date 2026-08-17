@@ -32,5 +32,9 @@ session of work" rule) — `.claude/scripts/clickup.sh GET /v2/task/<taskId>`.
 
 **4. Close it.** `.claude/scripts/clickup.sh PUT /v2/task/<taskId>
 '{"status":"complete","assignees":{"add":[<implementerId>],"rem":[<currentAssigneeIds>]}}'`
-— `Implementer` itself is untouched, only `assignees` moves. Report the ticket
-id, its new status, and who it's now assigned to.
+— `Implementer` itself is untouched, only `assignees` moves.
+
+**5. Comment it.** `docs/clickup.md`'s "every status write carries a comment"
+rule applies here too — `POST /v2/task/<taskId>/comment` with a one-line note
+that the PR merged and the ticket is closed. Report the ticket id, its new
+status, and who it's now assigned to.
