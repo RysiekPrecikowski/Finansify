@@ -204,38 +204,11 @@ in sequence, which is why the migration and ADR numbering interleaves.
       IKZE are exempt and the rate belongs to the wrapper
 - [x] `db`: `bond_series_terms`, `index_observations` + migration;
       `bondIssueParameterRepository`, `indexObservationRepository`
-- [ ] Golden tables for the other seven families — needs a person to save one
-      PDF each from an ordinary browser; the archive is WAF-blocked (ADR 0016)
-- [ ] `providers`: NBP reference rate, GUS CPI CSV, MF offer pages + bootstrap
-      data, and the sanity checks that refuse rather than guess
-- [ ] `BondTermsResolver` wired in the composition root
-- [ ] Bond position entry and valuation in the UI
-- [ ] `FileStore` Blob adapter + upload
-- [ ] Instrument-resolution UI
-- [ ] Import use case — dedup, conflicts, reconciliation flags written to
-      `import_rows`
-- [ ] Import review UI
-      \- [ ] Bond position entry and valuation in the UI
-- [x] ADR 0015 — what bond reference data is actually reachable, after testing
-      rather than assuming; corrects `docs/data-sources.md`'s CPI and NBP rows
-- [x] `core`: family rules for all eight issued families as versioned,
-      effective-dated config, with the early-redemption fees read off each
-      family's own offer page (the widely-repeated 0.70/2.00 pairing is wrong
-      for anything bought since 2024-09-01)
-- [x] `core`: `accrueBond` — periods anchored to settlement, the published
-      day-count rule, capitalization, index selection with a CPI floor at zero,
-      and the three early-redemption regimes. Golden-tested to the grosz against
-      the Ministry's own ROR0827 table; spec and fixtures written first and the
-      implementation handed to a separate agent (rule 16)
-- [x] `core`: `withholdingOn` — the 19% kept out of the engine, because IKE and
-      IKZE are exempt and the rate belongs to the wrapper
-- [x] `db`: `bond_series_terms`, `index_observations` + migration;
-      `bondIssueParameterRepository`, `indexObservationRepository`
 - [x] Golden tables for five of the eight families — Bank Pekao, a second
       emission agent, publishes the same official tables over a plain JSON REST
       API. 1162 published day-values for ROR, DOR, TOS, COI and EDO, all
       reproduced to the grosz. Supersedes the earlier conclusion that only one
-      table was obtainable (ADR 0015)
+      table was obtainable (ADR 0016)
 - [x] Multi-period golden tables — TOS0727 across three capitalized years and
       ROR0726 / DOR0726 across twelve monthly resets each, against the RPP's
       real decisions. 1828 more published day-values, and the engine's derived
