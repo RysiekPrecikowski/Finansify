@@ -1,6 +1,6 @@
 import { type Clock } from '../ports/clock';
 import { currency, type Currency } from '../money';
-import { Temporal } from '../time';
+import { type Temporal } from '../time';
 import { type FxQuoteProvider, type FxRateRepository } from './ports';
 import { type FxRate } from './types';
 
@@ -91,7 +91,10 @@ export function makeRefreshFxQuotes(deps: {
   };
 }
 
-export function isQuoteDue(fetchedAt: Temporal.Instant | undefined, now: Temporal.Instant): boolean {
+export function isQuoteDue(
+  fetchedAt: Temporal.Instant | undefined,
+  now: Temporal.Instant,
+): boolean {
   if (fetchedAt === undefined) return true;
   return now.since(fetchedAt).total('minutes') > FX_QUOTE_TTL_MINUTES;
 }

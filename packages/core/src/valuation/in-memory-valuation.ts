@@ -77,7 +77,9 @@ export class InMemoryFxRates implements FxRateRepository {
   ): Promise<ReadonlyMap<Currency, StoredFxRate>> {
     const result = new Map<Currency, StoredFxRate>();
     for (const code of currencies) {
-      const newest = this.sorted(code).filter((row) => row.source === source).at(-1);
+      const newest = this.sorted(code)
+        .filter((row) => row.source === source)
+        .at(-1);
       if (newest !== undefined) result.set(code, newest);
     }
     return Promise.resolve(result);
