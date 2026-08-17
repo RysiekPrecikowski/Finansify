@@ -12,6 +12,11 @@ export default tseslint.config(
       '**/node_modules/**',
       '.agents/**',
       '.claude/skills/**',
+      // Worktrees live inside the repo and are gitignored, but eslint walks the
+      // filesystem rather than the index — so one person's in-progress branch
+      // was failing `pnpm check` on `main` for everyone, with a path nobody
+      // could find in the tree they were on.
+      '.claude/worktrees/**',
     ],
   },
 
