@@ -193,6 +193,33 @@ describe('makeAcceptImportRow', () => {
     expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
   });
 
+  // Regression coverage for the crash this schema refinement was added to
+  // prevent: a `sell` staged with `quantity: 0` (an importer that could not
+  // read the real fill quantity from its comment) used to sail through
+  // `acceptImportRow` and only blow up later, deep inside `matchLots`, when
+  // `buildPositions` tried to close a zero-quantity lot. It must now come back
+  // as an ordinary rejection through the ordinary `UseCaseResult` failure
+  // path — never an uncaught exception.
+  it('rejects a buy/sell row with a zero quantity as a validation failure, never throwing', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row } = await seedRow(
+      imports,
+      account,
+      // `instrument: null` sidesteps the "resolve first" check above quantity
+      // validation in the use case — this test targets the quantity refinement
+      // specifically, not instrument resolution.
+      parsedRow({ instrument: null, type: 'sell', quantity: new Decimal('0') }),
+    );
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(issueAt(result.issues, 'quantity')).toBeDefined();
+    expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
+  });
+
   it('refreshes an existing unedited transaction in place rather than creating a second one', async () => {
     const { ledger, imports, account } = await setup();
     const { row: firstRow } = await seedRow(

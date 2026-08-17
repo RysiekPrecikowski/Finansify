@@ -11,6 +11,7 @@ import {
   instrumentId,
   netProceedsOf,
   transactionId,
+  transactionInputSchema,
   transactionInputSchemaFor,
   transactionShapeOf,
   type Transaction,
@@ -153,6 +154,97 @@ describe('transactionInputSchemaFor', () => {
     const result = transactionInputSchemaFor(USD).safeParse({ ...baseInput, currency: 'usd' });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('transactionInputSchema — positive-quantity refinement on buy/sell', () => {
+  const baseInput = {
+    accountId: '22222222-2222-4222-8222-222222222222',
+    instrumentId: '33333333-3333-4333-8333-333333333333',
+    tradeDate: '2026-01-15',
+    currency: 'PLN',
+  };
+
+  it('rejects a buy with quantity 0, with the issue on `quantity`', () => {
+    const result = transactionInputSchema.safeParse({ ...baseInput, type: 'buy', quantity: '0' });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('quantity');
+  });
+
+  it('rejects a sell with quantity 0, with the issue on `quantity`', () => {
+    const result = transactionInputSchema.safeParse({ ...baseInput, type: 'sell', quantity: '0' });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('quantity');
+  });
+
+  it('rejects a sell with a negative quantity, with the issue on `quantity`', () => {
+    const result = transactionInputSchema.safeParse({
+      ...baseInput,
+      type: 'sell',
+      quantity: '-5',
+    });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('quantity');
+  });
+
+  it('accepts a buy with a positive quantity', () => {
+    const result = transactionInputSchema.safeParse({
+      ...baseInput,
+      type: 'buy',
+      quantity: '10',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  // `deposit`/`dividend`/etc. always carry `quantity: '0'` by convention — the
+  // refinement is scoped to buy/sell only and must leave every other type alone.
+  it('leaves a non-buy/sell type with quantity 0 unaffected, such as a deposit', () => {
+    const result = transactionInputSchema.safeParse({
+      ...baseInput,
+      instrumentId: null,
+      type: 'deposit',
+      quantity: '0',
+      grossAmount: '1000',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('leaves a non-buy/sell type with quantity 0 unaffected, such as a dividend', () => {
+    const result = transactionInputSchema.safeParse({
+      ...baseInput,
+      type: 'dividend',
+      quantity: '0',
+      grossAmount: '50',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  // Both `.superRefine` calls — this schema's own and the FX-rate one
+  // `transactionInputSchemaFor` layers on top — must compose: a bad quantity on
+  // a foreign-currency trade with no `fxRate` should report both issues, not
+  // just whichever refinement ran last swallowing the other.
+  it('reports both the quantity issue and the fxRate issue when chained through transactionInputSchemaFor', () => {
+    const result = transactionInputSchemaFor(PLN).safeParse({
+      ...baseInput,
+      type: 'sell',
+      quantity: '0',
+      currency: 'USD',
+    });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('quantity');
+    expect(paths).toContain('fxRate');
+    expect(paths).toContain('fxRateSource');
   });
 });
 

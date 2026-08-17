@@ -25,6 +25,30 @@ function descriptionOf(row: ImportRow): string {
   return row.parsed.note ?? row.parsed.externalId;
 }
 
+function isUnresolved(row: ImportRow): boolean {
+  return (
+    row.status === 'pending' && row.parsed.instrument !== null && row.resolvedInstrumentId === null
+  );
+}
+
+/**
+ * A pending `buy`/`sell` with no real fill quantity — the shape an importer
+ * stages when it could not read one from the broker's own export (rather
+ * than guessing; see the row's own `parsed.warnings`) and
+ * `transactionInputSchema` now refuses outright, since a zero-quantity lot
+ * has no meaning and previously reached `matchLots` and crashed there
+ * instead of here. Deliberately narrower than "this row has any warning at
+ * all" — an FX-rate-inferred trade also carries a warning but has a real,
+ * acceptable quantity, and one-click accept must keep working for it.
+ */
+function needsReview(row: ImportRow): boolean {
+  return (
+    row.status === 'pending' &&
+    (row.parsed.type === 'buy' || row.parsed.type === 'sell') &&
+    !row.parsed.quantity.isPositive()
+  );
+}
+
 /**
  * The staged rows of one batch, reviewed one at a time. A row still waiting
  * on instrument resolution (ticket 5's own screen) has no accept/reject
@@ -58,10 +82,20 @@ export default async function ImportBatchReviewListPage({
     (row) => row.parsed.instrument !== null && row.resolvedInstrumentId === null,
   ).length;
 
+  const reviewRows = rows.filter(needsReview);
+  const reviewCount = reviewRows.length;
+  const firstReviewRow = reviewRows[0];
+
+  // A row that needs review can never succeed through `acceptImportRow` (the
+  // schema refuses its zero quantity) — excluded here for the same reason an
+  // unresolved row is: counting it would overstate what "accept all pending"
+  // actually accepts, and the bulk loop would silently no-op on it instead of
+  // doing anything useful.
   const acceptableCount = rows.filter(
     (row) =>
       row.status === 'pending' &&
-      (row.parsed.instrument === null || row.resolvedInstrumentId !== null),
+      (row.parsed.instrument === null || row.resolvedInstrumentId !== null) &&
+      !needsReview(row),
   ).length;
 
   const counts: Readonly<Record<ImportRowStatus, number>> = {
@@ -114,11 +148,11 @@ export default async function ImportBatchReviewListPage({
       mobile: 'meta',
       cell: (row) => (
         <span className="text-muted-foreground">
-          {row.status === 'pending' &&
-          row.parsed.instrument !== null &&
-          row.resolvedInstrumentId === null
+          {isUnresolved(row)
             ? strings.resolveLink
-            : statusLabel[row.status]}
+            : needsReview(row)
+              ? strings.needsReviewStatus
+              : statusLabel[row.status]}
         </span>
       ),
     },
@@ -132,11 +166,7 @@ export default async function ImportBatchReviewListPage({
       // way to open a row's own page (reject, edit-and-accept, or a settled
       // row's outcome) from a mouse at all.
       cell: (row) => {
-        const isUnresolved =
-          row.status === 'pending' &&
-          row.parsed.instrument !== null &&
-          row.resolvedInstrumentId === null;
-        if (isUnresolved) {
+        if (isUnresolved(row)) {
           return (
             <Button
               size="sm"
@@ -150,7 +180,7 @@ export default async function ImportBatchReviewListPage({
         }
         return (
           <div className="flex items-center justify-end gap-1">
-            {row.status === 'pending' && (
+            {row.status === 'pending' && !needsReview(row) && (
               <form action={acceptRowAction}>
                 <input type="hidden" name="rowId" value={row.id} />
                 <Button size="sm" variant="ghost" type="submit">
@@ -173,7 +203,7 @@ export default async function ImportBatchReviewListPage({
   ];
 
   const rowHref = (row: ImportRow): Route =>
-    row.status === 'pending' && row.parsed.instrument !== null && row.resolvedInstrumentId === null
+    isUnresolved(row)
       ? (`/import/${batchId}` as Route)
       : (`/import/${batchId}/review/${row.id}` as Route);
 
@@ -219,6 +249,22 @@ export default async function ImportBatchReviewListPage({
             render={<Link href={`/import/${batchId}` as Route} />}
           >
             {strings.resolveLink}
+          </Button>
+        </div>
+      )}
+
+      {reviewCount > 0 && firstReviewRow !== undefined && (
+        <div className="border-border bg-muted/30 flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+          <span>
+            {reviewCount} {strings.needsReview}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={`/import/${batchId}/review/${firstReviewRow.id}` as Route} />}
+          >
+            {strings.reviewLink}
           </Button>
         </div>
       )}

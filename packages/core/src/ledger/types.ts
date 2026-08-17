@@ -197,25 +197,63 @@ const plainDateString = z.string().refine((value) => {
  * than `Money` and `Decimal`: this is the shape a form produces, and parsing it
  * here is what keeps `Number()` out of the app edge as well as out of `core`.
  */
-export const transactionInputSchema = z.object({
-  accountId: accountIdSchema,
-  instrumentId: instrumentIdSchema.nullable().default(null),
-  type: z.enum(transactionTypes),
-  tradeDate: plainDateString,
-  settleDate: plainDateString.nullable().default(null),
-  quantity: decimalString,
-  price: decimalString.nullable().default(null),
-  grossAmount: decimalString.nullable().default(null),
-  fee: decimalString.default('0'),
-  tax: decimalString.default('0'),
-  // The same check `accountInputSchema` uses. Without it a malformed code
-  // reaches `currency()` inside the adapter and throws there — a 500 rather
-  // than a field the user can correct.
-  currency: currencyCodeString,
-  fxRate: decimalString.nullable().default(null),
-  fxRateSource: z.enum(fxRateSources).nullable().default(null),
-  note: z.string().trim().max(500).nullable().default(null),
-});
+export const transactionInputSchema = z
+  .object({
+    accountId: accountIdSchema,
+    instrumentId: instrumentIdSchema.nullable().default(null),
+    type: z.enum(transactionTypes),
+    tradeDate: plainDateString,
+    settleDate: plainDateString.nullable().default(null),
+    quantity: decimalString,
+    price: decimalString.nullable().default(null),
+    grossAmount: decimalString.nullable().default(null),
+    fee: decimalString.default('0'),
+    tax: decimalString.default('0'),
+    // The same check `accountInputSchema` uses. Without it a malformed code
+    // reaches `currency()` inside the adapter and throws there — a 500 rather
+    // than a field the user can correct.
+    currency: currencyCodeString,
+    fxRate: decimalString.nullable().default(null),
+    fxRateSource: z.enum(fxRateSources).nullable().default(null),
+    note: z.string().trim().max(500).nullable().default(null),
+  })
+  .superRefine((input, context) => {
+    if (input.type !== 'buy' && input.type !== 'sell') return;
+
+    // `decimalString` already rejects an unparseable string with its own
+    // issue on this same path — this refinement only has an opinion once a
+    // valid `Decimal` exists to check the sign of. Without the guard, a
+    // non-numeric `quantity` would parse-fail there but still throw *here*
+    // (zod runs every object-level `superRefine`, not just the ones for
+    // fields that passed their own check), turning a normal field error into
+    // an uncaught exception.
+    let quantity: Decimal;
+    try {
+      quantity = new Decimal(input.quantity);
+    } catch {
+      return;
+    }
+
+    // A zero (or negative) buy/sell has no meaning as a lot: `buildPositions`
+    // opens or closes a lot from `quantity`, and a closing sale of zero units
+    // throws deep inside `matchLots` rather than failing here, where a
+    // reviewer can actually fix it. `isPositive()` is sign-based and treats
+    // zero as positive (`Decimal('0').isPositive() === true`), which is
+    // exactly the case this exists to catch — `greaterThan(0)` is the check
+    // that actually excludes it. An importer that could not read a trade's
+    // real fill quantity from its comment stages exactly this shape
+    // (`quantity: 0`, a warning explaining why) rather than guessing —
+    // refusing it here, not silently accepting it, is what turns that warning
+    // into something that has to be resolved instead of something that can be
+    // missed.
+    if (!quantity.greaterThan(0)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['quantity'],
+        message: 'A buy or sell needs a positive quantity — enter the real fill quantity by hand.',
+      });
+    }
+  });
 
 export type TransactionInput = z.infer<typeof transactionInputSchema>;
 
