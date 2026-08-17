@@ -78,12 +78,16 @@ at the moment the step actually happens — not batched at the end.
 2. **Start** — set status `in progress`, assignee `me`, and `Implementer` to
    the same user. Setting `Implementer` here rather than later means it is
    already right when the assignee is cleared in step 3. Create the branch now,
-   so the integration has something to link from.
-3. **Hand off for review** — when the PR is open and CI is green: set status
+   so the integration has something to link from. Then plan, implement, and
+   test — in that order. Opening a PR happens only once that's done, and it
+   opens as a **draft** (`/pr`); a draft carries no status change of its own,
+   because it isn't finished work yet. The ticket sits at `in progress` for the
+   whole draft period, however long that is.
+3. **Hand off for review** — once the PR is actually marked ready for review
+   (out of draft — never while it's still a draft) and CI is green: set status
    `in review` and **clear the assignee** (`assignees: []`). Empty assignee is
    the signal "this is waiting for a reviewer". `Implementer` stays as it is —
-   that is the field that remembers who wrote the code. Post the PR link as a
-   comment. `/pr` does this step.
+   that is the field that remembers who wrote the code. `/pr` does this step.
 4. **Take the review** — the reviewer's agent assigns the reviewer to the
    ticket (`me`) and leaves the status at `in review`. `Implementer` is not
    touched. Never review your own PR (rule 12), and never take a ticket whose
@@ -93,6 +97,16 @@ at the moment the step actually happens — not batched at the end.
    owned by whoever wrote the code. Merging itself stays the manual, reviewed
    action rule 12 requires; run `/close-ticket` right after, so this step has
    an owner instead of depending on someone remembering it.
+
+**Every status write in this flow is paired with a short comment** on the same
+task, posted in the same call as (or immediately after) the status change —
+not a separate housekeeping pass at the end. State what was done and where the
+ticket landed, in one or two sentences: what changed, the new status, and who
+it's now assigned to if that changed. For example, on step 3: "Bulk-accept
+button and XTB ticker normalization done and tested. Status changed to in
+review, assigned to nobody (waiting for review)." A comment that only restates
+the status ("Moved to in review") is not enough — say what the status change
+is actually reporting on.
 
 Nothing moves backwards silently. If a review sends work back, set the ticket
 to `in progress` and assign the `Implementer` again; say so in a comment.

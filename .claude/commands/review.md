@@ -9,18 +9,30 @@ correctness/style pass — that's `/code-review`. This command exists because
 generic review has no way to know these rules; it only catches what a reviewer
 who has read `/CLAUDE.md` would catch.
 
-**1. Get the real diff.**
+**1. Show open PRs, then confirm the target.** Before anything else, run
+`gh pr list --state open --json number,title,isDraft,headRefName,url` and
+print it as a table (PR, title, branch, status) — status is `draft` or `ready
+for review`. Draft is excluded from the default selection: if $ARGUMENTS is
+empty, propose the ready (non-draft) PRs as candidates, not the drafts — a
+draft is explicitly "not ready for anyone to spend review time on" (`/pr`).
+If $ARGUMENTS names a specific PR or branch (including one that turns out to
+be a draft), show it in the table like the rest but confirm explicitly that a
+draft is intended before reviewing it — don't refuse, just don't default into
+it silently. Wait for confirmation of which PR this run is actually reviewing
+before moving to step 2.
+
+**2. Get the real diff.**
 
 ```bash
-gh pr diff $ARGUMENTS        # if $ARGUMENTS is a PR number
-git diff main...<branch>     # if $ARGUMENTS is a branch
-git diff                     # otherwise, working tree
+gh pr diff <confirmed-PR>     # if reviewing a PR number
+git diff main...<branch>      # if $ARGUMENTS is a branch
+git diff                      # otherwise, working tree
 ```
 
-**2. Read `/CLAUDE.md` in full**, plus `packages/core/CLAUDE.md` and
+**3. Read `/CLAUDE.md` in full**, plus `packages/core/CLAUDE.md` and
 `apps/web/AGENTS.md` if the diff touches those trees.
 
-**3. Walk every changed hunk against this checklist.** Don't skim — a
+**4. Walk every changed hunk against this checklist.** Don't skim — a
 violation is often a single import line or one raw number:
 
 - **Money** — any `parseFloat`, `parseInt`, or `Number()` inside
@@ -60,7 +72,7 @@ violation is often a single import line or one raw number:
 - **Docs** — does anything in the diff make a doc in `docs/` wrong? If yes,
   say which document and suggest running `/sync-docs`.
 
-**4. Report with `ReportFindings`.** One finding per violation, file and line,
+**5. Report with `ReportFindings`.** One finding per violation, file and line,
 most severe first (a money-as-float or a cross-user cache leak outranks a
 missing extensionless import). If a hunk is fine, do not invent a finding to
 have something to say — an empty list is a valid, correct result.
@@ -83,14 +95,19 @@ Everything posted to GitHub is **English**, review comments included (rule 11).
 Do not silently fix anything. This command reviews; `/code-review --fix` or a
 human applies the fix.
 
-**Replying to a review you received.** Answer each comment where it was left,
-in English, and keep it to a few sentences: what changed, and — only when the
-choice was not obvious — why that option rather than the alternative the
-reviewer named. The reviewer already read the code; the reply exists so they
-can tell their point was understood, not to brief them on the diff. If a reply
-starts needing headings or a bullet list of everything touched, that belongs in
-the PR description. Say plainly when a point was declined and why, rather than
-answering around it.
+**Replying to a review you received.** If a PR comes back as "Changes
+requested" and carries inline comments, replying to every one of them is
+mandatory, not optional politeness — fix first, then reply, in that order:
+implement the fix for a comment before answering it, so the reply reports what
+actually happened rather than what's planned. Answer each comment where it was
+left, in English, short and factual: what changed, and — only when the choice
+was not obvious — why that option rather than the alternative the reviewer
+named. The reviewer already read the code; the reply exists so they can tell
+their point was understood, not to brief them on the diff. If a reply starts
+needing headings or a bullet list of everything touched, that belongs in the
+PR description instead. Say plainly when a point was declined and why, rather
+than answering around it — and never mark the review resolved yourself; that's
+the reviewer's call once they've seen the replies.
 
 **Take the ticket while reviewing.** When reviewing a PR that carries a ClickUp
 id (branch or title, `CU-<id>`), read it first — `.claude/scripts/clickup.sh
