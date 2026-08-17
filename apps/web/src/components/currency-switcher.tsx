@@ -73,6 +73,13 @@ export function CurrencySwitcher({ settings }: Readonly<{ settings: DisplaySetti
         >
           {strings.nativeLines}
         </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        {/* Not a choice, which is exactly why it is stated. A portfolio total
+            is converted at the NBP mid and nothing else: Polish tax uses the
+            NBP rate from the business day before a transaction, so the book and
+            the return have to agree (ADR 0017). The market rate a reader might
+            compare against lives on `/indicators`, labelled as such. */}
+        <p className="text-muted-foreground px-2 py-1.5 text-xs">{strings.currencySource}</p>
       </DropdownMenuContent>
     </DropdownMenu>
   );

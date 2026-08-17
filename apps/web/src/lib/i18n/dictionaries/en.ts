@@ -16,6 +16,7 @@ export const en: Dictionary = {
     changeLanguage: 'Change language',
     changeCurrency: 'Change presentation currency',
     nativeLines: "Positions in the instrument's currency",
+    currencySource: 'Converted at the NBP table A mid rate',
     sort: 'Sort',
     account: 'Account',
     signOut: 'Sign out',

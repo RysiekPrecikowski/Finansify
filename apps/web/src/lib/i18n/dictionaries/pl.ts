@@ -17,6 +17,7 @@ export const pl = {
     changeLanguage: 'Zmień język',
     changeCurrency: 'Zmień walutę prezentacji',
     nativeLines: 'Pozycje w walucie instrumentu',
+    currencySource: 'Przeliczane po kursie średnim NBP, tabela A',
     sort: 'Sortowanie',
     account: 'Konto',
     signOut: 'Wyloguj się',
