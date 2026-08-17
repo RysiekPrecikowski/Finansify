@@ -10,9 +10,8 @@ import { IndicatorStrip } from '@/components/indicators/indicator-strip';
 import { chartPointCount, resample, type ChartSeries } from '@/lib/chart-series';
 import { parseDashboardParams } from '@/lib/dashboard-params';
 import { directionOf, formatMoney } from '@/lib/format';
-import { currency as toCurrency } from '@finansify/core';
 
-import { getDisplaySettings } from '@/lib/display/server';
+import { getDisplaySettings, toDisplayCurrencies } from '@/lib/display/server';
 import { convertSnapshot } from '@/server/dashboard-currency';
 import { getLocale } from '@/lib/i18n/server';
 import { type Locale } from '@/lib/i18n/locales';
@@ -93,8 +92,13 @@ export default async function DashboardPage({
 
   // The figures are still the fixture; only their currency follows the reader
   // (`server/dashboard-currency.ts`). A rate that cannot be had converts
-  // nothing at all rather than some tiles — `converted` drives the note.
-  const { snapshot, converted } = await convertSnapshot(demoPortfolio, toCurrency(display.total));
+  // nothing at all rather than some tiles — `converted` drives the note. The
+  // settings go in as the same `DisplayCurrencies` `/portfolio` hands to
+  // `valuePositions`, so one representation drives both views.
+  const { snapshot, holdingsTotal, converted } = await convertSnapshot(
+    demoPortfolio,
+    toDisplayCurrencies(display),
+  );
 
   const chartSeries = byRange((range) =>
     chartSeriesFor(
@@ -159,9 +163,12 @@ export default async function DashboardPage({
           <SortMenu options={sortOptions} selected={params.sort} label={dictionary.actions.sort} />
         </div>
 
+        {/* The share column divides a row by the total, so it gets the total in
+            the rows' own currency — `snapshot.totalValue` is in the reader's
+            presentation currency and the two need not be the same. */}
         <HoldingsList
           holdings={holdings}
-          total={snapshot.totalValue}
+          total={holdingsTotal}
           locale={locale}
           dictionary={dictionary}
         />
