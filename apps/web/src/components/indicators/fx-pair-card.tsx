@@ -34,11 +34,14 @@ export function FxPairCard({
   series,
   locale,
   dictionary,
+  source,
 }: Readonly<{
   params: FxParams;
   series: FxPairSeries;
   locale: Locale;
   dictionary: Dictionary;
+  /** Which feed the figures came from — named on the card, never inferred by the reader. */
+  source: 'nbp' | 'yahoo';
 }>) {
   const strings = dictionary.indicators;
   const { summary } = series;
@@ -47,7 +50,9 @@ export function FxPairCard({
     <section className="flex flex-col gap-3 rounded-lg border p-4">
       <header className="flex flex-col gap-0.5">
         <h2 className="text-sm font-medium">{fxPairLabel(params.pair)}</h2>
-        <p className="text-muted-foreground text-xs">{strings.fxBy}</p>
+        <p className="text-muted-foreground text-xs">
+          {source === 'yahoo' ? strings.fxByMarket : strings.fxBy}
+        </p>
       </header>
 
       <div className="flex items-center gap-1.5" role="group" aria-label={strings.fxPair}>
@@ -113,7 +118,9 @@ export function FxPairCard({
         ))}
       </nav>
 
-      <p className="text-muted-foreground text-xs">{strings.fxNote}</p>
+      <p className="text-muted-foreground text-xs">
+        {source === 'yahoo' ? strings.fxNoteMarket : strings.fxNote}
+      </p>
 
       {series.error !== null && (
         <p className="text-muted-foreground border-t pt-2 text-xs">{strings.refreshFailed}</p>

@@ -1,6 +1,6 @@
 # 0017. NBP, not a market feed, for FX history
 
-**Status:** Accepted
+**Status:** Superseded in part by 0018
 **Date:** 2026-08-16
 
 ## Context
@@ -26,6 +26,11 @@ historically, per currency, over a date range:
 GET https://api.nbp.pl/api/exchangerates/rates/a/usd/2026-08-03/2026-08-14/?format=json
 → { code: "USD", rates: [{ effectiveDate: "2026-08-03", mid: 3.7330 }, …] }
 ```
+
+> **Superseded in part by ADR 0018.** Everything measured here still holds, and
+> NBP remains the default and the only valuation source unless a reader opts
+> out. What 0018 revises is the conclusion that a market feed may not exist in
+> the product at all: it may, as a labelled choice with a stated scope.
 
 ## Decision
 

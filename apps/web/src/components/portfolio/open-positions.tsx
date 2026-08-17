@@ -1,11 +1,11 @@
 import {
-  makeReadFxRates,
   makeReadPrices,
-  makeRefreshFxRates,
   makeRefreshPrices,
   Money,
+  valuationDivergesFromTax,
   valuePositions,
   type Currency,
+  type FxSourcePreference,
   type InstrumentPosition,
   type ValuedPosition,
 } from '@finansify/core';
@@ -22,14 +22,8 @@ import { formatMoney, formatPlainDate, formatQuantity } from '@/lib/format';
 import { interpolate, type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
 import { bondPriceLookups } from '@/server/bond-valuation';
-import {
-  clock,
-  getFxProvider,
-  getFxRates,
-  getMarketPrices,
-  getPriceProvider,
-  getSymbols,
-} from '@/server/container';
+import { clock, getMarketPrices, getPriceProvider, getSymbols } from '@/server/container';
+import { readValuationRates } from '@/server/fx-rates';
 
 import { Monogram, MoneyLines } from './shared';
 
@@ -48,12 +42,15 @@ export async function OpenPositions({
   strings,
   dictionary,
   display,
+  fxPreference,
 }: Readonly<{
   positions: readonly InstrumentPosition[];
   locale: Locale;
   strings: Dictionary['portfolio'];
   dictionary: Dictionary;
   display: DisplaySettings;
+  /** Which FX feed values this page, and how far the reader scoped that choice (ADR 0018). */
+  fxPreference: FxSourcePreference;
 }>) {
   // Bonds are deliberately excluded from every price path below. Nothing
   // quotes them (ADR 0011), so asking the provider would be a guaranteed miss
@@ -76,10 +73,9 @@ export async function OpenPositions({
   ]);
 
   const readPrices = makeReadPrices({ prices: getMarketPrices(), clock });
-  const readFxRates = makeReadFxRates({ fx: getFxRates(), clock });
 
   let priceLookups = await readPrices(instrumentIds);
-  let fxLookups = await readFxRates(currencies);
+  let fxLookups = await readValuationRates(currencies, fxPreference);
 
   const pricesDue = instrumentIds.some((id) => priceLookups.get(id)?.status !== 'fresh');
   const fxDue = currencies.some((code) => fxLookups.get(code)?.status !== 'fresh');
@@ -112,13 +108,10 @@ export async function OpenPositions({
   }
 
   if (fxDue) {
-    const refreshFxRates = makeRefreshFxRates({
-      fx: getFxRates(),
-      provider: getFxProvider(),
-      clock,
-    });
-    await refreshFxRates(currencies);
-    fxLookups = await readFxRates(currencies);
+    // `readValuationRates` already refreshed if anything was due, from whichever
+    // feed the reader's preference resolves to (ADR 0018). Re-reading here would
+    // ask the same question twice.
+    fxLookups = await readValuationRates(currencies, fxPreference);
   }
 
   const ratesToPln = new Map<Currency, Decimal>();
@@ -281,6 +274,9 @@ export async function OpenPositions({
           <span className="text-muted-foreground text-[0.7rem]">
             {interpolate(strings.totalValueNote, { currency: display.total })}
           </span>
+          {valuationDivergesFromTax(fxPreference) && (
+            <span className="text-muted-foreground text-[0.7rem]">{strings.totalValueMarket}</span>
+          )}
           {!totalIsComplete && (
             <span className="text-muted-foreground text-[0.7rem]">
               {strings.totalValueIncomplete}

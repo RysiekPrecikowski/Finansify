@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 
 import { FxPairCard } from '@/components/indicators/fx-pair-card';
 import { IndicatorCard } from '@/components/indicators/indicator-card';
+import { getFxPreference } from '@/lib/display/server';
 import { fxParamsFrom, type FxParams } from '@/lib/fx-pairs';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { readFxPairSeries } from '@/server/fx-series';
@@ -54,13 +55,22 @@ export default async function IndicatorsPage({
 }
 
 async function LiveFxPair({ params }: Readonly<{ params: FxParams }>) {
+  const preference = await getFxPreference();
   const [series, dictionary, locale] = await Promise.all([
-    readFxPairSeries(params.pair, params.range),
+    readFxPairSeries(params.pair, params.range, preference),
     getDictionary(),
     getLocale(),
   ]);
 
-  return <FxPairCard params={params} series={series} locale={locale} dictionary={dictionary} />;
+  return (
+    <FxPairCard
+      params={params}
+      series={series}
+      locale={locale}
+      dictionary={dictionary}
+      source={preference.source}
+    />
+  );
 }
 
 async function LiveIndicator({ indexId }: Readonly<{ indexId: 'nbp_reference' | 'pl_cpi_yoy' }>) {

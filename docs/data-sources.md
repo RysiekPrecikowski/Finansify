@@ -14,20 +14,27 @@ What each kind of thing is priced from, and how often that number can change.
 actually moves — the two are deliberately different, and confusing them is how
 a 15-minute TTL gets mistaken for a 15-minute rate.
 
-| Asset / figure                | Source                      | Upstream changes                         | We re-fetch                          |
-| ----------------------------- | --------------------------- | ---------------------------------------- | ------------------------------------ |
-| Equity, ETF, fund (global)    | Yahoo Finance               | Continuously while the exchange is open  | 15 min (`PRICE_TTL_MINUTES`)         |
-| Equity, ETF (GPW)             | Yahoo Finance, `.WA`        | Continuously, 09:00–17:00 CET            | 15 min                               |
-| FX rate — **valuation**       | NBP table A (mid)           | **Once per business day**, around midday | 15 min (returns the same row)        |
-| FX rate — pair charts         | NBP table A archive         | Once per business day                    | On gap, or newest print ≥ 4 days     |
-| Polish retail bonds           | Nothing — accrued in `core` | Recomputed per `asOf`; never quoted      | Never; it is a calculation           |
-| Bond interest tables (source) | obligacjeskarbowe.pl, Pekao | Monthly, per issue                       | Bootstrapped; not fetched at runtime |
-| NBP reference rate            | NBP XML (`static.nbp.pl`)   | On an RPP decision — a few times a year  | 7 days                               |
-| Polish CPI                    | GUS monthly CSV             | Monthly                                  | Once the calendar month advances     |
+| Asset / figure                  | Source                      | Upstream changes                         | We re-fetch                          |
+| ------------------------------- | --------------------------- | ---------------------------------------- | ------------------------------------ |
+| Equity, ETF, fund (global)      | Yahoo Finance               | Continuously while the exchange is open  | 15 min (`PRICE_TTL_MINUTES`)         |
+| Equity, ETF (GPW)               | Yahoo Finance, `.WA`        | Continuously, 09:00–17:00 CET            | 15 min                               |
+| FX rate — **valuation**         | NBP table A (mid), default  | **Once per business day**, around midday | 15 min (returns the same row)        |
+| FX rate — valuation, opted in   | Yahoo `XXXPLN=X`            | Continuously through the session         | 15 min (a real freshness bound)      |
+| FX rate — pair charts           | NBP table A archive         | Once per business day                    | On gap, or newest print ≥ 4 days     |
+| FX rate — pair charts, opted in | Yahoo `XXXYYY=X`            | Continuously through the session         | Per render, not stored               |
+| Polish retail bonds             | Nothing — accrued in `core` | Recomputed per `asOf`; never quoted      | Never; it is a calculation           |
+| Bond interest tables (source)   | obligacjeskarbowe.pl, Pekao | Monthly, per issue                       | Bootstrapped; not fetched at runtime |
+| NBP reference rate              | NBP XML (`static.nbp.pl`)   | On an RPP decision — a few times a year  | 7 days                               |
+| Polish CPI                      | GUS monthly CSV             | Monthly                                  | Once the calendar month advances     |
 
 **Google is not a source here.** `GOOGLEFINANCE` exists only inside Google
 Sheets and has no API; where a Google-quoted figure matches ours it is because
 both trace back to the same market data, not because we read Google.
+
+**The source is the reader's choice, and NBP is the default** (ADR 0018).
+"Opted in" above means _More → Exchange rates_, where a scope decides whether
+the choice reaches only the pair charts or the portfolio valuation too. Under
+the default nothing but NBP is ever read.
 
 **No free source gives an intraday FX rate except Yahoo.** Measured
 2026-08-17: frankfurter.dev (ECB) and open.er-api.com both publish once a day,

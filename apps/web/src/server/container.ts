@@ -18,6 +18,7 @@ import {
   type BondTermsResolver,
   type Clock,
   type FileStore,
+  type FxQuoteProvider,
   type FxRateProvider,
   type FxRateRepository,
   type IndexObservationProvider,
@@ -36,6 +37,7 @@ import {
   gusCpiProvider,
   mfBondIssueProvider,
   nbpFxRateProvider,
+  yahooFxQuoteProvider,
   nbpReferenceRateProvider,
   yahooInstrumentSearch,
   yahooPriceProvider,
@@ -105,6 +107,16 @@ export function getInstrumentSearchProvider(): InstrumentSearchProvider {
 
 export function getFxProvider(): FxRateProvider {
   return nbpFxRateProvider;
+}
+
+/**
+ * The market FX feed, behind its own port because it speaks pairs rather than
+ * NBP's PLN-based table (ADR 0018). Only reached when a reader has opted into
+ * it — `getFxProvider` above stays the default and the only valuation source
+ * under the default scope.
+ */
+export function getFxQuoteProvider(): FxQuoteProvider {
+  return yahooFxQuoteProvider;
 }
 
 /**

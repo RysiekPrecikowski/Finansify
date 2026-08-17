@@ -173,6 +173,7 @@ export const en: Dictionary = {
     totalValue: 'Total value',
     totalValueNote:
       'Open positions only, converted to {currency} at the latest NBP rate. Cash is not included yet.',
+    totalValueMarket: 'Converted at the market rate, not NBP — tax is computed at the NBP rate.',
     totalValueIncomplete:
       'Some positions have no price or exchange rate yet — this total is partial.',
     unavailableNeverFetched: 'price loading…',
@@ -194,6 +195,31 @@ export const en: Dictionary = {
       remainingCost: 'Remaining cost',
       back: 'Back to portfolio',
     },
+  },
+  settings: {
+    fxTitle: 'Exchange rates',
+    fxSubtitle: 'Where the rate comes from, and what the choice applies to.',
+    fxSourceLabel: 'Rate source',
+    fxSourceNames: {
+      nbp: 'NBP, table A',
+      yahoo: 'Market rate (Yahoo)',
+    },
+    fxSourceNotes: {
+      nbp: 'One mid per business day, published around midday. Tax is computed at this rate.',
+      yahoo:
+        'Moves through the session, every few seconds. Refreshed every 15 minutes. Unofficial source, no availability guarantee.',
+    },
+    fxScopeLabel: 'Applies to',
+    fxScopeNames: {
+      charts: 'Currency pair charts only',
+      all: 'The whole portfolio',
+    },
+    fxScopeNotes: {
+      charts: 'Portfolio valuation stays on the NBP rate whatever is picked above.',
+      all: 'The portfolio total is converted at the chosen rate too.',
+    },
+    fxDivergesWarning:
+      'The portfolio total is now computed from a different series than tax. Polish capital-gains tax converts at the NBP rate from the business day before a transaction, so the figure on screen and the amount you file will differ by the spread. Cost basis and realized P&L do not move — those use the rate stored on each transaction.',
   },
   wrappers: {
     brokerage: 'Brokerage account',
@@ -281,6 +307,9 @@ export const en: Dictionary = {
     refreshFailed: 'Could not refresh — showing the last known value.',
     seeAll: 'See indicators',
     fxBy: 'NBP table A — mid rate',
+    fxByMarket: 'Market rate — Yahoo Finance',
+    fxNoteMarket:
+      'A market rate, moving through the session. Portfolio valuation uses the NBP rate unless you change that in More → Exchange rates.',
     fxPair: 'Currency pair',
     fxBase: 'Base currency',
     fxQuote: 'Quote currency',
