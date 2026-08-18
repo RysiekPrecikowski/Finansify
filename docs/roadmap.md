@@ -122,7 +122,7 @@ Boś stays blocked — no real exported statement examined yet.
       published day-values reproduced to the grosz
 - [x] Multi-period golden tables — 1828 more day-values across 22 resets;
       found and fixed a compounding rounding error in capitalization
-- [x] ADR 0018 — published tables become the value **source**, not just a
+- [x] ADR 0019 — published tables become the value **source**, not just a
       test; `accrueBond` is the fallback for unpublished families/periods
 - [x] `providers`: `pekaoInterestTableProvider`, NBP reference rate (current + archive to 1998), GUS CPI, MF offer pages
 - [x] `db`: `bond_interest_tables` + migration

@@ -1,18 +1,25 @@
 import {
   FractionalBondError,
+  interestTableKeyFor,
   makeRefreshIndexSeries,
   parseSeriesCode,
   valueBondPosition,
+  type BondInterestTable,
+  type BondSeriesCode,
   type InstrumentId,
   type InstrumentPosition,
   type PriceLookup,
+  type PublishedTables,
+  type PurchaseDayKey,
 } from '@finansify/core';
 
 import {
   clock,
+  getBondInterestTables,
   getBondTermsResolver,
   getCpiProvider,
   getIndexObservations,
+  getInterestTableProvider,
   getReferenceRateProvider,
 } from '@/server/container';
 
@@ -32,6 +39,97 @@ const displayTimeZone = 'Europe/Warsaw';
  * digits, so `valuePositions` multiplying the unit value back by the quantity
  * returns the accrual's own total to the grosz. Rounding here would drift.
  */
+/**
+ * The published tables for one series, as far as they are already stored.
+ *
+ * No network, by design. The stored rows are tried first and the fetch below
+ * only runs when they turn out not to cover the holding — so a series whose
+ * tables are on hand costs nothing per render, which is the whole point of
+ * caching them.
+ */
+async function storedTablesFor(
+  code: BondSeriesCode,
+  dayKeys: ReadonlySet<PurchaseDayKey>,
+): Promise<PublishedTables> {
+  const byDayKey = new Map<PurchaseDayKey, ReadonlyMap<number, BondInterestTable>>();
+
+  try {
+    const repository = getBondInterestTables();
+    for (const dayKey of dayKeys) byDayKey.set(dayKey, await repository.find(code, dayKey));
+  } catch (error) {
+    // Reported and degraded, never thrown. This is the cache, not the ledger:
+    // a table we cannot read is the same situation as one nobody published,
+    // and the engine answers either way. Letting it escape instead cost the
+    // position its value entirely — found by running the app against a
+    // database the migration had not reached, where every bond rendered as
+    // "price loading" rather than as an accrued figure.
+    console.error(`Could not read stored interest tables for ${code}`, error);
+    return () => new Map();
+  }
+
+  return (dayKey) => byDayKey.get(dayKey) ?? new Map();
+}
+
+/**
+ * Fetch whatever the emission agent publishes for this series that we do not
+ * already hold, store it, and hand back the enlarged set — ADR 0011's
+ * cache-on-first-use rule applied to a second kind of bond reference data.
+ *
+ * Called only after the stored tables have failed to value the position, which
+ * makes it lazy in the strict sense: nothing is fetched for a series nobody
+ * holds, and nothing is fetched twice. That a stored table never needs
+ * refreshing is a property of the source rather than an assumption — an agent
+ * publishes a period's *whole* daily grid as soon as its rate is known, so a
+ * row on hand is final and only a holding rolling into a new period comes back
+ * here.
+ *
+ * The residual cost is a series the agent publishes nothing for — OTS, ROS and
+ * ROD, and any period not yet published — which asks once per render and
+ * learns nothing. That is one GET for a holding that is valued by the engine
+ * anyway; worth removing if the family list ever grows, not worth a negative
+ * cache today.
+ *
+ * A failed fetch is not an error. Three of the eight families publish no tables
+ * at all, and a down agent is the same situation as an unpublished one: the
+ * caller values the holding with the engine instead, which is a correct answer
+ * rather than an outage.
+ */
+async function refreshTablesFor(
+  code: BondSeriesCode,
+  dayKeys: ReadonlySet<PurchaseDayKey>,
+  stored: PublishedTables,
+): Promise<PublishedTables> {
+  const repository = getBondInterestTables();
+  const provider = getInterestTableProvider();
+
+  try {
+    const publishedKeys = await provider.fetchPublishedTables(code);
+    const missing = publishedKeys.filter(
+      (key) =>
+        dayKeys.has(key.purchaseDayKey) && !stored(key.purchaseDayKey).has(key.periodOrdinal),
+    );
+    if (missing.length === 0) return stored;
+
+    // Serially, not `Promise.all`. A twelve-year family has twelve periods to
+    // collect on first use, and firing all of them at an emission agent at
+    // once is the kind of burst that earns a 429 for everyone afterwards.
+    // This runs once per series in its lifetime; the latency is not worth the
+    // rudeness.
+    const usable: BondInterestTable[] = [];
+    for (const key of missing) {
+      const table = await provider.fetchTable(code, key);
+      if (table !== null) usable.push(table);
+    }
+    if (usable.length === 0) return stored;
+
+    await repository.save(usable);
+    return await storedTablesFor(code, dayKeys);
+  } catch (error) {
+    console.error(`Could not refresh published interest tables for ${code}`, error);
+    return stored;
+  }
+}
+
 export async function bondPriceLookups(
   positions: readonly InstrumentPosition[],
 ): Promise<ReadonlyMap<InstrumentId, PriceLookup>> {
@@ -89,11 +187,22 @@ export async function bondPriceLookups(
         continue;
       }
 
-      const valued = valueBondPosition(
-        valuedLots.map((entry) => ({ terms: entry.terms!, lot: entry.lot })),
-        asOf,
-        observations,
-      );
+      const holdings = valuedLots.map((entry) => ({ terms: entry.terms!, lot: entry.lot }));
+      const dayKeys = new Set(lots.map((lot) => interestTableKeyFor(lot.openedOn)));
+
+      // Stored table, then a live fetch, then the engine — and the decision of
+      // whether the stored tables suffice is `valueBondPosition`'s, not a
+      // second copy of the period arithmetic here. A position that comes back
+      // `'computed'` had at least one lot the published tables could not
+      // answer for, which is exactly when it is worth asking the agent.
+      const stored = await storedTablesFor(code, dayKeys);
+      let valued = valueBondPosition(holdings, asOf, observations, stored);
+      if (valued.source === 'computed') {
+        const refreshed = await refreshTablesFor(code, dayKeys, stored);
+        if (refreshed !== stored) {
+          valued = valueBondPosition(holdings, asOf, observations, refreshed);
+        }
+      }
       lookups.set(position.instrument.id, {
         status: 'fresh',
         close: valued.marketValue.dividedBy(position.quantity),

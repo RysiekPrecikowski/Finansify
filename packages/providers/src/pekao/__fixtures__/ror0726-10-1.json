@@ -1,0 +1,84 @@
+{
+  "title" : "Obligacje 1-roczne",
+  "genitiveName" : "ROCZNYCH OSZCZĘDNOŚCIOWYCH OBLIGACJI SKARBOWYCH O ZMIENNEJ STOPIE PROCENTOWEJ",
+  "series" : "ROR0726",
+  "saleFrom" : "01.07.2025",
+  "saleTo" : "31.07.2025",
+  "interestFrom" : "01.04.2026",
+  "interestTo" : "01.05.2026",
+  "interestRateDescription" : "5,25% w skali roku, w pierwszym miesięcznym okresie odsetkowym. W kolejnych miesięcznych okresach odsetkowych: stopa referencyjna NBP+0,00% ",
+  "purchase" : "100,00 zł",
+  "interestRatePercentage" : "3,75%",
+  "interestPeriodNumber" : 10,
+  "interestPeriodDay" : 1,
+  "redemptionDate" : "01.07.2026",
+  "tables" : [ {
+    "name" : "2026",
+    "header" : {
+      "items" : [ "Data", "IV", "V" ]
+    },
+    "rows" : [ {
+      "items" : [ "1", "0,00", "0,31" ]
+    }, {
+      "items" : [ "2", "0,01", "" ]
+    }, {
+      "items" : [ "3", "0,02", "" ]
+    }, {
+      "items" : [ "4", "0,03", "" ]
+    }, {
+      "items" : [ "5", "0,04", "" ]
+    }, {
+      "items" : [ "6", "0,05", "" ]
+    }, {
+      "items" : [ "7", "0,06", "" ]
+    }, {
+      "items" : [ "8", "0,07", "" ]
+    }, {
+      "items" : [ "9", "0,08", "" ]
+    }, {
+      "items" : [ "10", "0,09", "" ]
+    }, {
+      "items" : [ "11", "0,10", "" ]
+    }, {
+      "items" : [ "12", "0,11", "" ]
+    }, {
+      "items" : [ "13", "0,13", "" ]
+    }, {
+      "items" : [ "14", "0,14", "" ]
+    }, {
+      "items" : [ "15", "0,15", "" ]
+    }, {
+      "items" : [ "16", "0,16", "" ]
+    }, {
+      "items" : [ "17", "0,17", "" ]
+    }, {
+      "items" : [ "18", "0,18", "" ]
+    }, {
+      "items" : [ "19", "0,19", "" ]
+    }, {
+      "items" : [ "20", "0,20", "" ]
+    }, {
+      "items" : [ "21", "0,21", "" ]
+    }, {
+      "items" : [ "22", "0,22", "" ]
+    }, {
+      "items" : [ "23", "0,23", "" ]
+    }, {
+      "items" : [ "24", "0,24", "" ]
+    }, {
+      "items" : [ "25", "0,25", "" ]
+    }, {
+      "items" : [ "26", "0,26", "" ]
+    }, {
+      "items" : [ "27", "0,27", "" ]
+    }, {
+      "items" : [ "28", "0,28", "" ]
+    }, {
+      "items" : [ "29", "0,29", "" ]
+    }, {
+      "items" : [ "30", "0,30", "" ]
+    }, {
+      "items" : [ "31", "", "" ]
+    } ]
+  } ]
+}

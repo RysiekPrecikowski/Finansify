@@ -5,3 +5,9 @@ export { nbpFxRateProvider } from './nbp/fx-provider';
 export { nbpReferenceRateProvider } from './nbp/reference-rate-provider';
 export { gusCpiProvider } from './gus/cpi-provider';
 export { mfBondIssueProvider } from './mf/bond-issue-provider';
+export {
+  pekaoInterestTableProvider,
+  parseInterestTable,
+  parsePublishedTables,
+  UnreadableInterestTableError,
+} from './pekao/interest-table-provider';

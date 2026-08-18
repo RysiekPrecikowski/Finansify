@@ -1,5 +1,16 @@
 import { bondFamilies, indexIds } from '@finansify/core/vocabulary';
-import { date, numeric, pgEnum, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  date,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  smallint,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 
 import { providerNameEnum } from './prices';
 
@@ -87,3 +98,62 @@ export const indexObservations = pgTable(
 
 export type IndexObservationRow = typeof indexObservations.$inferSelect;
 export type NewIndexObservationRow = typeof indexObservations.$inferInsert;
+
+/**
+ * One published daily interest table, exactly as an emission agent serves it
+ * (ADR 0019). Global and unscoped like everything else here: the Ministry
+ * publishes one figure per series, period and purchase day, and it is the same
+ * figure for every holder.
+ *
+ * The primary key is `(series_code, purchase_day_key, period_ordinal)` because
+ * that triple *is* the table's published identity — Pekao keys its own
+ * endpoint on it — and because keying on it lets two concurrent renders race
+ * harmlessly onto the same row instead of inserting twice, the same reason
+ * `index_observations` keys the way it does.
+ *
+ * Nothing our own engine computed may ever be written here. A stored value is
+ * a claim that an agent published it, and the whole point of the fallback is
+ * that a series still on our arithmetic picks up the official table the day it
+ * appears — which cannot happen if we have already filled the row ourselves.
+ */
+export const bondInterestTables = pgTable(
+  'bond_interest_tables',
+  {
+    seriesCode: text('series_code').notNull(),
+    /** 1, 29, 30 or 31 — the four purchase days the agents publish for. */
+    purchaseDayKey: smallint('purchase_day_key').notNull(),
+    /** 1-based, matching the published "Okres odsetkowy". */
+    periodOrdinal: integer('period_ordinal').notNull(),
+    /**
+     * The published period bounds, stored **as published** rather than
+     * normalized onto our own period convention. The two genuinely differ: a
+     * capitalizing family's table opens the day after the previous one closes,
+     * and flattening that away here would lose the one signal
+     * `readInterestTable` uses to tell the two conventions apart.
+     */
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    /** A fraction, like every other rate here: 5.25% is `0.052500`. */
+    annualRate: rate('annual_rate').notNull(),
+    /**
+     * One value per calendar day from `starts_on` to `ends_on` inclusive, in
+     * order, **per bond** — up to 366 entries for an annual period.
+     *
+     * `jsonb` of decimal *strings*, not `numeric[]` and never floats: these are
+     * money, they arrive rounded to the grosz, and they must round-trip to
+     * `Decimal` unchanged (rule 1). A JSON number would put them through a
+     * double on the way in and out.
+     */
+    dailyValues: jsonb('daily_values').$type<readonly string[]>().notNull(),
+    source: providerNameEnum('source').notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.seriesCode, table.purchaseDayKey, table.periodOrdinal],
+    }),
+  ],
+);
+
+export type BondInterestTableRow = typeof bondInterestTables.$inferSelect;
+export type NewBondInterestTableRow = typeof bondInterestTables.$inferInsert;

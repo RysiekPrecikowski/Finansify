@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { type Money } from '../money';
 import { type Temporal } from '../time';
+import { type ProviderName } from '../valuation/vocabulary';
 
 // The closed value lists live in `./vocabulary`, which imports nothing at all,
 // for the reason its header gives. Re-exported here so every other caller sees
@@ -170,6 +171,14 @@ export interface BondAccrual {
   readonly earlyRedemptionValue: Money;
   /** The periods elapsed so far, newest last. Drives the cash-flow view later. */
   readonly periods: readonly BondInterestPeriod[];
+  /**
+   * Where these figures came from: the emission agent whose published table
+   * was read, or `'computed'` when our own engine produced them. The user must
+   * always be able to tell the Ministry's number from ours — they agree to the
+   * grosz today, and the day they stop agreeing this field is what says which
+   * one they are looking at.
+   */
+  readonly source: ProviderName | 'computed';
 }
 
 /** Gross and net, once a withholding rate is known. See `withholding.ts`. */
