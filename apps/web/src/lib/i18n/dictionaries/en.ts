@@ -24,15 +24,11 @@ export const en: Dictionary = {
   dashboard: {
     title: 'Dashboard',
     totalValue: 'Total value',
-    todayChange: 'Today',
     totalChange: 'All time',
     asOf: 'As of',
     stale: 'stale',
     filterByAssetClass: 'Filter by asset class',
     chartRange: 'Chart range',
-    currencyLocked:
-      'The dashboard still runs on demo data in PLN — the currency you picked does not apply to these figures. It applies on Portfolio.',
-    currencyIgnored: '{currency} picked — dashboard is on demo data',
     ranges: {
       '1D': '1D',
       '1W': '1W',
@@ -47,12 +43,9 @@ export const en: Dictionary = {
       etf: 'ETFs',
       fund: 'Funds',
       bond: 'Bonds',
-      cash: 'Cash',
     },
     accounts: {
       title: 'Accounts',
-      limit: '{year} limit',
-      limitUsed: '{used} of {limit}',
     },
     holdings: {
       title: 'Holdings',
@@ -329,8 +322,5 @@ export const en: Dictionary = {
   },
   placeholder: {
     more: 'Settings and statement imports.',
-  },
-  mock: {
-    banner: 'Demo data — the transaction ledger arrives in Phase 1.',
   },
 };

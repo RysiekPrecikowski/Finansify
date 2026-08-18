@@ -1,178 +1,207 @@
+import {
+  currency as toCurrency,
+  makeListPositions,
+  type Account,
+  type CashBalanceLine,
+  type FxSourcePreference,
+  type InstrumentPosition,
+} from '@finansify/core';
+import type { Route } from 'next';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { AccountTiles } from '@/components/dashboard/account-tiles';
 import { AssetClassChips } from '@/components/dashboard/asset-class-chips';
-import { ChartCard } from '@/components/dashboard/chart-card';
 import { HoldingsList } from '@/components/dashboard/holdings-list';
 import { PortfolioHeadline } from '@/components/dashboard/portfolio-headline';
 import { SortMenu, type SortOption } from '@/components/dashboard/sort-menu';
 import { IndicatorStrip } from '@/components/indicators/indicator-strip';
-import { chartPointCount, resample, type ChartSeries } from '@/lib/chart-series';
-import { parseDashboardParams } from '@/lib/dashboard-params';
-import { directionOf, formatMoney } from '@/lib/format';
-
-import { getDisplaySettings, toDisplayCurrencies } from '@/lib/display/server';
-import { convertSnapshot } from '@/server/dashboard-currency';
-import { getLocale } from '@/lib/i18n/server';
-import { type Locale } from '@/lib/i18n/locales';
-import { dictionaryFor } from '@/lib/i18n/dictionaries';
+import { Button } from '@/components/ui/button';
+import { getCurrentUser } from '@/lib/auth';
 import {
-  demoPortfolio,
+  buildAccountTotals,
+  buildDashboardHoldings,
+  buildTotals,
   filterByAssetClass,
-  ranges,
   sortHoldings,
   sortOrders,
   type AssetClass,
-  type Range,
-  type ValuePoint,
-} from '@/lib/fixtures/portfolio';
-import { type Money } from '@finansify/core';
+  type SortOrder,
+} from '@/lib/dashboard/snapshot';
+import { parseDashboardParams } from '@/lib/dashboard-params';
+import { type DisplaySettings } from '@/lib/display/currencies';
+import { getDisplaySettings, getFxPreference } from '@/lib/display/server';
+import { type Dictionary } from '@/lib/i18n/dictionaries';
+import { getDictionary, getLocale } from '@/lib/i18n/server';
+import { type Locale } from '@/lib/i18n/locales';
+import { getInstruments, scopedLedgerFor } from '@/server/container';
+import { valuePositionsFor } from '@/server/portfolio-valuation';
 
-function extremes(points: readonly ValuePoint[]): { high: Money; low: Money } {
-  return points.reduce<{ high: Money; low: Money }>(
-    (bounds, point) => ({
-      high: point.value.greaterThan(bounds.high) ? point.value : bounds.high,
-      low: point.value.lessThan(bounds.low) ? point.value : bounds.low,
-    }),
-    { high: points[0]!.value, low: points[0]!.value },
+/** Shown while `<DashboardSections>` reads storage and, if due, refreshes it — never a spinner over the whole page. */
+function DashboardSectionsFallback() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="border-border bg-muted/30 h-32 animate-pulse rounded-md border" />
+      <div className="border-border bg-muted/30 h-48 animate-pulse rounded-md border" />
+    </div>
   );
 }
 
 /**
- * `Object.fromEntries` widens to a string index signature, and the six ranges
- * are exactly known — the assertion restores what the input already guarantees.
+ * Everything that needs a price or an FX rate: headline, allocation, holdings,
+ * account tiles. Streamed in on its own `<Suspense>` boundary so a slow or
+ * down provider only ever delays this section, never the page — same split as
+ * `/portfolio`'s `<OpenPositions>` (ADR 0014, section 03).
  */
-function byRange<T>(build: (range: Range) => T): Record<Range, T> {
-  return Object.fromEntries(ranges.map((range) => [range, build(range)])) as Record<Range, T>;
-}
+async function DashboardSections({
+  open,
+  cash,
+  accounts,
+  display,
+  fxPreference,
+  sort,
+  assetClass,
+  locale,
+  dictionary,
+}: Readonly<{
+  open: readonly InstrumentPosition[];
+  cash: readonly CashBalanceLine[];
+  accounts: readonly Account[];
+  display: DisplaySettings;
+  fxPreference: FxSourcePreference;
+  sort: SortOrder;
+  assetClass: AssetClass | null;
+  locale: Locale;
+  dictionary: Dictionary;
+}>) {
+  const total = toCurrency(display.total);
 
-/**
- * Every range is prepared on the server so the client can switch between them
- * without a round trip. `Money` and `Intl` stay on this side: the client
- * receives finished strings and pixel geometry, never a currency value.
- *
- * The high and low labels come from the **true** series, not the resampled one
- * — resampling is for the tween's benefit and must not reach a figure the user
- * reads.
- */
-function chartSeriesFor(
-  points: readonly ValuePoint[],
-  rangeLabel: string,
-  valueLabel: string,
-  locale: Locale,
-): ChartSeries {
-  const { high, low } = extremes(points);
-  const first = points[0]!.value;
-  const last = points[points.length - 1]!.value;
-
-  return {
-    // Money becomes plain numbers only here, and only for pixel geometry —
-    // every figure the user reads is formatted from `Money` above.
-    points: resample(
-      points.map((point) => point.value.amount.toNumber()),
-      chartPointCount,
-    ),
-    direction: directionOf(last.minus(first)),
-    highLabel: formatMoney(high, locale, { bare: true }),
-    lowLabel: formatMoney(low, locale, { bare: true }),
-    label: `${valueLabel} — ${rangeLabel}`,
-  };
-}
-
-export default async function DashboardPage({
-  searchParams,
-}: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
-  const [locale, raw, display] = await Promise.all([
-    getLocale(),
-    searchParams,
-    getDisplaySettings(),
-  ]);
-  const dictionary = dictionaryFor(locale);
-  const params = parseDashboardParams(raw);
-
-  // The figures are still the fixture; only their currency follows the reader
-  // (`server/dashboard-currency.ts`). A rate that cannot be had converts
-  // nothing at all rather than some tiles — `converted` drives the note. The
-  // settings go in as the same `DisplayCurrencies` `/portfolio` hands to
-  // `valuePositions`, so one representation drives both views.
-  const { snapshot, holdingsTotal, converted } = await convertSnapshot(
-    demoPortfolio,
-    toDisplayCurrencies(display),
+  // Every dashboard row is a single `Money`, never an array of them — `lines`
+  // is pinned to the presentation total regardless of what the reader picked
+  // for `/portfolio`'s detailed, per-line-currency table.
+  const { valuation, priceLookups, ratesToPln } = await valuePositionsFor(
+    open,
+    display,
+    fxPreference,
+    {
+      total,
+      lines: total,
+    },
   );
 
-  const chartSeries = byRange((range) =>
-    chartSeriesFor(
-      snapshot.series[range],
-      dictionary.dashboard.ranges[range],
-      dictionary.dashboard.totalValue,
-      locale,
-    ),
-  );
+  const totals = buildTotals(valuation.positions, valuation, ratesToPln, total);
+  const allHoldings = buildDashboardHoldings(valuation.positions, priceLookups);
   const present: readonly AssetClass[] = [
-    ...new Set(snapshot.holdings.map((holding) => holding.assetClass)),
+    ...new Set(allHoldings.map((holding) => holding.assetClass)),
   ];
+  const holdings = sortHoldings(filterByAssetClass(allHoldings, assetClass), sort);
+  const accountTiles = buildAccountTotals(accounts, valuation.positions, cash, ratesToPln, total);
 
-  const holdings = sortHoldings(
-    filterByAssetClass(snapshot.holdings, params.assetClass),
-    params.sort,
-  );
-
-  // Labels only: each option's href is built on the client from the live params,
-  // so it keeps a range switched to since this render (`lib/use-dashboard-params`).
   const sortOptions: readonly SortOption[] = sortOrders.map((order) => ({
     order,
     label: dictionary.dashboard.sort[order],
   }));
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-lg font-semibold tracking-tight">{snapshot.name}</h1>
-        <p className="text-muted-foreground text-xs">{dictionary.mock.banner}</p>
-      </div>
-
-      {/* The one part of this page that touches the network, so it streams in
-          on its own rather than delaying the headline behind it. */}
-      <Suspense fallback={null}>
-        <IndicatorStrip locale={locale} dictionary={dictionary} />
-      </Suspense>
-
+    <>
       <AssetClassChips present={present} dictionary={dictionary} />
 
-      <PortfolioHeadline
-        snapshot={snapshot}
-        locale={locale}
-        dictionary={dictionary}
-        display={display.total}
-        converted={converted}
-      />
+      <PortfolioHeadline totals={totals} locale={locale} dictionary={dictionary} />
 
-      <ChartCard
-        series={chartSeries}
-        rangeLabels={dictionary.dashboard.ranges}
-        navLabel={dictionary.dashboard.chartRange}
-      />
-
-      <AccountTiles accounts={snapshot.accounts} locale={locale} dictionary={dictionary} />
+      <AccountTiles accounts={accountTiles} locale={locale} dictionary={dictionary} />
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
             {dictionary.dashboard.holdings.title}
           </h2>
-          <SortMenu options={sortOptions} selected={params.sort} label={dictionary.actions.sort} />
+          <SortMenu options={sortOptions} selected={sort} label={dictionary.actions.sort} />
         </div>
 
-        {/* The share column divides a row by the total, so it gets the total in
-            the rows' own currency — `snapshot.totalValue` is in the reader's
-            presentation currency and the two need not be the same. */}
         <HoldingsList
           holdings={holdings}
-          total={holdingsTotal}
+          total={totals.totalValue}
           locale={locale}
           dictionary={dictionary}
         />
       </section>
+    </>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
+  const user = await getCurrentUser();
+  if (user === null) redirect('/sign-in' as Route);
+
+  const [locale, raw, display, fxPreference, dictionary] = await Promise.all([
+    getLocale(),
+    searchParams,
+    getDisplaySettings(),
+    getFxPreference(),
+    getDictionary(),
+  ]);
+  const params = parseDashboardParams(raw);
+
+  const ledger = scopedLedgerFor(user.id);
+  const listPositions = makeListPositions({ ledger, instruments: getInstruments() });
+
+  const [view, accounts] = await Promise.all([listPositions(), ledger.listAccounts()]);
+
+  const empty =
+    accounts.length === 0 ? (
+      <span className="flex flex-col items-start gap-2">
+        {dictionary.transactions.needsAccount}
+        <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/accounts" />}>
+          {dictionary.accounts.add}
+        </Button>
+      </span>
+    ) : (
+      <span className="flex flex-col items-start gap-2">
+        {dictionary.dashboard.holdings.empty}
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={<Link href="/transactions/new" />}
+        >
+          {dictionary.transactions.add}
+        </Button>
+      </span>
+    );
+
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-lg font-semibold tracking-tight">{dictionary.dashboard.title}</h1>
+      </div>
+
+      {/* The one part of the page above the fold that touches the network
+          before the priced section does, so it streams in on its own rather
+          than delaying anything behind it. */}
+      <Suspense fallback={null}>
+        <IndicatorStrip locale={locale} dictionary={dictionary} />
+      </Suspense>
+
+      {view.open.length === 0 && accounts.length === 0 ? (
+        <p className="text-muted-foreground px-1 py-8 text-sm">{empty}</p>
+      ) : (
+        <Suspense fallback={<DashboardSectionsFallback />}>
+          <DashboardSections
+            open={view.open}
+            cash={view.cash}
+            accounts={accounts}
+            display={display}
+            fxPreference={fxPreference}
+            sort={params.sort}
+            assetClass={params.assetClass}
+            locale={locale}
+            dictionary={dictionary}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -44,8 +44,11 @@ lot matching to be correct on their own, with nothing to hide behind.
 - [x] Property testing found and fixed a `decimal.js` precision defect in
       `matchLots`
 
-Dashboard still renders `lib/fixtures/portfolio.ts` until Phase 2 has real
-prices.
+Dashboard rendered `lib/fixtures/portfolio.ts` until Phase 2 landed real
+prices (CU-869ej7zk5): headline, allocation, holdings and account tiles now
+read `scopedLedgerFor` through the same `<Suspense>`-scoped valuation
+`/portfolio` uses. The hero chart still has no data source — no price series,
+no history — and stays out until CU-869ej7zk8 backfills one.
 
 **Phase 1.5 — encryption, built during Phase 1 then withdrawn before the
 ledger held a row.** Added a master key, an env var, key-escrow and a
@@ -72,10 +75,16 @@ full; revisit when there is data worth protecting.
 - [x] ADR 0017 + a `pre-production` Neon branch — migrations rehearse there
       first; written after a partial migration wedged production for three
       hours behind a green `check`
-- [ ] Dashboard on real data — still on fixtures; deferred to its own PR,
-      since it touches every dashboard component
+- [x] Dashboard on real data — headline, allocation, holdings, account
+      tiles read `scopedLedgerFor` (CU-869ej7zk5). Historical value and the
+      hero chart are out of scope — no series exists yet — and tracked
+      separately (CU-869ej7zk8).
 - [ ] Market calendar / per-instrument fetch lock — accepted gap, see ADR
       0014
+- [ ] IKE/IKZE contribution room on the dashboard's account tiles —
+      `contributionRoomFor` exists in `core`, but "contributed this year"
+      needs aggregating the account's `deposit` transactions, which the
+      dashboard doesn't do yet
 
 **Phase 4 — in progress, running alongside Phase 3.** Real XTB exports became
 available during import planning, so that work went first; the two phases ran
@@ -135,7 +144,9 @@ Boś stays blocked — no real exported statement examined yet.
       KNF-sourced, IKZE's two 2021 caps handled explicitly
 - [ ] OTS/ROS/ROD — no published daily table to test against (OTS pays one
       sum at redemption; ROS/ROD are PKO-only, WAF-blocked)
-- [ ] Bonds on the dashboard — blocked on "Dashboard on real data" above
+- [x] Bonds on the dashboard — `valuePositionsFor` merges `bondPriceLookups`
+      into every render, `/portfolio` and `/dashboard` alike, so a bond
+      position values and sorts the same way an equity does (CU-869ej7zk5)
 - [ ] `wrapper_rules` as a table and a screen — figures live in `core`,
       nothing persists or shows them yet
 
@@ -155,7 +166,9 @@ ISIN.
 - The shared cache (`instrument_prices`, `fx_rates`), lazily refreshed inside
   a `<Suspense>` boundary — no scheduler, no market calendar; a fixed 15-minute
   TTL is the whole freshness rule for now.
-- Dashboard on real data: headline, hero chart, allocation. The fixture dies here.
+- Dashboard on real data: headline, allocation, holdings, account tiles. The
+  fixture dies here. The hero chart needs a price/FX history no provider call
+  here fetches, so it ships separately (CU-869ej7zk8).
 
 Depends on Phase 1's positions. Blocked on nothing external.
 

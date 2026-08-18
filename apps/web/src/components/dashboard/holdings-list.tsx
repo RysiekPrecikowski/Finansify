@@ -1,5 +1,6 @@
 import { DataList, type DataListColumn } from '@/components/data-list';
 import { Badge } from '@/components/ui/badge';
+import { type DashboardHolding } from '@/lib/dashboard/snapshot';
 import {
   directionOf,
   directionSurface,
@@ -9,12 +10,11 @@ import {
 } from '@/lib/format';
 import { interpolate, type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
-import { type Holding } from '@/lib/fixtures/portfolio';
 import { type Money } from '@finansify/core';
 import { cn } from '@/lib/utils';
 
 /** No logo provider yet, so a monogram — never a blank circle. */
-function Monogram({ holding }: Readonly<{ holding: Holding }>) {
+function Monogram({ holding }: Readonly<{ holding: DashboardHolding }>) {
   return (
     <span
       aria-hidden
@@ -25,12 +25,14 @@ function Monogram({ holding }: Readonly<{ holding: Holding }>) {
   );
 }
 
-function GainBadge({ holding, locale }: Readonly<{ holding: Holding; locale: Locale }>) {
-  if (holding.valuation === null) {
+function GainBadge({ holding, locale }: Readonly<{ holding: DashboardHolding; locale: Locale }>) {
+  if (holding.valuation === null || holding.valuation.gain === null) {
     return <span className="text-muted-foreground text-xs">—</span>;
   }
 
-  const direction = directionOf(holding.valuation.gain);
+  const gain = holding.valuation.gain;
+  const gainRatio = holding.valuation.gainRatio;
+  const direction = directionOf(gain);
 
   return (
     <span className="inline-flex items-center justify-end gap-1.5">
@@ -44,16 +46,18 @@ function GainBadge({ holding, locale }: Readonly<{ holding: Holding; locale: Loc
               : 'text-muted-foreground',
         )}
       >
-        {formatMoney(holding.valuation.gain, locale, { signed: true })}
+        {formatMoney(gain, locale, { signed: true })}
       </span>
-      <span
-        className={cn(
-          'rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums',
-          directionSurface[direction],
-        )}
-      >
-        {formatRatioAsPercent(holding.valuation.gainRatio, locale, { signed: true })}
-      </span>
+      {gainRatio !== null && (
+        <span
+          className={cn(
+            'rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums',
+            directionSurface[direction],
+          )}
+        >
+          {formatRatioAsPercent(gainRatio, locale, { signed: true })}
+        </span>
+      )}
     </span>
   );
 }
@@ -64,7 +68,7 @@ export function HoldingsList({
   locale,
   dictionary,
 }: Readonly<{
-  holdings: readonly Holding[];
+  holdings: readonly DashboardHolding[];
   /** The portfolio total **in the rows' own currency** — the share column is a ratio of the two. */
   total: Money;
   locale: Locale;
@@ -72,7 +76,7 @@ export function HoldingsList({
 }>) {
   const strings = dictionary.dashboard.holdings;
 
-  const weight = (holding: Holding): string => {
+  const weight = (holding: DashboardHolding): string => {
     if (holding.valuation === null || total.isZero()) return '—';
     // Two currencies have no ratio, and the one this would print looks entirely
     // ordinary — a dash is the honest answer, not a rate applied on the way
@@ -85,7 +89,16 @@ export function HoldingsList({
     );
   };
 
-  const columns: readonly DataListColumn<Holding>[] = [
+  const averageCostCell = (holding: DashboardHolding) =>
+    holding.averageCost === null ? (
+      <Badge variant="outline" className="font-normal">
+        {dictionary.portfolio.multipleCurrencies}
+      </Badge>
+    ) : (
+      formatMoney(holding.averageCost, locale)
+    );
+
+  const columns: readonly DataListColumn<DashboardHolding>[] = [
     {
       id: 'instrument',
       header: strings.instrument,
@@ -109,7 +122,7 @@ export function HoldingsList({
           <span>{formatQuantity(holding.quantity, locale)}</span>
           <span className="text-muted-foreground md:hidden">
             {' · '}
-            {formatMoney(holding.averageCost, locale)}
+            {averageCostCell(holding)}
           </span>
         </>
       ),
@@ -118,7 +131,7 @@ export function HoldingsList({
       id: 'averageCost',
       header: strings.averageCost,
       align: 'end',
-      cell: (holding) => formatMoney(holding.averageCost, locale),
+      cell: averageCostCell,
     },
     {
       id: 'price',

@@ -25,15 +25,11 @@ export const pl = {
   dashboard: {
     title: 'Pulpit',
     totalValue: 'Wartość całkowita',
-    todayChange: 'Dziś',
     totalChange: 'Łącznie',
     asOf: 'Dane z',
     stale: 'nieaktualne',
     filterByAssetClass: 'Filtruj według klasy aktywów',
     chartRange: 'Zakres wykresu',
-    currencyLocked:
-      'Pulpit działa jeszcze na danych demonstracyjnych w PLN — wybór waluty nie dotyczy tych liczb. Działa na stronie Portfel.',
-    currencyIgnored: 'wybrano {currency} — pulpit na danych demonstracyjnych',
     ranges: {
       '1D': '1D',
       '1W': '1T',
@@ -48,12 +44,9 @@ export const pl = {
       etf: 'ETF-y',
       fund: 'Fundusze',
       bond: 'Obligacje',
-      cash: 'Gotówka',
     },
     accounts: {
       title: 'Konta',
-      limit: 'limit {year}',
-      limitUsed: '{used} z {limit}',
     },
     holdings: {
       title: 'Pozycje',
@@ -339,9 +332,6 @@ export const pl = {
   },
   placeholder: {
     more: 'Ustawienia i import wyciągów.',
-  },
-  mock: {
-    banner: 'Dane demonstracyjne — księga transakcji pojawi się w Fazie 1.',
   },
 };
 
