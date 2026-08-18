@@ -36,9 +36,19 @@ const fixture = (series: string, ordinal: number, dayKey: number): Fixture => {
   return found;
 };
 
-/** `"5,25%"` → `0.0525`, without `parseFloat` (rule 1). */
-const asFraction = (percent: string) =>
-  new Decimal(percent.replace('%', '').replace(',', '.').trim()).dividedBy(100);
+/**
+ * `"5,25%"` → `0.0525`, without `parseFloat` (rule 1) and without peeling the
+ * string apart character by character — the published format is matched whole,
+ * so anything else fails loudly here rather than being tidied into a number.
+ */
+const PUBLISHED_PERCENT = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/;
+
+const asFraction = (percent: string) => {
+  const match = PUBLISHED_PERCENT.exec(percent);
+  if (match === null) throw new Error(`"${percent}" is not a published percentage`);
+  const [, whole = '', fraction] = match;
+  return new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`).dividedBy(100);
+};
 
 const tableFrom = (entry: Fixture): BondInterestTable => ({
   seriesCode: parseSeriesCode(entry.series).code,

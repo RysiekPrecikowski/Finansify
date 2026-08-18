@@ -200,7 +200,15 @@ describe('lots bought either side of a rules change', () => {
  */
 describe('valuing from the published tables', () => {
   const asFraction = (percent: string) =>
-    new Decimal(percent.replace('%', '').replace(',', '.').trim()).dividedBy(100);
+    (() => {
+      // Matched whole rather than stripped piece by piece: the published
+      // format is the only one accepted, so anything else fails here instead
+      // of being tidied into a number.
+      const match = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/.exec(percent);
+      if (match === null) throw new Error(`"${percent}" is not a published percentage`);
+      const [, whole = '', fraction] = match;
+      return new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`).dividedBy(100);
+    })();
 
   const tableFrom = (entry: (typeof publishedFixture)[number]): BondInterestTable => ({
     seriesCode: parseSeriesCode(entry.series).code,

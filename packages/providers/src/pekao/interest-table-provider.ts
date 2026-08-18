@@ -75,9 +75,23 @@ export class UnreadableInterestTableError extends Error {
   }
 }
 
-/** `"5,25%"` → `0.0525`, and `"0,44"` → `0.44`. Never `parseFloat` (rule 1). */
+/**
+ * `"5,25%"` → `5.25`, and `"0,44"` → `0.44`. Never `parseFloat` (rule 1).
+ *
+ * Matched whole rather than stripped character by character. Peeling the `%`
+ * and the comma off with `replace` reads as sanitizing a hostile string — and
+ * is what CodeQL's `js/incomplete-sanitization` flags it as — when the intent
+ * is the opposite: this is the *only* numeric shape the tables publish, and
+ * anything else must be refused rather than tidied into something parseable.
+ */
+const PUBLISHED_NUMBER = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/;
+
 function toDecimal(raw: string): Decimal {
-  const value = new Decimal(raw.replace('%', '').replace(',', '.').trim());
+  const match = PUBLISHED_NUMBER.exec(raw);
+  if (match === null) throw new RangeError(`"${raw}" is not a number in the published format`);
+
+  const [, whole = '', fraction] = match;
+  const value = new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`);
   if (!value.isFinite()) throw new RangeError(`"${raw}" is not a finite number`);
   return value;
 }

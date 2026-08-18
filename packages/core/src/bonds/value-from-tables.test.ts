@@ -36,8 +36,14 @@ const d = (iso: string) => Temporal.PlainDate.from(iso);
 
 type Fixture = (typeof published)[number];
 
-const asFraction = (percent: string) =>
-  new Decimal(percent.replace('%', '').replace(',', '.').trim()).dividedBy(100);
+const PUBLISHED_PERCENT = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/;
+
+const asFraction = (percent: string) => {
+  const match = PUBLISHED_PERCENT.exec(percent);
+  if (match === null) throw new Error(`"${percent}" is not a published percentage`);
+  const [, whole = '', fraction] = match;
+  return new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`).dividedBy(100);
+};
 
 const tableFrom = (entry: Fixture): BondInterestTable => ({
   seriesCode: parseSeriesCode(entry.series).code,
