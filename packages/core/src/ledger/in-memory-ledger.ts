@@ -231,6 +231,27 @@ export class InMemoryLedger implements LedgerRepository {
         };
         return Promise.resolve(row.transaction);
       },
+
+      refreshImportedTransactions: (
+        items: readonly { id: TransactionId; input: TransactionInput }[],
+      ) => {
+        const refreshed: Transaction[] = [];
+        for (const { id, input } of items) {
+          const row = visible(id);
+          if (row === undefined) return Promise.reject(new TransactionNotFoundError(id));
+          const current = row.transaction;
+          const materialised = materialise(id, input);
+          row.transaction = {
+            ...materialised,
+            source: current.source,
+            externalId: current.externalId,
+            importBatchId: current.importBatchId,
+            editedAfterImport: current.editedAfterImport,
+          };
+          refreshed.push(row.transaction);
+        }
+        return Promise.resolve(refreshed);
+      },
     };
   }
 }

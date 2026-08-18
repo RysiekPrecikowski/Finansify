@@ -150,6 +150,20 @@ const COMMANDS = {
     console.log('prefers-reduced-motion:', setting);
   },
 
+  async sleep(ms) {
+    await new Promise((resolve) => setTimeout(resolve, Number(ms) || 1000));
+    console.log('slept', ms || 1000, 'ms');
+  },
+
+  async upload(args) {
+    if (!page) return console.log('ERROR: launch first');
+    const [sel, ...fileParts] = (args || '').split(' ');
+    const filePath = fileParts.join(' ');
+    if (!sel || !filePath) return console.log('ERROR: usage: upload <css-sel> <file-path>');
+    await page.setInputFiles(sel, filePath);
+    console.log('uploaded', filePath, '→', sel);
+  },
+
   async 'console-errors'() {
     if (!consoleErrors.length) return console.log('no console errors observed');
     consoleErrors.forEach((e) => console.log('console error:', e));
