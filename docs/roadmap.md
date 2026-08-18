@@ -20,12 +20,12 @@ lot matching to be correct on their own, with nothing to hide behind.
 
 ## Where we are
 
-**Phase 0 — complete.** Docs and ADRs 0001–0012, `core` and `db` packages, the
-money and time primitives, app shell and dashboard on fixture data, `users`
-behind the provider indirection, the CI migration job and its migration-drift
-check, Neon and Clerk provisioned, and the first migration applied to a real
-database. Two HIGH findings from `/security-review` (a CI pwn-request, an auth
-bypass on `.rsc`) found and fixed.
+**Phase 0 — complete.**
+
+- Docs and ADRs 0001–0012 · `core` and `db` packages · `Money`/`Currency`/Temporal
+- App shell + dashboard on fixture data · `users` behind the provider indirection
+- CI migration job + migration-drift check · Neon and Clerk provisioned · first migration applied to a real database
+- `/security-review`: 2 HIGH findings (CI pwn-request, auth bypass on `.rsc`) — both fixed
 
 **Phase 1 — complete.**
 
@@ -33,232 +33,111 @@ bypass on `.rsc`) found and fixed.
 - [x] `db`: `accounts`, `portfolios`, `instruments`, `transactions` + migration
 - [x] `core`: `buildPositions`, `matchLots`, `buildCashBalances` + property tests
 - [x] `db`: `ledgerRepository.forUser`, `findOrCreateInstrument`
-- [x] `core`: ledger use cases — open an account, record / update / soft-delete a
-      transaction, resolve an instrument; the account-ownership check and rule 6
-      both live here, so no route can skip either
-- [x] `/security-review` over the ledger and the encryption removal — no HIGH or
-      MEDIUM findings; the per-user scoping ADR 0009 depends on survived the
-      rewrite intact
-- [x] `apps/web`: wire the composition root — `container.ts` exports
-      `getInstruments()` and `scopedLedgerFor(userId)`
-- [x] `apps/web`: accounts screen — list and create, reached from `/more`
-- [x] `apps/web`: transaction entry — create, list, edit, soft delete
-- [x] `/security-review` over the use cases, the server actions and the two
-      screens — no HIGH or MEDIUM findings; the account-ownership check, the
-      `forUser` predicate on every mutation, and 404-not-403 on another user's
-      row all confirmed by tracing the SQL
-- [x] `apps/web`: positions view
+- [x] `core`: ledger use cases — open account, record/update/soft-delete
+      transaction, resolve instrument (account-ownership check and rule 6 both
+      live here, so no route can skip either)
+- [x] `apps/web`: composition root wired (`container.ts`), accounts screen,
+      transaction entry (create/list/edit/soft-delete), positions view
 - [x] CSV/JSON ledger export
+- [x] `/security-review` × 2 (ledger + encryption removal; use cases +
+      screens) — no HIGH or MEDIUM findings
+- [x] Property testing found and fixed a `decimal.js` precision defect in
+      `matchLots`
 
-**A real transaction can now be entered, listed, edited and deleted, and
-`/portfolio` shows what it produced.** `/accounts`, `/transactions`, and
-`/portfolio` all read and write the real ledger through
-`scopedLedgerFor(user.id)`; the composition root is wired and the fixture no
-longer stands between the user and their own rows. `/portfolio` shows open and
-closed positions grouped by instrument, cash per `(account, currency)`, and a
-per-instrument lot drill-down — quantity, cost basis, and realized P&L, with no
-market value or unrealized P&L until Phase 2's price feed exists.
+Dashboard still renders `lib/fixtures/portfolio.ts` until Phase 2 has real
+prices.
 
-`/export` closes out the phase: the same ledger `/portfolio` reads, joined
-against accounts and instruments and flattened to CSV or JSON, downloadable
-from `/more`.
-
-The dashboard still renders `lib/fixtures/portfolio.ts` — the fixture dies in
-Phase 2, when there are prices to replace it with.
-
-**Phase 1.5 — encryption.** Built during Phase 1 and then **removed before the
-ledger held a row**: it added a master key, an environment variable, a
-key-escrow procedure and a rotation problem to a product that could not yet
-record a transaction. Dependencies before features is the wrong order, and this
-is the clearest example of it in the project so far.
-
-ADR 0013's analysis is kept in full — the envelope design, the AAD binding, why
-amounts cannot stay `NUMERIC`, and the honest limit that no web application
-protects one administrator from another. Revisit when there is an application
-to protect.
-
-Tick a box in the same change that finishes the work. An unticked box for
-shipped work is how this section stops being trusted.
-
-### What Phase 1 added, and what it took back out
-
-Worth recording once, because the shape of it is the lesson rather than the
-detail.
-
-**Added and kept:** the ledger vocabulary and `LedgerRepository` port; the
-position engine (`buildPositions`, `matchLots` across FIFO/LIFO/average/
-specific, `buildCashBalances`) with property tests for the two invariants this
-document names; four tables and their migrations; a user-scoped persistence
-adapter; a migration-drift check in CI. A `decimal.js` precision defect —
-arithmetic running at fewer significant digits than the column storing it —
-found by property testing and fixed.
-
-**Added and then removed:** application-level encryption. AES-256-GCM row
-payloads, a per-user data key, an env-held master key, key escrow, and a
-rotation problem. None of it was ever wired to a code path, so nothing was
-lost — but it consumed most of a phase that had not yet shipped a screen.
-
-**The rule that came out of it:** features before dependencies. A security
-control that protects data the product cannot yet store is not protection, it
-is scope. The analysis keeps, the implementation waits.
-
-Phase 2 onward is features. The next thing that ships is a form that writes a
-transaction.
+**Phase 1.5 — encryption, built during Phase 1 then withdrawn before the
+ledger held a row.** Added a master key, an env var, key-escrow and a
+rotation problem to a product that couldn't yet record a transaction —
+dependencies before features, the wrong order. ADR 0013 keeps the analysis in
+full; revisit when there is data worth protecting.
 
 **Phase 2 — in progress.**
 
 - [x] ADR 0014 — lazy ingestion, single provider, exchange as a mandatory
-      resolution coordinate; corrects `docs/data-sources.md`'s Stooq entries
-- [x] `core`: `valuation` domain — `PriceLookup`/`FxRateLookup`, the valuation
-      ports, `readPrices`/`refreshPrices`, `readFxRates`/`refreshFxRates`,
-      `convertViaPln`, `valuePositions`; `searchInstruments`/`selectInstrument`
-      resolve and confirm an instrument at creation time, so there is no
-      separate mapping pass to run later
+      resolution coordinate (corrects `docs/data-sources.md`'s Stooq entries)
+- [x] `core`: `valuation` domain — `PriceLookup`/`FxRateLookup`,
+      `valuePositions`; `searchInstruments`/`selectInstrument` resolve and
+      confirm an instrument at creation time
 - [x] `db`: `instrument_identifiers`, `instrument_prices`, `fx_rates` +
-      migration; `marketPriceRepository`, `symbolRepository`, `fxRateRepository`
-- [x] `providers` (new package): Yahoo adapter — instrument search and
-      confirm (ADR 0014, revised: the provider names the listing, this app
-      never constructs a ticker), daily bars with float32 rounding and
-      exchange-timezone dating, throttling and 429 backoff; NBP adapter for
-      table A
-- [x] `apps/web`: `/portfolio` open positions carry market value, unrealized
-      P&L, and a portfolio total, streamed in by a `<Suspense>`
-      boundary that is the only thing touching a provider — the ledger read
-      itself never does
-- [x] Presentation currency — `valuePositions` takes the total currency and the
-      line currency separately, so the sum can be read in one currency while
-      positions stay in their own; a cookie-backed switcher beside the locale
-      one. Presentation only: neither realized nor unrealized P&L moves
-- [x] FX pair history on `/indicators` — USD/PLN and four more, with a range
-      picker, from NBP's own archive into the existing `fx_rates` table (no
-      migration: `(currency, date)` was already the key). Sourced from the same
-      mids the total is converted at, so the chart and the number agree by
-      construction — ADR 0017
-- [ ] Dashboard on real data — still renders `lib/fixtures/portfolio.ts`;
-      deferred rather than done in the same change, since it touches every
-      dashboard component and deserves its own PR
-- [x] Instrument selection by search — the user searches by ticker or name and
-      picks a result; local database first, the provider as a fallback, and
-      the selected candidate is re-confirmed against a live quote before it's
-      persisted (ADR 0014, revised). Replaces the earlier MIC-dropdown /
-      dry-run-check flow: there is no longer a way to create an instrument the
-      resolver hasn't already confirmed, so there is no manual mapping screen
-      to build
+      migration and repositories
+- [x] `providers` (new package): Yahoo adapter (search, daily bars,
+      throttling/429 backoff), NBP adapter (table A)
+- [x] `apps/web`: `/portfolio` open positions — market value, unrealized
+      P&L, PLN total, streamed via the only `<Suspense>` boundary that
+      touches a provider
+- [x] Instrument selection by search — local DB first, provider fallback,
+      re-confirmed against a live quote before persisting (ADR 0014, revised)
 - [x] ADR 0017 + a `pre-production` Neon branch — migrations rehearse there
-      before production sees them, and `db:migrate` prints the driver's error
-      instead of exiting silently. Written after a partial migration wedged
-      production for three hours behind a green `check`
-- [ ] Market calendar / per-instrument fetch lock — accepted gaps, see
-      ADR 0014 and the ingestion plan's "poza zakresem" section
+      first; written after a partial migration wedged production for three
+      hours behind a green `check`
+- [ ] Dashboard on real data — still on fixtures; deferred to its own PR,
+      since it touches every dashboard component
+- [ ] Market calendar / per-instrument fetch lock — accepted gap, see ADR
+      0014
 
-**Phase 4 — in progress**, running alongside Phase 3: real XTB exports
-became available during import planning, so the work that had been blocked
-on them went first — see "Phase 4 — Imports" below for what
-**Phase 4 — in progress**, started ahead of Phase 3 (bonds, not yet begun):
-real XTB exports became available during import planning, so the work that
-had been blocked on them went first — see "Phase 4 — Imports" below for what
-`Blocked` used to mean and no longer does for XTB specifically.
-**Phase 4 — in progress**, started alongside Phase 3: real XTB exports became
-available during import planning, so the work that had been blocked on them
-went first — see "Phase 4 — Imports" below for what `Blocked` used to mean and
-no longer does for XTB specifically. The two phases ran in parallel rather than
-in sequence, which is why the migration and ADR numbering interleaves.
+**Phase 4 — in progress, running alongside Phase 3.** Real XTB exports became
+available during import planning, so that work went first; the two phases ran
+in parallel, which is why the migration and ADR numbering interleaves.
 
-- [x] ADR 0015 — the import boundary: `StatementParser`'s shape, why
-      sub-accounts and eWallet/card modeling are declined (verified, not just
-      assumed — `Subaccount transfer` and `Transfer` rows net to exactly zero
-      in a real export), `external_id` as the only dedup signal that survives
-      a re-export (file-hash dedup was tried and disproven)
+- [x] ADR 0015 — the import boundary: `StatementParser`'s shape,
+      sub-accounts/eWallet declined (verified against a real export),
+      `external_id` as the only dedup signal that survives a re-export
 - [x] `core`: `StatementParser` port — `RawFile`, `ParsedRow`,
       `ParsedStatement`, three-state `Confidence`
 - [x] `db`: `import_batches` / `import_rows` + migration;
-      `transactions.import_batch_id` finally has the FK it was missing
+      `transactions.import_batch_id` finally has its FK
 - [x] `importers` (new package): `XtbStatementParser` — comment-grammar
-      parsing (`OPEN|CLOSE BUY|SELL qty[/total] @ price`), FX-rate inference
-      by median ratio (XTB's export has no explicit rate column),
-      reconciliation against `Open`/`Closed Positions` surfaced as warnings,
-      never blocking; a synthetic fixture covering every case found in real
-      exports (never the real exports themselves, which stay gitignored)
+      parsing, FX-rate inference by median ratio, reconciliation warnings
+      (never blocking), a synthetic fixture covering every case found in real
+      exports
 - [x] `FileStore` Blob adapter + upload
-- [x] Instrument-resolution UI — auto-match by exact `(symbol, exchange)` against
-      `InstrumentRepository.search`, bulk-confirm for the common case, manual
-      fallback reusing `<InstrumentCombobox>`; every mapping stays editable
-      via `resolveInstruments` until the batch is accepted
-- [x] Import use case — `acceptImportRow` dedups on `(account_id, external_id)`
-      via `findByExternalId`; an unedited match is refreshed in place through
-      the dedicated `refreshImportedTransaction` (never `updateTransaction`,
-      which always flags `editedAfterImport` — that distinction is what makes
-      repeated re-imports of the same statement idempotent); an edited match is
-      left untouched and the row settles `duplicate` with a reason
-- [x] Import review UI — batch counts and reconciliation warnings on
-      `/import/[batchId]/review`, a `<DataList>` of every staged row; per-row
-      accept-as-is, reject with a reason, or edit-and-accept reusing
-      `<TransactionForm>` (a new `overrides` parameter on `acceptImportRow`
-      lets the edited fields flow through the same dedup/conflict logic, with
-      `accountId` always forced to the batch's own account regardless of what
-      a submission carries); `rejectImportRow` is the new use case behind
-      reject. The whole `/import` flow is now bilingual and linked from
-      `/more`.
+- [x] Instrument-resolution UI — auto-match by `(symbol, exchange)`,
+      bulk-confirm, manual fallback; every mapping stays editable until the
+      batch is accepted
+- [x] Import use case — `acceptImportRow` dedups on
+      `(account_id, external_id)`; an unedited match refreshes in place via
+      `refreshImportedTransaction`, making repeated re-imports idempotent; an
+      edited match settles as `duplicate` with a reason
+- [x] Import review UI — `/import/[batchId]/review`, per-row accept /
+      reject / edit-and-accept, bilingual, linked from `/more`
+
+Boś stays blocked — no real exported statement examined yet.
 
 **Phase 3 — in progress.**
 
-- [x] ADR 0016 — what bond reference data is actually reachable, after testing
-      rather than assuming; corrects `docs/data-sources.md`'s CPI and NBP rows
-- [x] `core`: family rules for all eight issued families as versioned,
-      effective-dated config, with the early-redemption fees read off each
-      family's own offer page (the widely-repeated 0.70/2.00 pairing is wrong
-      for anything bought since 2024-09-01)
-- [x] `core`: `accrueBond` — periods anchored to settlement, the published
-      day-count rule, capitalization, index selection with a CPI floor at zero,
-      and the three early-redemption regimes. Golden-tested to the grosz against
-      the Ministry's own ROR0827 table; spec and fixtures written first and the
-      implementation handed to a separate agent (rule 16)
-- [x] `core`: `withholdingOn` — the 19% kept out of the engine, because IKE and
-      IKZE are exempt and the rate belongs to the wrapper
-- [x] `db`: `bond_series_terms`, `index_observations` + migration;
-      `bondIssueParameterRepository`, `indexObservationRepository`
-- [x] Golden tables for five of the eight families — Bank Pekao, a second
-      emission agent, publishes the same official tables over a plain JSON REST
-      API. 1162 published day-values for ROR, DOR, TOS, COI and EDO, all
-      reproduced to the grosz. Supersedes the earlier conclusion that only one
-      table was obtainable (ADR 0016)
-- [x] Multi-period golden tables — TOS0727 across three capitalized years and
-      ROR0726 / DOR0726 across twelve monthly resets each, against the RPP's
-      real decisions. 1828 more published day-values, and the engine's derived
-      rate checked against the published one for all 22 resets. Found and fixed
-      a compounding rounding error in capitalization
-- [ ] OTS, ROS and ROD have no published daily table to test against — OTS pays
-      one sum at redemption, and the two family bonds are distributed only by
-      PKO, whose tables stay WAF-blocked
-- [x] `providers`: NBP reference rate (current + archive to 1998), GUS CPI CSV
-      (cp1250, announcement-dated), MF offer pages + committed bootstrap data,
-      each with a plausibility band that refuses rather than guesses — including
-      refusing an unreadable value instead of skipping it in silence
-- [x] `BondTermsResolver` wired in the composition root
-- [x] Bond position entry and valuation — `selectBond` gates a series by
-      resolving its terms (no provider quotes these, so resolvability stands in
-      for ADR 0014's `confirm()`); the instrument picker offers a series code
-      alongside provider hits; `valueBondPosition` accrues **per lot**, since
-      interest periods run from each purchase's own settlement date; bonds reach
-      `/portfolio` through the same `valuePositions` pipeline as equities, as a
-      synthesized per-bond unit value
-- [ ] Bonds on the dashboard — blocked on "Dashboard on real data" above, which
-      still renders `lib/fixtures/portfolio.ts`; there is no real position of
-      any kind there to put a bond next to
-- [x] Bond projections — `projectBondCashFlows` (the payment schedule),
-      `projectBondValue` (redemption value at a chosen date) and
-      `projectEarlyRedemption` (day by day across a range). Every figure carries
-      a `ProjectionBasis` saying whether it is arithmetic or rests on the last
-      published index print; no forecasting, since inventing inflation to value
-      an inflation-linked bond is the failure this project exists to avoid
-- [x] `wrapper_rules` in `core` — the room arithmetic, the tax-exemption
-      lookup, and seven years of IKE and IKZE limits (2020–2026) transcribed
-      from the KNF's own tables, every row citing its source. IKZE carries
-      **two** caps from 2021 — self-employed and standard — which a single
-      number would have got wrong in the more dangerous direction. An unknown
-      year is refused, never extrapolated
-- [ ] `wrapper_rules` as a table and a screen — the figures and the arithmetic
-      live in `core`; nothing persists them or shows contribution room yet
+- [x] ADR 0016 — what bond reference data is actually reachable (corrects
+      `docs/data-sources.md`'s CPI and NBP rows)
+- [x] `core`: family rules for all eight issued families, versioned and
+      effective-dated, early-redemption fees per family's own offer page (the
+      widely-repeated 0.70/2.00 pairing is wrong since 2024-09-01)
+- [x] `core`: `accrueBond` — golden-tested to the grosz against the
+      Ministry's own ROR0827 table; spec and fixtures written first, handed
+      to a separate agent (rule 16)
+- [x] `core`: `withholdingOn` — the 19% kept out of the engine (IKE/IKZE are
+      exempt; the rate belongs to the wrapper)
+- [x] `db`: `bond_series_terms`, `index_observations` + migration
+- [x] Golden tables for 5 of 8 families via Pekao's public REST API — 1162
+      published day-values reproduced to the grosz
+- [x] Multi-period golden tables — 1828 more day-values across 22 resets;
+      found and fixed a compounding rounding error in capitalization
+- [x] ADR 0018 — published tables become the value **source**, not just a
+      test; `accrueBond` is the fallback for unpublished families/periods
+- [x] `providers`: `pekaoInterestTableProvider`, NBP reference rate (current + archive to 1998), GUS CPI, MF offer pages
+- [x] `db`: `bond_interest_tables` + migration
+- [x] `BondTermsResolver` wired; bond position entry + per-lot valuation
+      (interest periods run from each purchase's own settlement date)
+- [x] Bond projections — `projectBondCashFlows`, `projectBondValue`,
+      `projectEarlyRedemption`, each carrying a `ProjectionBasis` (arithmetic
+      or last published index — no forecasting)
+- [x] `wrapper_rules` in `core` — IKE/IKZE room and limits 2020–2026,
+      KNF-sourced, IKZE's two 2021 caps handled explicitly
+- [ ] OTS/ROS/ROD — no published daily table to test against (OTS pays one
+      sum at redemption; ROS/ROD are PKO-only, WAF-blocked)
+- [ ] Bonds on the dashboard — blocked on "Dashboard on real data" above
+- [ ] `wrapper_rules` as a table and a screen — figures live in `core`,
+      nothing persists or shows them yet
 
 ### Phase 2 — Valuation
 
@@ -302,11 +181,10 @@ The most bespoke code in the project, because no provider prices these.
 - Dedup on `external_id`; `edited_after_import` surfaces a conflict instead of
   overwriting a hand correction.
 
-**XTB unblocked.** Real exports were examined during planning and
+**XTB unblocked** — real exports were examined during planning;
 `XtbStatementParser` is built and tested against a synthetic fixture derived
-from them — see "Where we are" above. **Boś stays blocked**: no real exported
-statement from a Boś account has been examined yet, and a profile built from
-guesses is worse than no profile.
+from them. **Boś stays blocked** — no real exported statement examined yet,
+and a profile built from guesses is worse than no profile.
 
 ### Phase 5 — Performance
 
@@ -322,77 +200,47 @@ overlay. A new income type is one enum member and one fold case.
 
 ## Data protection
 
-This is a private financial ledger for two people. What is decided, and what is
-not yet.
+This is a private financial ledger for two people.
 
-**In transit and at rest, by the provider.** TLS everywhere; Neon encrypts
-storage. Already true, nothing to build.
-
-**Application-level encryption — built, then withdrawn. Phase 1.5.** Amounts
-are plain `NUMERIC(28, 10)` columns today. `/security-review` over the removal
-found no HIGH or MEDIUM issues: nothing was ever wired, so no data became
-unreadable and no key was orphaned, and the per-user query scoping ADR 0009
-depends on came through the rewrite intact. The encrypted-payload design was
-implemented during Phase 1 and removed before the ledger held a single row: it
-added a master key, an environment variable, a key-escrow procedure and a
-rotation problem to a product that could not yet record a transaction.
-Dependencies before features is the wrong order.
-
-ADR 0013 is kept in full rather than deleted. Its analysis holds — the envelope
-that makes re-keying cheap, the AAD binding that stops a ciphertext being
-replayed onto another row, why ciphertext cannot live in a `NUMERIC` column,
-and the limit that no web application protects one administrator from another.
-Pick it up when there is an application worth protecting.
-
-What that means in the meantime, stated plainly so nobody assumes otherwise:
-**a database dump reveals every amount.** Provider-level encryption and TLS
-still apply, so this is a question of who can read the database, not of traffic
-on the wire.
-
-One thing worth knowing before that work restarts: `instrument_id` and the
-global `instruments` table were never going to be encrypted, because positions
-cannot be built without filtering on them. So even the withdrawn design leaked
-_which_ instruments a user holds and how often they trade — only the amounts
-were hidden. If hiding portfolio composition is also a goal, that is a
-different design and a separate decision.
-
-**Backups — the known gap.** Neon's PITR and branching cover an accidental bad
-write, and that is all they cover: the copy shares an account, a provider and a
-billing relationship with the original. Losing the Neon account loses both.
-
-An independent copy — scheduled `pg_dump` over the unpooled connection,
-encrypted with our own key, pushed to a different provider under a different
-account — is **not built**. It needs a scheduler, which `architecture.md`'s
-"no cron" rule does not cover (that rule is about cache freshness), so it needs
-its own ADR note. GitHub Actions is the natural host: already wired, already
-holds secrets, runs outside Vercel.
-
-A backup that has never been restored is not a backup. The restore procedure
-gets written and executed, not just described.
-
-**Export — Phase 1.** CSV and JSON of the full ledger, as soon as the ledger
-exists. It is the user-controlled copy, and it is the anti-lock-in property the
-rest of the architecture already argues for.
-
-**Cold starts accepted.** Neon suspends on the current plan, so the first query
-after idle pays for the wake-up. Masked with caching and honest loading states
-rather than paid away.
+- **In transit and at rest, by the provider.** TLS everywhere; Neon encrypts
+  storage. Already true, nothing to build.
+- **Application-level encryption — built, then withdrawn (Phase 1.5).**
+  Amounts are plain `NUMERIC(28, 10)` today. `/security-review` over the
+  removal found no HIGH/MEDIUM issues. ADR 0013 keeps the full analysis
+  (envelope design, AAD binding, why ciphertext can't live in `NUMERIC`, and
+  the honest limit that no web app protects one admin from another) — pick it
+  up when there's an application worth protecting.
+- **In the meantime: a database dump reveals every amount.** `instrument_id`
+  and the global `instruments` table were never going to be encrypted either
+  — positions can't be built without filtering on them — so even the
+  withdrawn design leaked which instruments a user holds. Hiding portfolio
+  composition, if that's ever a goal, is a separate decision.
+- **Backups — the known gap.** Neon's PITR and branching only cover an
+  accidental bad write; the copy shares an account, provider and billing
+  relationship with the original. An independent copy — scheduled `pg_dump`
+  over the unpooled connection, encrypted with our own key, pushed to a
+  different provider under a different account — is **not built**. Needs a
+  scheduler (`architecture.md`'s "no cron" rule is about cache freshness, not
+  this) and its own ADR note; GitHub Actions is the natural host. A backup
+  that has never been restored is not a backup — the restore procedure gets
+  written and executed, not just described.
+- **Export — Phase 1, done.** CSV and JSON of the full ledger: the
+  user-controlled copy, and the anti-lock-in property the rest of the
+  architecture already argues for.
+- **Cold starts accepted.** Neon suspends on the current plan; masked with
+  caching and honest loading states rather than paid away.
 
 ## Deployment risk, before real data lands
 
-One gap in `docs/deployment.md` that is cheap now and expensive later, and
-should close before the ledger holds anything.
-
-**~~A migration first meets a real database on merge to `main`.~~** Closed. The
-Neon-Managed integration creates a `preview/<git-branch>` database per preview
-deployment, so a migration is rehearsed against a real copy on the PR rather
-than meeting production first. The cost is a branch budget of ten on the free
-tier, kept by `.github/workflows/neon-cleanup.yml` — see "The Neon branch
-budget" in `docs/deployment.md`.
-
-**No down-migrations.** `drizzle-kit` applies forward only. Recovery from a bad
-migration is a restore, which makes the off-provider backup above load-bearing
-rather than nice to have.
+- ~~A migration first meets a real database on merge to `main`.~~ **Closed** —
+  the Neon-Managed integration creates a `preview/<git-branch>` database per
+  preview deployment, so a migration rehearses on the PR first. Costs a
+  branch budget of ten on the free tier, kept by
+  `.github/workflows/neon-cleanup.yml` (`docs/deployment.md`, "The Neon
+  branch budget").
+- **No down-migrations.** `drizzle-kit` applies forward only. Recovery from a
+  bad migration is a restore, which makes the off-provider backup above
+  load-bearing rather than nice to have.
 
 ## Verification
 
