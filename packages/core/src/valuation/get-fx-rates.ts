@@ -2,6 +2,7 @@ import { type Clock } from '../ports/clock';
 import { currency, type Currency } from '../money';
 import { Temporal } from '../time';
 import { type FxRateProvider, type FxRateRepository } from './ports';
+import { type ProviderName } from './vocabulary';
 import { type FxRate, type FxRateLookup, type RefreshReport, type StoredFxRate } from './types';
 import { PRICE_TTL_MINUTES } from './get-prices';
 
@@ -23,12 +24,22 @@ function toLookup(row: StoredFxRate | undefined, now: Temporal.Instant): FxRateL
   };
 }
 
-/** Read-only, same shape and same reason as `makeReadPrices`. */
-export function makeReadFxRates(deps: { fx: FxRateRepository; clock: Clock }) {
+/**
+ * Read-only, same shape and same reason as `makeReadPrices`.
+ *
+ * `source` is fixed when the reader is composed rather than passed per call:
+ * one render values a whole portfolio, and a mid from NBP mixed with a close
+ * from Yahoo inside one total is a number nobody could reproduce (ADR 0018).
+ */
+export function makeReadFxRates(deps: {
+  fx: FxRateRepository;
+  clock: Clock;
+  source?: ProviderName;
+}) {
   return async function readFxRates(
     currencies: readonly Currency[],
   ): Promise<ReadonlyMap<Currency, FxRateLookup>> {
-    const stored = await deps.fx.latestFor(currencies);
+    const stored = await deps.fx.latestFor(currencies, deps.source ?? 'nbp');
     const now = deps.clock.now();
     const result = new Map<Currency, FxRateLookup>();
     for (const code of currencies) result.set(code, toLookup(stored.get(code), now));
@@ -65,7 +76,7 @@ export function makeRefreshFxRates(deps: {
     currencies: readonly Currency[],
   ): Promise<RefreshReport<Currency>> {
     const now = deps.clock.now();
-    const stored = await deps.fx.latestFor(currencies);
+    const stored = await deps.fx.latestFor(currencies, deps.provider.name);
     const due = currencies.filter((code) => isDue(stored.get(code), now));
 
     if (due.length === 0) return { refreshed: [], unmapped: [], failed: [] };

@@ -1,0 +1,2 @@
+ALTER TABLE "fx_rates" DROP CONSTRAINT "fx_rates_currency_date_pk";--> statement-breakpoint
+ALTER TABLE "fx_rates" ADD CONSTRAINT "fx_rates_currency_date_source_pk" PRIMARY KEY("currency","date","source");

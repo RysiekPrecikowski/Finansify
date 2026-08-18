@@ -6,7 +6,7 @@ import { type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
 import { type IndicatorSeries } from '@/server/indicators';
 
-import { IndicatorSparkline } from './indicator-sparkline';
+import { IndicatorChart } from './indicator-chart';
 
 /**
  * Copy that belongs to a series rather than to the page, resolved here so the
@@ -73,7 +73,7 @@ export function IndicatorCard({
             {copy.dateLabel} {formatPlainDate(summary.latest.effectiveFrom, locale)}
           </p>
 
-          <IndicatorSparkline history={series.history} />
+          <IndicatorChart history={series.history} locale={locale} label={copy.title} />
         </>
       )}
 

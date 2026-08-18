@@ -1,21 +1,29 @@
 import { Suspense } from 'react';
 
+import { FxPairCard } from '@/components/indicators/fx-pair-card';
 import { IndicatorCard } from '@/components/indicators/indicator-card';
+import { getFxPreference } from '@/lib/display/server';
+import { fxParamsFrom, type FxParams } from '@/lib/fx-pairs';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
+import { readFxPairSeries } from '@/server/fx-series';
 import { readIndicatorSeries } from '@/server/indicators';
 
 /**
- * The two macro series the bond engine reads, shown in their own right — a
- * reference rate and an inflation print are what a Polish investor actually
- * watches, not only an input to a valuation.
+ * The macro series a Polish investor actually watches: the reference rate and
+ * an inflation print — which the bond engine also reads — plus a currency pair,
+ * which nothing in the domain reads but everyone holding a foreign instrument
+ * looks at anyway.
  *
  * Each card sits behind its own `<Suspense>` boundary, so a slow GUS does not
  * hold up the NBP number, and neither holds up the page frame. Same shape as
  * `/portfolio`'s streamed price section (ADR 0014).
  */
-export default async function IndicatorsPage() {
-  const dictionary = await getDictionary();
+export default async function IndicatorsPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
+  const [dictionary, raw] = await Promise.all([getDictionary(), searchParams]);
   const strings = dictionary.indicators;
+  const params = fxParamsFrom(raw);
 
   return (
     <div className="flex flex-col gap-4">
@@ -31,12 +39,37 @@ export default async function IndicatorsPage() {
         <Suspense fallback={<IndicatorCardFallback />}>
           <LiveIndicator indexId="pl_cpi_yoy" />
         </Suspense>
+        {/* Keyed by the params so switching pair or range re-suspends this card
+            alone, rather than showing the previous pair's number under the new
+            pair's heading while the fetch is in flight. */}
+        <Suspense key={`${params.pair}:${params.range}`} fallback={<IndicatorCardFallback />}>
+          <LiveFxPair params={params} />
+        </Suspense>
       </div>
 
       <footer className="text-muted-foreground text-xs">
         {strings.source}: nbp.pl, stat.gov.pl
       </footer>
     </div>
+  );
+}
+
+async function LiveFxPair({ params }: Readonly<{ params: FxParams }>) {
+  const preference = await getFxPreference();
+  const [series, dictionary, locale] = await Promise.all([
+    readFxPairSeries(params.pair, params.range, preference),
+    getDictionary(),
+    getLocale(),
+  ]);
+
+  return (
+    <FxPairCard
+      params={params}
+      series={series}
+      locale={locale}
+      dictionary={dictionary}
+      source={preference.source}
+    />
   );
 }
 

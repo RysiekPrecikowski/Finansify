@@ -16,7 +16,7 @@ import {
   type SymbolRepository,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { type Database } from './client';
 import { instruments } from './schema/instruments';
@@ -170,18 +170,52 @@ export function symbolRepository(db: Database): SymbolRepository {
 
 export function fxRateRepository(db: Database): FxRateRepository {
   return {
-    async latestFor(currencies: readonly Currency[]) {
+    async latestFor(currencies: readonly Currency[], source: ProviderName) {
       if (currencies.length === 0) return new Map();
       // One row per currency, newest first — same reasoning as `latestFor` on
       // prices: `fx_rates` gains 32 rows per NBP publication day.
       const rows = await db
         .selectDistinctOn([fxRates.currency])
         .from(fxRates)
-        .where(inArray(fxRates.currency, [...currencies]))
+        .where(and(inArray(fxRates.currency, [...currencies]), eq(fxRates.source, source)))
         .orderBy(fxRates.currency, desc(fxRates.date));
 
       const result = new Map<Currency, StoredFxRate>();
       for (const row of rows) result.set(toCurrency(row.currency), toStoredFxRate(row));
+      return result;
+    },
+
+    async seriesFor(
+      currencies: readonly Currency[],
+      from: Temporal.PlainDate,
+      to: Temporal.PlainDate,
+      source: ProviderName,
+    ) {
+      if (currencies.length === 0) return new Map();
+
+      const rows = await db
+        .select()
+        .from(fxRates)
+        .where(
+          and(
+            inArray(fxRates.currency, [...currencies]),
+            eq(fxRates.source, source),
+            gte(fxRates.date, from.toString()),
+            lte(fxRates.date, to.toString()),
+          ),
+        )
+        .orderBy(fxRates.currency, fxRates.date);
+
+      // Grouped here rather than in one query per currency: the whole range
+      // for a handful of currencies is a few hundred rows, and `orderBy` has
+      // already put them in the order the chart wants.
+      const result = new Map<Currency, StoredFxRate[]>();
+      for (const row of rows) {
+        const code = toCurrency(row.currency);
+        const series = result.get(code) ?? [];
+        series.push(toStoredFxRate(row));
+        result.set(code, series);
+      }
       return result;
     },
 
@@ -200,7 +234,10 @@ export function fxRateRepository(db: Database): FxRateRepository {
           })),
         )
         .onConflictDoUpdate({
-          target: [fxRates.currency, fxRates.date],
+          // Matches the primary key, `source` included: a Yahoo close and an
+          // NBP mid for the same day are two rows, not one overwriting the
+          // other (ADR 0018).
+          target: [fxRates.currency, fxRates.date, fxRates.source],
           set: {
             mid: sql`excluded.mid`,
             source: sql`excluded.source`,

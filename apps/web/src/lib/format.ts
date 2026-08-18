@@ -57,6 +57,23 @@ export function formatRatioAsPercent(
 }
 
 /** Share counts, not money: fractional shares are real, trailing zeroes are not. */
+/**
+ * An FX rate, at the four decimals NBP publishes table A to. Not `formatMoney`:
+ * a rate is a ratio of two currencies and belongs to neither, so a symbol on it
+ * would be wrong whichever one it named.
+ */
+export function formatFxRate(
+  rate: string,
+  locale: Locale,
+  { signed = false }: { signed?: boolean } = {},
+): string {
+  return new Intl.NumberFormat(intlLocale[locale], {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+    signDisplay: signed ? 'exceptZero' : 'auto',
+  }).format(numeric(rate));
+}
+
 export function formatQuantity(quantity: string, locale: Locale): string {
   return new Intl.NumberFormat(intlLocale[locale], {
     minimumFractionDigits: 0,
