@@ -70,6 +70,17 @@ export interface ScopedImportRepository {
   getRow(id: ImportRowId): Promise<ImportRow | null>;
   /** Settles a pending row to `accepted` or `duplicate`. Throws if the row isn't owned by this user. */
   recordRowOutcome(id: ImportRowId, outcome: ImportRowOutcome): Promise<ImportRow>;
+  /**
+   * The bulk counterpart to `recordRowOutcome` — one round trip settling
+   * every row in `outcomes` rather than one per row. `batchId` scopes the
+   * write to a single batch the caller already proved it owns (via its own
+   * `getBatch`), the same trust boundary a single `recordRowOutcome` call
+   * draws by joining `import_batches` for one row at a time.
+   */
+  recordRowOutcomes(
+    batchId: ImportBatchId,
+    outcomes: readonly { readonly id: ImportRowId; readonly outcome: ImportRowOutcome }[],
+  ): Promise<readonly ImportRow[]>;
 }
 
 export interface ImportRepository {

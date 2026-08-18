@@ -162,23 +162,22 @@ export class InMemoryLedger implements LedgerRepository {
           )?.transaction ?? null,
         ),
 
+      findByExternalIds: (accountId: AccountId, externalIds: readonly string[]) => {
+        const ids = new Set(externalIds);
+        const found = new Map<string, Transaction>();
+        for (const row of this.transactionRows) {
+          if (row.owner !== user) continue;
+          if (row.transaction.accountId !== accountId) continue;
+          if (row.transaction.externalId === null) continue;
+          if (!ids.has(row.transaction.externalId)) continue;
+          found.set(row.transaction.externalId, row.transaction);
+        }
+        return Promise.resolve(found);
+      },
+
       createImportedTransaction: (input: TransactionInput, origin: ImportedTransactionOrigin) => {
-        // Mirrors the partial unique index on (account_id, external_id) in
-        // packages/db — soft-deleted rows count. Without this the fake is
-        // more permissive than Postgres and hides real dedup bugs (not scoped
-        // by `owner`, same as the real index: an account belongs to exactly
-        // one user, so this can never collide across users anyway).
-        const collision = this.transactionRows.find(
-          (row) =>
-            row.transaction.accountId === input.accountId &&
-            row.transaction.externalId === origin.externalId,
-        );
-        if (collision !== undefined) {
-          return Promise.reject(
-            new Error(
-              'duplicate key value violates unique constraint "transactions_account_external_id_idx"',
-            ),
-          );
+        if (hasExternalIdCollision(this.transactionRows, input.accountId, origin.externalId)) {
+          return Promise.reject(externalIdCollisionError());
         }
 
         const base = materialise(transactionId(this.nextId()), input);
@@ -190,6 +189,29 @@ export class InMemoryLedger implements LedgerRepository {
         };
         this.transactionRows.push({ owner: user, transaction });
         return Promise.resolve(transaction);
+      },
+
+      createImportedTransactions: (
+        items: readonly { input: TransactionInput; origin: ImportedTransactionOrigin }[],
+      ) => {
+        for (const { input, origin } of items) {
+          if (hasExternalIdCollision(this.transactionRows, input.accountId, origin.externalId)) {
+            return Promise.reject(externalIdCollisionError());
+          }
+        }
+
+        const created = items.map(({ input, origin }) => {
+          const base = materialise(transactionId(this.nextId()), input);
+          const transaction: Transaction = {
+            ...base,
+            source: 'import',
+            externalId: origin.externalId,
+            importBatchId: origin.importBatchId,
+          };
+          this.transactionRows.push({ owner: user, transaction });
+          return transaction;
+        });
+        return Promise.resolve(created);
       },
 
       refreshImportedTransaction: (id: TransactionId, input: TransactionInput) => {
@@ -268,6 +290,29 @@ export class InMemoryInstruments implements InstrumentRepository {
       ),
     );
   }
+}
+
+/**
+ * Mirrors the partial unique index on (account_id, external_id) in
+ * `packages/db` — soft-deleted rows count. Without this the fake is more
+ * permissive than Postgres and hides real dedup bugs. Not scoped by `owner`,
+ * same as the real index: an account belongs to exactly one user, so this can
+ * never collide across users anyway.
+ */
+function hasExternalIdCollision(
+  rows: readonly { transaction: Transaction }[],
+  accountId: AccountId,
+  externalId: string,
+): boolean {
+  return rows.some(
+    (row) => row.transaction.accountId === accountId && row.transaction.externalId === externalId,
+  );
+}
+
+function externalIdCollisionError(): Error {
+  return new Error(
+    'duplicate key value violates unique constraint "transactions_account_external_id_idx"',
+  );
 }
 
 /** The strings a form submits become `Money` and `Decimal` here and nowhere else. */

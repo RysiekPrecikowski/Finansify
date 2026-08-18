@@ -16,6 +16,7 @@ import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { formatMoney, formatPlainDate } from '@/lib/format';
 import { scopedImportsFor } from '@/server/container';
 import { acceptAllPendingAction, acceptRowAction } from '../../actions';
+import { AcceptAllButton } from './accept-all-button';
 
 function descriptionOf(row: ImportRow): string {
   if (row.parsed.instrument !== null) {
@@ -231,9 +232,7 @@ export default async function ImportBatchReviewListPage({
       {acceptableCount > 0 && (
         <form action={acceptAllPendingAction} className="w-fit">
           <input type="hidden" name="batchId" value={batchId} />
-          <Button size="sm" type="submit">
-            {interpolate(strings.acceptAll, { count: String(acceptableCount) })}
-          </Button>
+          <AcceptAllButton count={acceptableCount} />
         </form>
       )}
 

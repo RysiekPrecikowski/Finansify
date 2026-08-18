@@ -306,6 +306,23 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
       return row === undefined ? null : toTransaction(row);
     },
 
+    async findByExternalIds(accountId, externalIds) {
+      if (externalIds.length === 0) return new Map();
+      const rows = await db
+        .select()
+        .from(transactions)
+        .where(
+          and(
+            owned.transaction,
+            eq(transactions.accountId, accountId),
+            inArray(transactions.externalId, externalIds as string[]),
+            // Same "unfiltered by deleted_at" posture as `findByExternalId`
+            // above — a soft-deleted row still occupies the unique index.
+          ),
+        );
+      return new Map(rows.map((row) => [row.externalId!, toTransaction(row)]));
+    },
+
     async createImportedTransaction(input: TransactionInput, origin: ImportedTransactionOrigin) {
       const [row] = await db
         .insert(transactions)
@@ -317,6 +334,22 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
         })
         .returning();
       return toTransaction(row!);
+    },
+
+    async createImportedTransactions(items) {
+      if (items.length === 0) return [];
+      const rows = await db
+        .insert(transactions)
+        .values(
+          items.map(({ input, origin }) => ({
+            ...toRow(input, userId),
+            source: 'import' as const,
+            externalId: origin.externalId,
+            importBatchId: origin.importBatchId,
+          })),
+        )
+        .returning();
+      return rows.map(toTransaction);
     },
 
     async refreshImportedTransaction(id: TransactionId, input: TransactionInput) {
