@@ -36,10 +36,10 @@ const d = (iso: string) => Temporal.PlainDate.from(iso);
 
 type Fixture = (typeof published)[number];
 
-const PUBLISHED_PERCENT = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/;
+const PUBLISHED_PERCENT = /^(-?\d+)(?:,(\d+))?%?$/;
 
 const asFraction = (percent: string) => {
-  const match = PUBLISHED_PERCENT.exec(percent);
+  const match = PUBLISHED_PERCENT.exec(percent.trim());
   if (match === null) throw new Error(`"${percent}" is not a published percentage`);
   const [, whole = '', fraction] = match;
   return new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`).dividedBy(100);

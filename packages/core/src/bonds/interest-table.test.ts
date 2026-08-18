@@ -41,10 +41,10 @@ const fixture = (series: string, ordinal: number, dayKey: number): Fixture => {
  * string apart character by character — the published format is matched whole,
  * so anything else fails loudly here rather than being tidied into a number.
  */
-const PUBLISHED_PERCENT = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/;
+const PUBLISHED_PERCENT = /^(-?\d+)(?:,(\d+))?%?$/;
 
 const asFraction = (percent: string) => {
-  const match = PUBLISHED_PERCENT.exec(percent);
+  const match = PUBLISHED_PERCENT.exec(percent.trim());
   if (match === null) throw new Error(`"${percent}" is not a published percentage`);
   const [, whole = '', fraction] = match;
   return new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`).dividedBy(100);

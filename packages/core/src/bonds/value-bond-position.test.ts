@@ -204,7 +204,7 @@ describe('valuing from the published tables', () => {
       // Matched whole rather than stripped piece by piece: the published
       // format is the only one accepted, so anything else fails here instead
       // of being tidied into a number.
-      const match = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/.exec(percent);
+      const match = /^(-?\d+)(?:,(\d+))?%?$/.exec(percent.trim());
       if (match === null) throw new Error(`"${percent}" is not a published percentage`);
       const [, whole = '', fraction] = match;
       return new Decimal(fraction === undefined ? whole : `${whole}.${fraction}`).dividedBy(100);

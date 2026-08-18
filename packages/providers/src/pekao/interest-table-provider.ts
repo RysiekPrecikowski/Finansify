@@ -84,10 +84,13 @@ export class UnreadableInterestTableError extends Error {
  * is the opposite: this is the *only* numeric shape the tables publish, and
  * anything else must be refused rather than tidied into something parseable.
  */
-const PUBLISHED_NUMBER = /^\s*(-?\d+)(?:,(\d+))?\s*%?\s*$/;
+const PUBLISHED_NUMBER = /^(-?\d+)(?:,(\d+))?%?$/;
 
 function toDecimal(raw: string): Decimal {
-  const match = PUBLISHED_NUMBER.exec(raw);
+  // Trimmed before matching rather than matched with optional whitespace:
+  // `\s*` on both sides of an optional group makes the pattern ambiguous, which
+  // is a needless way to give a remote payload superlinear backtracking.
+  const match = PUBLISHED_NUMBER.exec(raw.trim());
   if (match === null) throw new RangeError(`"${raw}" is not a number in the published format`);
 
   const [, whole = '', fraction] = match;
