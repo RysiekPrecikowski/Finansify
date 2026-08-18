@@ -67,6 +67,21 @@ lower-case and must be passed exactly.
 Assignment is not decoration — it answers "whose move is it?". A ticket with no
 assignee is waiting for someone to pick it up.
 
+## Language and format
+
+Titles, descriptions, and comments are Polish — the team's working language
+(rule 11 only requires English for what lands in the repository or on
+GitHub; a ClickUp ticket is neither). Only the branch slug stays English
+(git naming, below), since it has to read as a conventional-commit type.
+
+A description is a short checklist of what to do, not a write-up — the
+"why" belongs in the PR description or an ADR, which are read once things
+are actually decided; a ticket is read while they're still moving. Same for
+comments: state the outcome and what's next, not the reasoning that got
+there. If a real back-and-forth happens in the comments, end it with one
+line that says what was decided — that line is the part anyone re-reads
+later, not the thread above it.
+
 ## The flow
 
 Each step is a real ClickUp write, done by whoever's agent is doing that step,
@@ -83,20 +98,30 @@ at the moment the step actually happens — not batched at the end.
    opens as a **draft** (`/pr`); a draft carries no status change of its own,
    because it isn't finished work yet. The ticket sits at `in progress` for the
    whole draft period, however long that is.
-3. **Hand off for review** — once the PR is actually marked ready for review
-   (out of draft — never while it's still a draft) and CI is green: set status
-   `in review` and **clear the assignee** (`assignees: []`). Empty assignee is
-   the signal "this is waiting for a reviewer". `Implementer` stays as it is —
-   that is the field that remembers who wrote the code. `/pr` does this step.
-4. **Take the review** — the reviewer's agent assigns the reviewer to the
-   ticket (`me`) and leaves the status at `in review`. `Implementer` is not
-   touched. Never review your own PR (rule 12), and never take a ticket whose
-   `Implementer` is you. `/review` does this step.
+3. **Hand off** — once the PR is actually marked ready for review (out of
+   draft — never while it's still a draft) and CI is green: set status
+   `in review` and **clear the assignee** (`assignees: []`). Empty assignee
+   means "open for review", not "blocked on review" — merging doesn't wait on
+   it (ADR 0018). `Implementer` stays as it is. `/pr` does this step.
+4. **Review (optional)** — review is welcome but not required to merge (ADR
+   0018). If someone does review, their agent assigns them to the ticket
+   (`me`) and leaves the status at `in review`; `Implementer` is not touched,
+   and nobody reviews a PR whose `Implementer` is themselves. `/review` does
+   this step when it happens. If nobody reviews, go straight from step 3 to
+   step 5 once CI is green.
 5. **Close** — after the PR is merged: set status `complete` and set the
-   assignee to the ticket's `Implementer`, not the reviewer. The ticket ends up
-   owned by whoever wrote the code. Merging itself stays the manual, reviewed
-   action rule 12 requires; run `/close-ticket` right after, so this step has
-   an owner instead of depending on someone remembering it.
+   assignee to the ticket's `Implementer`, not the reviewer (if any). The
+   ticket ends up owned by whoever wrote the code. Run `/close-ticket` right
+   after merging, so this step has an owner instead of depending on someone
+   remembering it.
+
+**A ticket spanning multiple small PRs** stays `in progress`, assigned to its
+implementer, across all of them — don't cycle it through `in review` after
+each one merges. Post each PR's link as its own comment when it opens. Run
+steps 3–5 only for the last PR of the batch; that's the one that carries the
+ticket to `complete`. Split off a new ticket instead when the remaining work
+no longer shares the same goal as what already shipped, not just because it's
+another PR.
 
 **Every status write in this flow is paired with a short comment** on the same
 task, posted in the same call as (or immediately after) the status change —
@@ -177,8 +202,12 @@ Existing repo conventions stay; the id is added to them.
 - **PR title** — `feat(web): portfolio positions view (CU-869ej7nzv)`. The
   title survives a squash merge, so this is the link that stays on `main`.
 
-One ticket, one branch, one PR (rule 15). If a ticket turns out to be two
-changes, split the ticket, not the PR.
+One ticket usually means one branch and one PR (rule 15). It can mean several
+small PRs instead — see "a ticket spanning multiple small PRs" above — each
+still carrying the task id and each still a single reviewable change under
+rule 15; their slugs naturally differ, so no extra disambiguation is needed.
+Split off a new ticket, not a same-ticket PR, once the remaining work no
+longer shares the original goal.
 
 Do **not** use ClickUp's `#taskId[status]` magic-comment form in commits or PR
 text. Status is set explicitly through the API by the step that owns it; two

@@ -37,7 +37,8 @@ Applies to every task in this repo, by default, without being asked.
 3. **While working, report only the stage.** One short line per stage
    (`Stage 2/4 — schema + migration`), not a narration of each edit, not a
    preview of what you are about to type. The diff is the record; prose about the
-   diff is noise.
+   diff is noise. Same for ClickUp comments — status and result, not the
+   analysis that led there (`docs/clickup.md`, "Language and format").
 4. **Final output is short, factual, technical.** What changed, what it verifies
    against, what is left. No summaries of your own reasoning, no restating the
    request, no congratulating the result. Prefer a list of paths and one clause
@@ -95,9 +96,12 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
     checking whether their point was understood, not being briefed. If a reply
     needs headings, it belongs in the PR description instead.
 
-12. **`main` is protected.** Every change lands through a pull request,
-    reviewed and explicitly approved by the other teammate, before merge. No
-    direct pushes, no force-pushes, no `--no-verify`.
+12. **`main` is protected.** Every change lands through a pull request with
+    green CI — never a direct push, a force-push, or `--no-verify`. Review
+    from the other teammate is welcome and requested by default, but merging
+    does not wait on it; CI green is the gate, not approval. (ADR 0018 —
+    money, auth, and migration changes still get the explicit second look
+    "Definition of done" below requires, regardless of merge gating.)
 13. **Prefer extending an existing file to adding a new one.** A third copy of
     a pattern is a refactor waiting to happen — propose the refactor instead of
     writing the copy.
