@@ -112,6 +112,10 @@ function toPortfolio(row: PortfolioRow, memberships: readonly { accountId: strin
   };
 }
 
+// Postgres' 65535-bound-parameter ceiling divided by this insert's ~18
+// params/row, with headroom for future columns.
+const IMPORT_INSERT_CHUNK_SIZE = 2000;
+
 /** The row shape a `TransactionInput` becomes. Strings in, strings out. */
 function toRow(input: TransactionInput, userId: UserId) {
   return {
@@ -338,17 +342,25 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
 
     async createImportedTransactions(items) {
       if (items.length === 0) return [];
-      const rows = await db
-        .insert(transactions)
-        .values(
-          items.map(({ input, origin }) => ({
-            ...toRow(input, userId),
-            source: 'import' as const,
-            externalId: origin.externalId,
-            importBatchId: origin.importBatchId,
-          })),
-        )
-        .returning();
+      const rows: TransactionRow[] = [];
+      // Postgres caps a statement at 65535 bound parameters; this insert binds
+      // ~18 per row. Chunking keeps a large accept-all batch from blowing past
+      // that limit while still issuing far fewer round trips than one per row.
+      for (let start = 0; start < items.length; start += IMPORT_INSERT_CHUNK_SIZE) {
+        const chunk = items.slice(start, start + IMPORT_INSERT_CHUNK_SIZE);
+        const inserted = await db
+          .insert(transactions)
+          .values(
+            chunk.map(({ input, origin }) => ({
+              ...toRow(input, userId),
+              source: 'import' as const,
+              externalId: origin.externalId,
+              importBatchId: origin.importBatchId,
+            })),
+          )
+          .returning();
+        rows.push(...inserted);
+      }
       return rows.map(toTransaction);
     },
 
