@@ -132,3 +132,52 @@ describe('LedgerRepository scoping', () => {
     expect(ledger.rawRowCount()).toBe(4);
   });
 });
+
+describe('InMemoryLedger — findByExternalId and createImportedTransaction dedup', () => {
+  const user = userId('11111111-1111-4111-8111-111111111111');
+
+  const importedInput = (account: Account): TransactionInput =>
+    transactionInputSchema.parse({
+      accountId: account.id,
+      type: 'deposit',
+      tradeDate: '2024-01-10',
+      quantity: '0',
+      grossAmount: '1000',
+      currency: 'PLN',
+    });
+
+  it('returns a soft-deleted transaction from findByExternalId, with deleted true, rather than null', async () => {
+    const ledger = new InMemoryLedger();
+    const scoped = ledger.forUser(user);
+    const account = await scoped.createAccount(accountInput('A'));
+    const transaction = await scoped.createImportedTransaction(importedInput(account), {
+      externalId: 'row-1',
+      importBatchId: '55555555-5555-4555-8555-555555555555',
+    });
+    await scoped.softDeleteTransaction(transaction.id);
+
+    const found = await scoped.findByExternalId(account.id, 'row-1');
+
+    expect(found).not.toBeNull();
+    expect(found!.id).toBe(transaction.id);
+    expect(found!.deleted).toBe(true);
+  });
+
+  it('rejects createImportedTransaction called twice for the same (accountId, externalId), even once the first is soft-deleted', async () => {
+    const ledger = new InMemoryLedger();
+    const scoped = ledger.forUser(user);
+    const account = await scoped.createAccount(accountInput('A'));
+    const first = await scoped.createImportedTransaction(importedInput(account), {
+      externalId: 'row-1',
+      importBatchId: '55555555-5555-4555-8555-555555555555',
+    });
+    await scoped.softDeleteTransaction(first.id);
+
+    await expect(
+      scoped.createImportedTransaction(importedInput(account), {
+        externalId: 'row-1',
+        importBatchId: '66666666-6666-4666-8666-666666666666',
+      }),
+    ).rejects.toThrow('transactions_account_external_id_idx');
+  });
+});

@@ -75,6 +75,7 @@ function transaction(fields: TransactionFields): Transaction {
     externalId: null,
     importBatchId: null,
     editedAfterImport: false,
+    deleted: false,
     matchedLotIds: (fields.matchedLotIds ?? null) as readonly TransactionId[] | null,
     note: null,
   };

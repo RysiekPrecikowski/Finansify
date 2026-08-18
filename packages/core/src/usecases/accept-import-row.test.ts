@@ -193,6 +193,33 @@ describe('makeAcceptImportRow', () => {
     expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
   });
 
+  // Regression coverage for the crash this schema refinement was added to
+  // prevent: a `sell` staged with `quantity: 0` (an importer that could not
+  // read the real fill quantity from its comment) used to sail through
+  // `acceptImportRow` and only blow up later, deep inside `matchLots`, when
+  // `buildPositions` tried to close a zero-quantity lot. It must now come back
+  // as an ordinary rejection through the ordinary `UseCaseResult` failure
+  // path — never an uncaught exception.
+  it('rejects a buy/sell row with a zero quantity as a validation failure, never throwing', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row } = await seedRow(
+      imports,
+      account,
+      // `instrument: null` sidesteps the "resolve first" check above quantity
+      // validation in the use case — this test targets the quantity refinement
+      // specifically, not instrument resolution.
+      parsedRow({ instrument: null, type: 'sell', quantity: new Decimal('0') }),
+    );
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(issueAt(result.issues, 'quantity')).toBeDefined();
+    expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
+  });
+
   it('refreshes an existing unedited transaction in place rather than creating a second one', async () => {
     const { ledger, imports, account } = await setup();
     const { row: firstRow } = await seedRow(
@@ -285,6 +312,45 @@ describe('makeAcceptImportRow', () => {
     expect(transactions).toHaveLength(1);
     expect(transactions[0]!.grossAmount?.equals(Money.of('1234.56', currency('PLN')))).toBe(true);
     expect(transactions[0]!.note).toBe('corrected by hand');
+  });
+
+  it('settles as duplicate, without throwing, when (accountId, externalId) already names a soft-deleted transaction — and leaves it deleted', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row: firstRow } = await seedRow(
+      imports,
+      account,
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1000', currency('PLN')) }),
+    );
+    const acceptImportRow = makeUseCase(ledger, imports);
+    const first = await acceptImportRow(firstRow.id);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const originalTransactionId = first.value.transactionId!;
+
+    // A manual delete of the resulting transaction, exactly the scenario the
+    // bug this regression test guards against was hit by: the transaction
+    // still occupies (account_id, external_id) even though it is gone from
+    // the user's view.
+    await ledger.forUser(USER).softDeleteTransaction(originalTransactionId);
+
+    const { row: secondRow } = await seedRow(
+      imports,
+      account,
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1250', currency('PLN')) }),
+    );
+
+    const second = await acceptImportRow(secondRow.id);
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value.status).toBe('duplicate');
+    expect(second.value.transactionId).toBe(originalTransactionId);
+    expect(second.value.rejectionReason).toBeTruthy();
+
+    // Not resurrected, not refreshed, not re-created.
+    expect(ledger.isDeleted(originalTransactionId)).toBe(true);
+    expect(ledger.rawRowCount()).toBe(1);
+    expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
   });
 
   it('resolves an instrument-bearing row once resolveInstruments has run', async () => {

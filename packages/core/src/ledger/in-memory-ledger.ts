@@ -45,7 +45,6 @@ export class InMemoryLedger implements LedgerRepository {
   private readonly transactionRows: {
     owner: UserId;
     transaction: Transaction;
-    deleted: boolean;
   }[] = [];
   private sequence = 0;
 
@@ -60,13 +59,15 @@ export class InMemoryLedger implements LedgerRepository {
   }
 
   isDeleted(id: TransactionId): boolean {
-    return this.transactionRows.find((row) => row.transaction.id === id)?.deleted ?? false;
+    return (
+      this.transactionRows.find((row) => row.transaction.id === id)?.transaction.deleted ?? false
+    );
   }
 
   forUser(user: UserId): ScopedLedgerRepository {
     const visible = (id: TransactionId) =>
       this.transactionRows.find(
-        (row) => row.owner === user && !row.deleted && row.transaction.id === id,
+        (row) => row.owner === user && !row.transaction.deleted && row.transaction.id === id,
       );
 
     return {
@@ -106,7 +107,7 @@ export class InMemoryLedger implements LedgerRepository {
       listTransactions: () =>
         Promise.resolve(
           this.transactionRows
-            .filter((row) => row.owner === user && !row.deleted)
+            .filter((row) => row.owner === user && !row.transaction.deleted)
             .map((row) => row.transaction)
             .sort((left, right) => Temporal.PlainDate.compare(left.tradeDate, right.tradeDate)),
         ),
@@ -115,7 +116,7 @@ export class InMemoryLedger implements LedgerRepository {
 
       createTransaction: (input: TransactionInput) => {
         const transaction = materialise(transactionId(this.nextId()), input);
-        this.transactionRows.push({ owner: user, transaction, deleted: false });
+        this.transactionRows.push({ owner: user, transaction });
         return Promise.resolve(transaction);
       },
 
@@ -144,22 +145,42 @@ export class InMemoryLedger implements LedgerRepository {
       softDeleteTransaction: (id: TransactionId) => {
         const row = visible(id);
         if (row === undefined) return Promise.reject(new TransactionNotFoundError(id));
-        row.deleted = true;
+        row.transaction = { ...row.transaction, deleted: true };
         return Promise.resolve();
       },
 
+      // Deliberately unfiltered by `deleted`, mirroring the real adapter's
+      // `findByExternalId` — a soft-deleted transaction still occupies
+      // `(account_id, external_id)`, so dedup has to see it.
       findByExternalId: (accountId: AccountId, externalId: string) =>
         Promise.resolve(
           this.transactionRows.find(
             (row) =>
               row.owner === user &&
-              !row.deleted &&
               row.transaction.accountId === accountId &&
               row.transaction.externalId === externalId,
           )?.transaction ?? null,
         ),
 
       createImportedTransaction: (input: TransactionInput, origin: ImportedTransactionOrigin) => {
+        // Mirrors the partial unique index on (account_id, external_id) in
+        // packages/db — soft-deleted rows count. Without this the fake is
+        // more permissive than Postgres and hides real dedup bugs (not scoped
+        // by `owner`, same as the real index: an account belongs to exactly
+        // one user, so this can never collide across users anyway).
+        const collision = this.transactionRows.find(
+          (row) =>
+            row.transaction.accountId === input.accountId &&
+            row.transaction.externalId === origin.externalId,
+        );
+        if (collision !== undefined) {
+          return Promise.reject(
+            new Error(
+              'duplicate key value violates unique constraint "transactions_account_external_id_idx"',
+            ),
+          );
+        }
+
         const base = materialise(transactionId(this.nextId()), input);
         const transaction: Transaction = {
           ...base,
@@ -167,7 +188,7 @@ export class InMemoryLedger implements LedgerRepository {
           externalId: origin.externalId,
           importBatchId: origin.importBatchId,
         };
-        this.transactionRows.push({ owner: user, transaction, deleted: false });
+        this.transactionRows.push({ owner: user, transaction });
         return Promise.resolve(transaction);
       },
 
@@ -272,6 +293,7 @@ function materialise(id: TransactionId, input: TransactionInput): Transaction {
     externalId: null,
     importBatchId: null,
     editedAfterImport: false,
+    deleted: false,
     matchedLotIds: null,
     note: input.note,
   };

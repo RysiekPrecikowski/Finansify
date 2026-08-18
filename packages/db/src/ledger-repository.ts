@@ -96,6 +96,7 @@ function toTransaction(row: TransactionRow): Transaction {
     externalId: row.externalId,
     importBatchId: row.importBatchId,
     editedAfterImport: row.editedAfterImport,
+    deleted: row.deletedAt !== null,
     // jsonb carries a bare string[]; the brand only exists in `core`, so the
     // parse back has to happen here or the ids reach the domain unvalidated.
     matchedLotIds: row.matchedLotIds === null ? null : row.matchedLotIds.map(toTransactionId),
@@ -295,7 +296,10 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
             owned.transaction,
             eq(transactions.accountId, accountId),
             eq(transactions.externalId, externalId),
-            isNull(transactions.deletedAt),
+            // Deliberately unfiltered by `deleted_at`: the unique index on
+            // (account_id, external_id) counts soft-deleted rows, so hiding
+            // them here is what let `acceptImportRow` collide with one. The
+            // caller decides what a deleted counterpart means.
           ),
         )
         .limit(1);
