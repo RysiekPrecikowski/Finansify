@@ -303,6 +303,34 @@ describe('ledgerRepository — createImportedTransactions', () => {
     expect(created).toHaveLength(2);
     expect(created.map((transaction) => transaction.externalId)).toEqual(['row-1', 'row-2']);
   });
+
+  it('splits a batch above the chunk size into multiple inserts and concatenates the results', async () => {
+    // Mirrors IMPORT_INSERT_CHUNK_SIZE (1000): one item over the boundary
+    // forces a second insert call.
+    const chunkSize = 1000;
+    const itemCount = chunkSize + 1;
+    const uuidFor = (i: number) => `44444444-4444-4444-8444-${i.toString().padStart(12, '0')}`;
+    const firstChunkRows = Array.from({ length: chunkSize }, (_, i) =>
+      transactionRow({
+        id: uuidFor(i),
+        source: 'import',
+        externalId: `row-${i}`,
+      }),
+    );
+    const secondChunkRows = [transactionRow({ source: 'import', externalId: `row-${chunkSize}` })];
+    const { db, insert } = makeDb({ insertResults: [firstChunkRows, secondChunkRows] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const items = Array.from({ length: itemCount }, (_, i) => ({
+      input: IMPORTED_INPUT,
+      origin: { externalId: `row-${i}`, importBatchId: '5555' },
+    }));
+
+    const created = await repo.createImportedTransactions(items);
+
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(created).toHaveLength(itemCount);
+  });
 });
 
 describe('ledgerRepository — refreshImportedTransaction', () => {

@@ -112,9 +112,12 @@ function toPortfolio(row: PortfolioRow, memberships: readonly { accountId: strin
   };
 }
 
-// Postgres' 65535-bound-parameter ceiling divided by this insert's ~18
-// params/row, with headroom for future columns.
-const IMPORT_INSERT_CHUNK_SIZE = 2000;
+// Not Postgres' documented 65535-bound-parameter ceiling — the neon-http
+// driver's HTTP query transport rejects a request above 32767 (2^15 - 1,
+// an INT16_MAX boundary) bound parameters, found empirically since it isn't
+// documented. This insert binds ~18 params/row; 1000 rows/chunk (18000
+// params) leaves headroom for both that ceiling and future columns.
+const IMPORT_INSERT_CHUNK_SIZE = 1000;
 
 /** The row shape a `TransactionInput` becomes. Strings in, strings out. */
 function toRow(input: TransactionInput, userId: UserId) {
@@ -343,9 +346,9 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
     async createImportedTransactions(items) {
       if (items.length === 0) return [];
       const rows: TransactionRow[] = [];
-      // Postgres caps a statement at 65535 bound parameters; this insert binds
-      // ~18 per row. Chunking keeps a large accept-all batch from blowing past
-      // that limit while still issuing far fewer round trips than one per row.
+      // See IMPORT_INSERT_CHUNK_SIZE: chunking keeps a large accept-all batch
+      // from blowing past the neon-http driver's parameter ceiling, while
+      // still issuing far fewer round trips than one insert per row.
       for (let start = 0; start < items.length; start += IMPORT_INSERT_CHUNK_SIZE) {
         const chunk = items.slice(start, start + IMPORT_INSERT_CHUNK_SIZE);
         const inserted = await db
