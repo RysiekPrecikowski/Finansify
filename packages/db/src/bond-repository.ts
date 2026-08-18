@@ -1,6 +1,10 @@
 import {
+  Money,
+  currency,
   parseSeriesCode,
   Temporal,
+  type BondInterestTable,
+  type BondInterestTableRepository,
   type BondIssueParameterRepository,
   type BondIssueParameters,
   type BondSeriesCode,
@@ -8,14 +12,17 @@ import {
   type IndexObservation,
   type IndexObservationRepository,
   type ProviderName,
+  type PurchaseDayKey,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { type Database } from './client';
 import {
+  bondInterestTables,
   bondSeriesTerms,
   indexObservations,
+  type BondInterestTableRow,
   type BondSeriesTermsRow,
   type IndexObservationRow,
 } from './schema/bonds';
@@ -31,6 +38,9 @@ import {
 
 /** Rates are stored to six decimals; keep writes at that scale so reads round-trip. */
 const RATE_SCALE = 6;
+
+/** Every retail series is issued in PLN; nothing here is ever another currency. */
+const PLN = currency('PLN');
 
 function toIssueParameters(row: BondSeriesTermsRow): BondIssueParameters {
   return {
@@ -137,6 +147,83 @@ export function indexObservationRepository(db: Database): IndexObservationReposi
           target: [indexObservations.indexId, indexObservations.effectiveFrom],
           set: {
             value: sql`excluded.value`,
+            source: sql`excluded.source`,
+            fetchedAt: sql`excluded.fetched_at`,
+          },
+        });
+    },
+  };
+}
+
+function toInterestTable(row: BondInterestTableRow): BondInterestTable {
+  return {
+    seriesCode: parseSeriesCode(row.seriesCode).code,
+    periodOrdinal: row.periodOrdinal,
+    purchaseDayKey: row.purchaseDayKey as PurchaseDayKey,
+    startsOn: Temporal.PlainDate.from(row.startsOn),
+    endsOn: Temporal.PlainDate.from(row.endsOn),
+    annualRate: new Decimal(row.annualRate),
+    source: row.source,
+    // Strings straight to `Money`, never through a number (rule 1). The values
+    // were rounded to the grosz by the agent that published them and are not
+    // re-rounded on either side of the database.
+    dailyValues: row.dailyValues.map((value) => Money.of(value, PLN)),
+  };
+}
+
+export function bondInterestTableRepository(db: Database): BondInterestTableRepository {
+  return {
+    async find(code: BondSeriesCode, purchaseDayKey: PurchaseDayKey) {
+      const rows = await db
+        .select()
+        .from(bondInterestTables)
+        .where(
+          and(
+            eq(bondInterestTables.seriesCode, code),
+            eq(bondInterestTables.purchaseDayKey, purchaseDayKey),
+          ),
+        )
+        .orderBy(asc(bondInterestTables.periodOrdinal));
+
+      const result = new Map<number, BondInterestTable>();
+      for (const row of rows) result.set(row.periodOrdinal, toInterestTable(row));
+      return result;
+    },
+
+    async save(tables: readonly BondInterestTable[]) {
+      if (tables.length === 0) return;
+      const fetchedAt = new Date();
+      await db
+        .insert(bondInterestTables)
+        .values(
+          tables.map((table) => ({
+            seriesCode: table.seriesCode,
+            purchaseDayKey: table.purchaseDayKey,
+            periodOrdinal: table.periodOrdinal,
+            startsOn: table.startsOn.toString(),
+            endsOn: table.endsOn.toString(),
+            annualRate: table.annualRate.toFixed(RATE_SCALE),
+            dailyValues: table.dailyValues.map((value) => value.amount.toFixed(2)),
+            source: table.source,
+            fetchedAt,
+          })),
+        )
+        // The newest fetch wins, unlike `bond_series_terms`. A *closed* period's
+        // table is fixed forever, but the current one grows a row a day and the
+        // Ministry restates a rate on the rare occasion the index behind it is
+        // revised — so refusing to update would freeze a partial table in place
+        // and under-report the holding for the rest of the period.
+        .onConflictDoUpdate({
+          target: [
+            bondInterestTables.seriesCode,
+            bondInterestTables.purchaseDayKey,
+            bondInterestTables.periodOrdinal,
+          ],
+          set: {
+            startsOn: sql`excluded.starts_on`,
+            endsOn: sql`excluded.ends_on`,
+            annualRate: sql`excluded.annual_rate`,
+            dailyValues: sql`excluded.daily_values`,
             source: sql`excluded.source`,
             fetchedAt: sql`excluded.fetched_at`,
           },

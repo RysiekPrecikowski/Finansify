@@ -1,4 +1,5 @@
 import {
+  bondInterestTableRepository,
   bondIssueParameterRepository,
   createDbClient,
   createFileStore,
@@ -15,6 +16,8 @@ import { xtbStatementParser } from '@finansify/importers';
 import {
   makeResolveBondTerms,
   Temporal,
+  type BondInterestTableProvider,
+  type BondInterestTableRepository,
   type BondTermsResolver,
   type Clock,
   type FileStore,
@@ -36,6 +39,7 @@ import {
 import {
   gusCpiProvider,
   mfBondIssueProvider,
+  pekaoInterestTableProvider,
   nbpFxRateProvider,
   yahooFxQuoteProvider,
   nbpReferenceRateProvider,
@@ -150,6 +154,20 @@ export function getBondTermsResolver(): BondTermsResolver {
     repository: bondIssueParameterRepository(getDb()),
     provider: mfBondIssueProvider,
   });
+}
+
+/**
+ * The published-table cache and the agent that fills it (ADR 0019). Kept apart
+ * from `getBondTermsResolver` because they answer different questions: the
+ * resolver produces a series' *terms*, this produces the Ministry's own daily
+ * figures for a holding that already has them.
+ */
+export function getBondInterestTables(): BondInterestTableRepository {
+  return bondInterestTableRepository(getDb());
+}
+
+export function getInterestTableProvider(): BondInterestTableProvider {
+  return pekaoInterestTableProvider;
 }
 
 export const clock: Clock = { now: () => Temporal.Now.instant() };

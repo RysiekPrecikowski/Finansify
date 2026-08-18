@@ -122,7 +122,7 @@ function interestPerBond(
  * What redeeming early actually pays out. Accrued interest only — interest
  * already paid to the holder is theirs and is not clawed back.
  */
-function earlyRedemptionValueOf(
+export function earlyRedemptionValueOf(
   rule: EarlyRedemptionRule,
   nominal: Money,
   accruedInterest: Money,
@@ -173,6 +173,7 @@ export function accrueBond(
       currentValue: Money.zero(PLN),
       earlyRedemptionValue: Money.zero(PLN),
       periods: [],
+      source: 'computed',
     };
   }
 
@@ -264,5 +265,6 @@ export function accrueBond(
       currentOrdinal,
     ),
     periods,
+    source: 'computed',
   };
 }

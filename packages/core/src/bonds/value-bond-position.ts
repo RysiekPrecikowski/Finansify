@@ -3,8 +3,16 @@ import type Decimal from 'decimal.js';
 import { type Lot } from '../positions/lot';
 import { currency as toCurrency, Money } from '../money';
 import { type Temporal } from '../time';
+import { type ProviderName } from '../valuation/vocabulary';
 import { accrueBond } from './accrue-bond';
-import { type BondAccrual, type BondTerms, type IndexObservation } from './types';
+import { interestTableKeyFor, type BondInterestTable, type PurchaseDayKey } from './interest-table';
+import {
+  type BondAccrual,
+  type BondPurchase,
+  type BondTerms,
+  type IndexObservation,
+} from './types';
+import { valueBondFromTables } from './value-from-tables';
 
 const PLN = toCurrency('PLN');
 
@@ -21,6 +29,14 @@ export interface ValuedBondPosition {
   readonly accruedInterest: Money;
   readonly paidInterest: Money;
   readonly earlyRedemptionValue: Money;
+  /**
+   * Where the position's figures came from, and deliberately pessimistic: one
+   * lot that fell back to the engine makes the whole position `'computed'`.
+   * The alternative — naming the agent because most lots came from it — would
+   * put an official-looking label on a total that is partly ours, which is the
+   * one thing this field exists to prevent.
+   */
+  readonly source: ProviderName | 'computed';
   /** One accrual per open lot, because each lot has its own purchase date. */
   readonly lots: readonly BondAccrual[];
 }
@@ -51,10 +67,22 @@ export interface LotWithTerms {
   readonly terms: BondTerms;
 }
 
+/**
+ * The published tables on hand for one purchase day, keyed by period ordinal.
+ * A lot settled on the 17th and one settled on the 31st read different tables,
+ * so the lookup is by day key rather than by series.
+ */
+export type PublishedTables = (
+  purchaseDayKey: PurchaseDayKey,
+) => ReadonlyMap<number, BondInterestTable>;
+
+const nothingPublished: PublishedTables = () => new Map();
+
 export function valueBondPosition(
   holdings: readonly LotWithTerms[],
   asOf: Temporal.PlainDate,
   observations: readonly IndexObservation[],
+  published: PublishedTables = nothingPublished,
 ): ValuedBondPosition {
   const accruals: BondAccrual[] = [];
 
@@ -69,19 +97,25 @@ export function valueBondPosition(
     // skipping keeps `lots` meaning "what you still hold".
     if (!lot.remainingQuantity.greaterThan(0)) continue;
 
-    const accrual = accrueBond(
-      terms,
-      {
-        seriesCode: terms.seriesCode,
-        settledOn: lot.openedOn,
-        // Retail bonds are indivisible: a lot is always a whole number of
-        // them. `toNumber` is safe here for that reason and only that reason —
-        // it is a count, never money (rule 1).
-        quantity: wholeBondsIn(lot.remainingQuantity),
-      },
-      asOf,
-      observations,
-    );
+    const purchase: BondPurchase = {
+      seriesCode: terms.seriesCode,
+      settledOn: lot.openedOn,
+      // Retail bonds are indivisible: a lot is always a whole number of
+      // them. `toNumber` is safe here for that reason and only that reason —
+      // it is a count, never money (rule 1).
+      quantity: wholeBondsIn(lot.remainingQuantity),
+    };
+
+    // The Ministry's own figure first, our reproduction of it second. The order
+    // matters beyond precedence: a series valued from published tables needs no
+    // index history, no margin and no day-count rule to be right, so it cannot
+    // drift from what the holder is actually paid. `valueBondFromTables`
+    // returns `null` the moment a table it needs is missing or does not line
+    // up, and the engine — golden-tested against these same tables — answers
+    // instead. Neither path ever estimates (rule 7).
+    const accrual =
+      valueBondFromTables(terms, purchase, asOf, published(interestTableKeyFor(lot.openedOn))) ??
+      accrueBond(terms, purchase, asOf, observations);
 
     accruals.push(accrual);
     marketValue = marketValue.plus(accrual.currentValue);
@@ -90,7 +124,24 @@ export function valueBondPosition(
     earlyRedemptionValue = earlyRedemptionValue.plus(accrual.earlyRedemptionValue);
   }
 
-  return { marketValue, accruedInterest, paidInterest, earlyRedemptionValue, lots: accruals };
+  return {
+    marketValue,
+    accruedInterest,
+    paidInterest,
+    earlyRedemptionValue,
+    source: sharedSourceOf(accruals),
+    lots: accruals,
+  };
+}
+
+/**
+ * The one source every lot agrees on, or `'computed'`. A position with no open
+ * lots has nothing published behind it either, so it is `'computed'` too.
+ */
+function sharedSourceOf(accruals: readonly BondAccrual[]): ProviderName | 'computed' {
+  const first = accruals[0]?.source;
+  if (first === undefined || first === 'computed') return 'computed';
+  return accruals.every((accrual) => accrual.source === first) ? first : 'computed';
 }
 
 export class FractionalBondError extends Error {
