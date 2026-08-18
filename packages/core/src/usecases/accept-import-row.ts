@@ -16,7 +16,7 @@ import { validateTransactionInput } from './record-transaction';
  * same defense-in-depth every manual submission goes through, not a step this
  * use case gets to skip just because the source was a trusted parser.
  */
-function transactionInputFromParsedRow(
+export function transactionInputFromParsedRow(
   parsed: ParsedRow,
   resolvedInstrumentId: string | null,
   accountId: string,
@@ -39,10 +39,10 @@ function transactionInputFromParsedRow(
   };
 }
 
-const CONFLICT_REASON =
+export const CONFLICT_REASON =
   'This transaction was edited by hand since it was imported — the re-import was not applied.';
 
-const DELETED_REASON =
+export const DELETED_REASON =
   'This transaction was deleted by hand after it was imported — the re-import was not applied.';
 
 /**

@@ -3,12 +3,17 @@ import {
   transactionIdSchema,
   transactionInputSchema,
   transactionInputSchemaFor,
+  type Account,
   type Transaction,
   type TransactionInput,
 } from '../ledger/types';
 import { failure, issuesOf, success, type FieldIssue, type UseCaseResult } from './result';
 
 /**
+ * The pure half of `validateTransactionInput`, split out so a caller
+ * validating many inputs against the same account list (`makeAcceptImportRows`)
+ * can load `listAccounts()` once instead of once per input.
+ *
  * Validating a transaction takes two passes, because the rule that matters most
  * is not expressible in one.
  *
@@ -18,20 +23,20 @@ import { failure, issuesOf, success, type FieldIssue, type UseCaseResult } from 
  * needs the rate **as executed** (ADR 0006).
  *
  * Looking the account up in between is what proves the account belongs to the
- * caller: `listAccounts()` is already scoped, so another user's account is
- * simply not in the list. Without this the row would still be unreadable by its
- * victim (every query filters on `user_id`), but it would be a foreign
- * `account_id` in the caller's ledger — an integrity hole the FK does not
- * close, because the FK is global and only `user_id` is scoped (ADR 0009).
+ * caller: `accounts` is expected to already be scoped (`listAccounts()`'s own
+ * result), so another user's account is simply not in the list. Without this
+ * the row would still be unreadable by its victim (every query filters on
+ * `user_id`), but it would be a foreign `account_id` in the caller's ledger —
+ * an integrity hole the FK does not close, because the FK is global and only
+ * `user_id` is scoped (ADR 0009).
  */
-export async function validateTransactionInput(
-  ledger: ScopedLedgerRepository,
+export function validateTransactionInputAgainstAccounts(
+  accounts: readonly Account[],
   input: unknown,
-): Promise<UseCaseResult<TransactionInput>> {
+): UseCaseResult<TransactionInput> {
   const shape = transactionInputSchema.safeParse(input);
   if (!shape.success) return failure(issuesOf(shape.error));
 
-  const accounts = await ledger.listAccounts();
   const account = accounts.find((candidate) => candidate.id === shape.data.accountId);
   if (account === undefined) {
     return failure([{ path: 'accountId', message: 'Unknown account' }]);
@@ -41,6 +46,14 @@ export async function validateTransactionInput(
   if (!withFxRules.success) return failure(issuesOf(withFxRules.error));
 
   return success(withFxRules.data);
+}
+
+export async function validateTransactionInput(
+  ledger: ScopedLedgerRepository,
+  input: unknown,
+): Promise<UseCaseResult<TransactionInput>> {
+  const accounts = await ledger.listAccounts();
+  return validateTransactionInputAgainstAccounts(accounts, input);
 }
 
 /** Parses an id the caller may have taken straight from a route or a form. */

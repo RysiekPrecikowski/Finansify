@@ -8,7 +8,7 @@ import {
   type TransactionInput,
   type UserId,
 } from '@finansify/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { type Database } from './client';
@@ -173,6 +173,67 @@ describe('ledgerRepository — findByExternalId', () => {
   });
 });
 
+/**
+ * `findByExternalIds` calls `db.select().from().where()` directly — no
+ * `.limit()` in the chain, unlike `findByExternalId` — so it needs its own
+ * mock shape rather than `makeDb`'s.
+ */
+function makeFindByExternalIdsDb(config: { rows: TransactionRow[] }): {
+  db: Database;
+  select: Mock;
+  from: Mock;
+  where: Mock;
+} {
+  const where = vi.fn().mockResolvedValueOnce(config.rows);
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+  return { db: { select } as unknown as Database, select, from, where };
+}
+
+describe('ledgerRepository — findByExternalIds', () => {
+  it('returns an empty map without querying when externalIds is empty', async () => {
+    const { db, select } = makeFindByExternalIdsDb({ rows: [] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const found = await repo.findByExternalIds(ACCOUNT_ID, []);
+
+    expect(found.size).toBe(0);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('keys the result by externalId, one entry per matching row', async () => {
+    const rowA = transactionRow({ externalId: 'row-1' });
+    const rowB = transactionRow({
+      id: '44444444-4444-4444-8444-444444444444',
+      externalId: 'row-2',
+    });
+    const { db } = makeFindByExternalIdsDb({ rows: [rowA, rowB] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const found = await repo.findByExternalIds(ACCOUNT_ID, ['row-1', 'row-2', 'row-3']);
+
+    expect(found.size).toBe(2);
+    expect(found.get('row-1')?.id).toBe(TRANSACTION_ID);
+    expect(found.get('row-2')?.id).toBe(transactionId('44444444-4444-4444-8444-444444444444'));
+    expect(found.get('row-3')).toBeUndefined();
+  });
+
+  it('scopes the query to this user and account, unfiltered by deleted_at, same as findByExternalId', async () => {
+    const { db, where } = makeFindByExternalIdsDb({ rows: [] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    await repo.findByExternalIds(ACCOUNT_ID, ['row-1']);
+
+    expect(where).toHaveBeenCalledWith(
+      and(
+        eq(transactions.userId, USER_ID),
+        eq(transactions.accountId, ACCOUNT_ID),
+        inArray(transactions.externalId, ['row-1']),
+      ),
+    );
+  });
+});
+
 describe('ledgerRepository — createImportedTransaction', () => {
   it('inserts with source import and the given externalId/importBatchId, and maps the returned row', async () => {
     const insertedRow = transactionRow({
@@ -202,6 +263,45 @@ describe('ledgerRepository — createImportedTransaction', () => {
     expect(transaction.externalId).toBe('row-1');
     expect(transaction.importBatchId).toBe('55555555-5555-4555-8555-555555555555');
     expect(transaction.id).toBe(TRANSACTION_ID);
+  });
+});
+
+describe('ledgerRepository — createImportedTransactions', () => {
+  it('returns an empty array without inserting when items is empty', async () => {
+    const { db, insert } = makeDb({});
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const created = await repo.createImportedTransactions([]);
+
+    expect(created).toEqual([]);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('inserts every item in one multi-row insert, each with source import and its own externalId', async () => {
+    const rowA = transactionRow({ source: 'import', externalId: 'row-1' });
+    const rowB = transactionRow({
+      id: '44444444-4444-4444-8444-444444444444',
+      source: 'import',
+      externalId: 'row-2',
+    });
+    const { db, insert, insertValues } = makeDb({ insertResults: [[rowA, rowB]] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const created = await repo.createImportedTransactions([
+      { input: IMPORTED_INPUT, origin: { externalId: 'row-1', importBatchId: '5555' } },
+      {
+        input: { ...IMPORTED_INPUT, grossAmount: '2000' },
+        origin: { externalId: 'row-2', importBatchId: '5555' },
+      },
+    ]);
+
+    expect(insert).toHaveBeenCalledWith(transactions);
+    expect(insertValues).toHaveBeenCalledWith([
+      expect.objectContaining({ source: 'import', externalId: 'row-1', importBatchId: '5555' }),
+      expect.objectContaining({ source: 'import', externalId: 'row-2', importBatchId: '5555' }),
+    ]);
+    expect(created).toHaveLength(2);
+    expect(created.map((transaction) => transaction.externalId)).toEqual(['row-1', 'row-2']);
   });
 });
 

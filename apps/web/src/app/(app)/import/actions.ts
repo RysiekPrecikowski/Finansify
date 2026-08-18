@@ -6,6 +6,7 @@ import {
   instrumentId,
   instrumentIdSchema,
   makeAcceptImportRow,
+  makeAcceptImportRows,
   makeRejectImportRow,
   makeUploadStatement,
   type ImportBatch,
@@ -232,12 +233,15 @@ export async function acceptRowAction(formData: FormData): Promise<void> {
 
 /**
  * Accepts every currently-pending row that doesn't still need instrument
- * resolution, one `acceptImportRow` call at a time — the bulk counterpart to
- * `acceptRowAction`, for the common case of a statement with no rows to edit.
- * A row that fails (a duplicate surfaced by an earlier row in the same
- * batch, say) simply stays `pending`: there is nowhere to show a per-row
- * error from a bulk action, and the reviewer already lands back on the list,
- * where an unaccepted row is visible and still reachable individually.
+ * resolution — the bulk counterpart to `acceptRowAction`, for the common case
+ * of a statement with no rows to edit. `makeAcceptImportRows` does this with a
+ * fixed number of round trips rather than one `acceptImportRow` call per row
+ * (CU-869ejgjrt): a 326-row statement was 326 × ~6 sequential HTTP requests
+ * against Neon's HTTP driver, close enough to Vercel's function duration limit
+ * to matter. A row that fails (a duplicate surfaced by another row in the same
+ * batch, say) simply stays `pending`: there is nowhere to show a per-row error
+ * from a bulk action, and the reviewer already lands back on the list, where
+ * an unaccepted row is visible and still reachable individually.
  */
 export async function acceptAllPendingAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
@@ -247,21 +251,11 @@ export async function acceptAllPendingAction(formData: FormData): Promise<void> 
   if (!batchIdResult.success) redirect('/import' as Route);
   const batchId = batchIdResult.data;
 
-  const imports = scopedImportsFor(user.id);
-  const rows = await imports.rowsForBatch(batchId);
-  const acceptable = rows.filter(
-    (row) =>
-      row.status === 'pending' &&
-      (row.parsed.instrument === null || row.resolvedInstrumentId !== null),
-  );
-
-  const acceptImportRow = makeAcceptImportRow({
-    imports,
+  const acceptImportRows = makeAcceptImportRows({
+    imports: scopedImportsFor(user.id),
     ledger: scopedLedgerFor(user.id),
   });
-  for (const row of acceptable) {
-    await acceptImportRow(row.id);
-  }
+  await acceptImportRows(batchId);
 
   revalidateAfterAccept(batchId);
   redirect(`/import/${batchId}/review` as Route);

@@ -175,6 +175,36 @@ export class InMemoryImports implements ImportRepository {
         this.rowRows[index] = updated;
         return Promise.resolve(updated);
       },
+
+      recordRowOutcomes: (
+        batchId: ImportBatchId,
+        outcomes: readonly { id: ImportRowId; outcome: ImportRowOutcome }[],
+      ) => {
+        if (ownedBatch(batchId) === undefined) {
+          return Promise.reject(new Error(`No import batch ${batchId}`));
+        }
+
+        const touched: ImportRow[] = [];
+        for (const { id, outcome } of outcomes) {
+          const index = this.rowRows.findIndex(
+            (candidate) => candidate.id === id && candidate.batchId === batchId,
+          );
+          if (index === -1) return Promise.reject(new Error(`No import row ${id}`));
+
+          const updated: ImportRow = {
+            ...this.rowRows[index]!,
+            status: outcome.status,
+            transactionId: outcome.status === 'rejected' ? null : outcome.transactionId,
+            rejectionReason:
+              outcome.status === 'rejected' || outcome.status === 'duplicate'
+                ? outcome.reason
+                : null,
+          };
+          this.rowRows[index] = updated;
+          touched.push(updated);
+        }
+        return Promise.resolve(touched);
+      },
     };
   }
 }

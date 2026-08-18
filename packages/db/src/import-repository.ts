@@ -23,7 +23,7 @@ import {
   type UserId,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { type Database } from './client';
 import { importBatches, type ImportBatchRow } from './schema/import-batches';
@@ -269,6 +269,57 @@ function scopedTo(db: Database, userId: UserId): ScopedImportRepository {
         .where(eq(importRows.id, id))
         .returning();
       return toImportRow(updated!);
+    },
+
+    async recordRowOutcomes(batchId: ImportBatchId, outcomes) {
+      if (outcomes.length === 0) return [];
+
+      // One `UPDATE` for the whole batch — a `CASE` per column keyed by
+      // `id`, rather than `recordRowOutcome`'s one `UPDATE` per row. Each
+      // `THEN` branch is cast explicitly (`::import_row_status`, `::uuid`,
+      // `::text`): a `sql` fragment carries no column type of its own, so
+      // Postgres would otherwise see `text` and refuse the enum/uuid columns.
+      // `batch_id` in the `WHERE` is the ownership check — cheap because
+      // `batchId` is already proven owned by this call's own `getBatch`, so
+      // this skips `recordRowOutcome`'s per-row join against `import_batches`.
+      const statusCase = sql.join(
+        outcomes.map(
+          ({ id, outcome }) => sql`WHEN ${id}::uuid THEN ${outcome.status}::import_row_status`,
+        ),
+        sql` `,
+      );
+      const transactionIdCase = sql.join(
+        outcomes.map(({ id, outcome }) => {
+          const transactionId = outcome.status === 'rejected' ? null : outcome.transactionId;
+          return sql`WHEN ${id}::uuid THEN ${transactionId}::uuid`;
+        }),
+        sql` `,
+      );
+      const rejectionReasonCase = sql.join(
+        outcomes.map(({ id, outcome }) => {
+          const reason =
+            outcome.status === 'rejected' || outcome.status === 'duplicate' ? outcome.reason : null;
+          return sql`WHEN ${id}::uuid THEN ${reason}::text`;
+        }),
+        sql` `,
+      );
+      const ids = outcomes.map(({ id }) => id);
+
+      await db
+        .update(importRows)
+        .set({
+          status: sql`CASE ${importRows.id} ${statusCase} END`,
+          transactionId: sql`CASE ${importRows.id} ${transactionIdCase} END`,
+          rejectionReason: sql`CASE ${importRows.id} ${rejectionReasonCase} END`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(importRows.batchId, batchId), inArray(importRows.id, ids)));
+
+      const updated = await db
+        .select()
+        .from(importRows)
+        .where(and(eq(importRows.batchId, batchId), inArray(importRows.id, ids)));
+      return updated.map(toImportRow);
     },
   };
 }

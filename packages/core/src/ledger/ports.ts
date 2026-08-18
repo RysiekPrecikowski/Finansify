@@ -66,6 +66,17 @@ export interface ScopedLedgerRepository {
    */
   findByExternalId(accountId: AccountId, externalId: string): Promise<Transaction | null>;
   /**
+   * The bulk counterpart to `findByExternalId` — one query for every
+   * `externalId` in a batch rather than one round trip per row. Keyed by
+   * `externalId`; an id with no existing transaction is simply absent from
+   * the map, same "at most one row" guarantee `findByExternalId`'s own doc
+   * comment describes.
+   */
+  findByExternalIds(
+    accountId: AccountId,
+    externalIds: readonly string[],
+  ): Promise<ReadonlyMap<string, Transaction>>;
+  /**
    * The only way a transaction is ever created with `source: 'import'` — see
    * `ImportedTransactionOrigin`. Not reachable from `createTransaction`, so a
    * manual form submission can never forge an import provenance.
@@ -74,6 +85,20 @@ export interface ScopedLedgerRepository {
     input: TransactionInput,
     origin: ImportedTransactionOrigin,
   ): Promise<Transaction>;
+  /**
+   * The bulk counterpart to `createImportedTransaction` — one multi-row
+   * insert for a whole batch of creates rather than one round trip per row.
+   * Returns every created transaction, in no particular order; match a
+   * result back to the item that produced it by `externalId`, which is
+   * unique within `accountId` (the same uniqueness `findByExternalIds`
+   * relies on).
+   */
+  createImportedTransactions(
+    items: readonly {
+      readonly input: TransactionInput;
+      readonly origin: ImportedTransactionOrigin;
+    }[],
+  ): Promise<readonly Transaction[]>;
   /**
    * Refreshes an import-sourced transaction's fields from a re-import,
    * without touching `editedAfterImport` — unlike `updateTransaction`, which

@@ -13,7 +13,7 @@ import {
   type ParsedRow,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql, SQL } from 'drizzle-orm';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { type Database } from './client';
@@ -820,5 +820,135 @@ describe('importRepository — recordRowOutcome', () => {
     expect(result.status).toBe('rejected');
     expect(result.transactionId).toBeNull();
     expect(result.rejectionReason).toBe('some reason');
+  });
+});
+
+/**
+ * `recordRowOutcomes` calls `db.update(importRows).set(...).where(...)`
+ * without `.returning()` (a plain `UPDATE`, resolved via `.where()` itself),
+ * then a separate `db.select().from(importRows).where(...)` — neither shape
+ * `makeDb` or `makeJoinedRowDb` mock, so this gets its own.
+ */
+function makeRecordRowOutcomesDb(config: { updatedRows: ImportRowRow[] }): {
+  db: Database;
+  update: Mock;
+  updateSet: Mock;
+  updateWhere: Mock;
+  select: Mock;
+  selectFrom: Mock;
+  selectWhere: Mock;
+} {
+  const updateWhere = vi.fn().mockResolvedValueOnce(undefined);
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set: updateSet });
+
+  const selectWhere = vi.fn().mockResolvedValueOnce(config.updatedRows);
+  const selectFrom = vi.fn().mockReturnValue({ where: selectWhere });
+  const select = vi.fn().mockReturnValue({ from: selectFrom });
+
+  return {
+    db: { update, select } as unknown as Database,
+    update,
+    updateSet,
+    updateWhere,
+    select,
+    selectFrom,
+    selectWhere,
+  };
+}
+
+/** `JSON.stringify` with cycles (a drizzle `Column`'s `table` points back at its own `columns`) replaced rather than thrown on. */
+function safeStringify(value: unknown): string {
+  const seen = new WeakSet();
+  return JSON.stringify(value, (_key, val: unknown) => {
+    if (typeof val === 'object' && val !== null) {
+      if (seen.has(val)) return '[circular]';
+      seen.add(val);
+    }
+    return val;
+  });
+}
+
+describe('importRepository — recordRowOutcomes', () => {
+  const ROW_ID_2 = importRowId('88888888-8888-4888-8888-888888888888');
+
+  it('returns an empty array without touching the database when outcomes is empty', async () => {
+    const { db, update, select } = makeRecordRowOutcomesDb({ updatedRows: [] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.recordRowOutcomes(BATCH_ID, []);
+
+    expect(result).toEqual([]);
+    expect(update).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('scopes both the UPDATE and the re-SELECT to this batch and exactly the given row ids', async () => {
+    const { db, updateWhere, selectWhere } = makeRecordRowOutcomesDb({
+      updatedRows: [rowRow({ id: ROW_ID }), rowRow({ id: ROW_ID_2 })],
+    });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await repo.recordRowOutcomes(BATCH_ID, [
+      { id: ROW_ID, outcome: { status: 'accepted', transactionId: OUTCOME_TRANSACTION_ID } },
+      { id: ROW_ID_2, outcome: { status: 'accepted', transactionId: OUTCOME_TRANSACTION_ID } },
+    ]);
+
+    const expectedClause = and(
+      eq(importRows.batchId, BATCH_ID),
+      inArray(importRows.id, [ROW_ID, ROW_ID_2]),
+    );
+    expect(updateWhere).toHaveBeenCalledWith(expectedClause);
+    expect(selectWhere).toHaveBeenCalledWith(expectedClause);
+  });
+
+  it('builds status/transactionId/rejectionReason as per-row CASE expressions rather than one shared value', async () => {
+    const { db, updateSet } = makeRecordRowOutcomesDb({ updatedRows: [] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    await repo.recordRowOutcomes(BATCH_ID, [
+      { id: ROW_ID, outcome: { status: 'accepted', transactionId: OUTCOME_TRANSACTION_ID } },
+      {
+        id: ROW_ID_2,
+        outcome: {
+          status: 'duplicate',
+          transactionId: OUTCOME_TRANSACTION_ID,
+          reason: 'edited by hand',
+        },
+      },
+    ]);
+
+    const setArg = updateSet.mock.calls[0]![0] as Record<string, unknown>;
+    expect(setArg.status).toBeInstanceOf(SQL);
+    expect(setArg.transactionId).toBeInstanceOf(SQL);
+    expect(setArg.rejectionReason).toBeInstanceOf(SQL);
+    expect(setArg.updatedAt).toBeInstanceOf(Date);
+    // Every row's outcome is folded into each CASE — a shared value across
+    // rows would collapse them into one WHEN/THEN pair instead of two.
+    // `queryChunks` embeds the column's own table (circular via
+    // column -> table -> columns), so stringifying needs a cycle-safe replacer.
+    const statusChunks = safeStringify((setArg.status as SQL).queryChunks);
+    expect(statusChunks).toContain('accepted');
+    expect(statusChunks).toContain('duplicate');
+  });
+
+  it('maps the re-selected rows through toImportRow and returns them', async () => {
+    const updated = rowRow({
+      id: ROW_ID,
+      status: 'accepted',
+      transactionId: OUTCOME_TRANSACTION_ID,
+      rejectionReason: null,
+    });
+    const { db } = makeRecordRowOutcomesDb({ updatedRows: [updated] });
+    const repo = importRepository(db).forUser(USER_ID);
+
+    const result = await repo.recordRowOutcomes(BATCH_ID, [
+      { id: ROW_ID, outcome: { status: 'accepted', transactionId: OUTCOME_TRANSACTION_ID } },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe(ROW_ID);
+    expect(result[0]!.status).toBe('accepted');
+    expect(result[0]!.transactionId).toBe(OUTCOME_TRANSACTION_ID);
   });
 });
