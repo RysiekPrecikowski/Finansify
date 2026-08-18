@@ -4,7 +4,7 @@ Each phase ends somewhere usable. The early ones deliberately exercise the
 package boundaries while there is still little code to move.
 
 | Phase                | Ships                                                                                   |
-| --------------------- | ---------------------------------------------------------------------------------------- |
+| -------------------- | --------------------------------------------------------------------------------------- |
 | **0 — Foundations**  | Docs and ADRs · packages and ports · `Money`/`Currency`/Temporal · auth · database · CI |
 | **1 — Ledger**       | Accounts, transactions, positions, FIFO lot matching, cash balances, export. No prices. |
 | **1.5 — Encryption** | Encryption at rest, once there is an application to protect. See ADR 0013.              |
@@ -124,8 +124,7 @@ Boś stays blocked — no real exported statement examined yet.
       found and fixed a compounding rounding error in capitalization
 - [x] ADR 0018 — published tables become the value **source**, not just a
       test; `accrueBond` is the fallback for unpublished families/periods
-- [x] `providers`: `pekaoInterestTableProvider`, NBP reference rate (current
-      + archive to 1998), GUS CPI, MF offer pages
+- [x] `providers`: `pekaoInterestTableProvider`, NBP reference rate (current + archive to 1998), GUS CPI, MF offer pages
 - [x] `db`: `bond_interest_tables` + migration
 - [x] `BondTermsResolver` wired; bond position entry + per-lot valuation
       (interest periods run from each purchase's own settlement date)
