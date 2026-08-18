@@ -111,8 +111,9 @@ the reviewer's call once they've seen the replies.
 
 **Take the ticket while reviewing.** When reviewing a PR that carries a ClickUp
 id (branch or title, `CU-<id>`), read it first — `.claude/scripts/clickup.sh
-GET /v2/task/<taskId>` — and confirm `Implementer` is not you (never review
-your own PR, CLAUDE.md rule 12). Then assign the reviewer:
+GET /v2/task/<taskId>` — and confirm `Implementer` is not you. Reviewing your
+own PR isn't a second look, whether or not review is required to merge (ADR
+0018). Then assign the reviewer:
 `.claude/scripts/clickup.sh PUT /v2/task/<taskId>
 '{"assignees":{"add":[<reviewerId>],"rem":[]}}'` — omit `status` so `in
 review` is left as-is; an unassigned `in review` ticket means nobody has

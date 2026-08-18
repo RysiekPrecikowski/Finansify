@@ -66,27 +66,33 @@ Do not run `gh pr ready` yourself — this is an outward-facing, visible action
 that judgment call. State what you tested and how, and wait for either an
 explicit go-ahead or the user doing it themselves on GitHub.
 
-**7. Only once the PR is out of draft — by your `gh pr ready` after
-confirmation, or because the user already did it — hand the ticket over.** Via
-`.claude/scripts/clickup.sh` (`docs/clickup.md` has the full endpoint
-reference):
+**7. Hand off the ticket — only for its last planned PR.** If more small PRs
+are still planned for this ticket (`docs/clickup.md`, "a ticket spanning
+multiple small PRs"), this step doesn't apply once the PR is out of draft:
+just post the PR link as a comment (4 below) and stop — status and assignee
+stay as they are. Not sure whether more are coming? Ask.
+
+For the last (or only) PR, once it's out of draft — by your `gh pr ready`
+after confirmation, or because the user already did it — run
+`docs/clickup.md`'s flow step 3 via `.claude/scripts/clickup.sh` (full
+endpoint reference there):
 
 1. `GET /v2/task/<taskId>` to read current `assignees` and `Implementer`.
 2. `PUT /v2/task/<taskId>` with
-   `{"status":"in review","assignees":{"add":[],"rem":[<currentAssigneeIds>]}}`
-   — clearing the assignee is what "waiting for a reviewer" looks like.
-   `Implementer` is untouched here; it's what restores the assignee at merge.
+   `{"status":"in review","assignees":{"add":[],"rem":[<currentAssigneeIds>]}}`.
+   `Implementer` stays untouched.
 3. If `Implementer` came back empty (ticket started outside this flow), set it
    to yourself: `POST /v2/task/<taskId>/field/4aaf7617-f6d2-4b03-aa0c-2e30d7e3294d`
    with `{"value":{"add":[<yourId>],"rem":[]}}`.
 4. `POST /v2/task/<taskId>/comment` with a short summary of what was actually
-   done, the new status, and who it's assigned to (or not) now, plus the PR
-   link — `docs/clickup.md`'s "every status write carries a comment" rule, not
-   just the link on its own.
+   done, the new status (if it changed), and who it's assigned to (or not)
+   now, plus the PR link (`docs/clickup.md`, "every status write carries a
+   comment").
 
-Report the ticket id and its new status in the final line. If the PR is still
+Report the ticket id and what happened to it. If this was a non-last PR, say
+that the ticket was left as-is with the PR link posted. If the PR is still
 draft when this command ends (proposal not yet confirmed), say that instead —
-the ticket stays wherever it already was, not "in review".
+the ticket stays wherever it already was.
 
 **Tone.** This text is read and acted on by the other teammate, which makes it
 different from the terse stage-reporting a session emits while working.
