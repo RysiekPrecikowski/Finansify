@@ -7,7 +7,7 @@ import {
   formatMoney,
   formatRatioAsPercent,
 } from '@/lib/format';
-import { type Dictionary } from '@/lib/i18n/dictionaries';
+import { interpolate, type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
 import { type PortfolioSnapshot } from '@/lib/fixtures/portfolio';
 import { type Money } from '@finansify/core';
@@ -52,7 +52,17 @@ export function PortfolioHeadline({
   snapshot,
   locale,
   dictionary,
-}: Readonly<{ snapshot: PortfolioSnapshot; locale: Locale; dictionary: Dictionary }>) {
+  display,
+  converted,
+}: Readonly<{
+  snapshot: PortfolioSnapshot;
+  locale: Locale;
+  dictionary: Dictionary;
+  /** The currency the reader picked in the header. */
+  display: string;
+  /** `false` when no rate was available, so these figures are still in their own currency. */
+  converted: boolean;
+}>) {
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -63,8 +73,11 @@ export function PortfolioHeadline({
         <span className="text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
           {formatMoney(snapshot.totalValue, locale, { bare: true })}
         </span>
-        {/* A real switcher needs FX, which arrives in Phase 2. Until then this
-            states the presentation currency rather than pretending to convert. */}
+        {/* The currency these figures are actually in. It follows the header
+            switcher now, converted at the NBP mid — the numbers are still the
+            fixture's, but the control is no longer decorative. When no rate can
+            be had, nothing is converted (rule 7) and the line below says so
+            rather than leaving it to a `title` nobody hovers. */}
         <span
           title={dictionary.dashboard.currencyLocked}
           className="text-muted-foreground inline-flex cursor-help items-center gap-1 text-sm font-medium"
@@ -73,6 +86,12 @@ export function PortfolioHeadline({
           <ArrowLeftRight className="size-3.5" />
         </span>
       </div>
+
+      {!converted && display !== snapshot.totalValue.currency && (
+        <p className="text-muted-foreground text-xs">
+          {interpolate(dictionary.dashboard.currencyIgnored, { currency: display })}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
         <Change

@@ -1,12 +1,11 @@
 import {
-  makeReadFxRates,
   makeReadPrices,
-  makeRefreshFxRates,
   makeRefreshPrices,
   Money,
+  valuationDivergesFromTax,
   valuePositions,
-  currency as toCurrency,
   type Currency,
+  type FxSourcePreference,
   type InstrumentPosition,
   type ValuedPosition,
 } from '@finansify/core';
@@ -17,22 +16,16 @@ import Link from 'next/link';
 import { DataList, type DataListColumn } from '@/components/data-list';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { type DisplaySettings } from '@/lib/display/currencies';
+import { currenciesToRefresh, toDisplayCurrencies } from '@/lib/display/server';
 import { formatMoney, formatPlainDate, formatQuantity } from '@/lib/format';
-import { type Dictionary } from '@/lib/i18n/dictionaries';
+import { interpolate, type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
 import { bondPriceLookups } from '@/server/bond-valuation';
-import {
-  clock,
-  getFxProvider,
-  getFxRates,
-  getMarketPrices,
-  getPriceProvider,
-  getSymbols,
-} from '@/server/container';
+import { clock, getMarketPrices, getPriceProvider, getSymbols } from '@/server/container';
+import { readValuationRates } from '@/server/fx-rates';
 
 import { Monogram, MoneyLines } from './shared';
-
-const PLN = toCurrency('PLN');
 
 /**
  * The one network hop the page waits on, and only this section waits on it —
@@ -48,11 +41,16 @@ export async function OpenPositions({
   locale,
   strings,
   dictionary,
+  display,
+  fxPreference,
 }: Readonly<{
   positions: readonly InstrumentPosition[];
   locale: Locale;
   strings: Dictionary['portfolio'];
   dictionary: Dictionary;
+  display: DisplaySettings;
+  /** Which FX feed values this page, and how far the reader scoped that choice (ADR 0018). */
+  fxPreference: FxSourcePreference;
 }>) {
   // Bonds are deliberately excluded from every price path below. Nothing
   // quotes them (ADR 0011), so asking the provider would be a guaranteed miss
@@ -62,23 +60,22 @@ export async function OpenPositions({
   const quoted = positions.filter((position) => position.instrument.kind !== 'bond');
   const instrumentIds = quoted.map((position) => position.instrument.id);
   // Instrument currencies (for pricing) union cost-basis currencies (for
-  // unrealized P&L), minus PLN: NBP table A has no PLN row, so including it
-  // here made `fxDue` permanently true and re-fetched the table on every
-  // `/portfolio` render regardless of what was actually stale.
-  const currencies = [
-    ...new Set([
-      ...quoted.map((position) => position.instrument.currency),
-      ...positions.flatMap((position) =>
-        position.costBasisByCurrency.map((amount) => amount.currency),
-      ),
-    ]),
-  ].filter((code) => code !== PLN);
+  // unrealized P&L) union the currency the reader is totalling in — that last
+  // one need not be held by anything, and without a rate for it the total is a
+  // partial sum of nothing. `currenciesToRefresh` drops PLN: NBP table A has no
+  // PLN row, so including it made `fxDue` permanently true and re-fetched the
+  // table on every `/portfolio` render regardless of what was actually stale.
+  const currencies = currenciesToRefresh(display, [
+    ...quoted.map((position) => position.instrument.currency),
+    ...positions.flatMap((position) =>
+      position.costBasisByCurrency.map((amount) => amount.currency),
+    ),
+  ]);
 
   const readPrices = makeReadPrices({ prices: getMarketPrices(), clock });
-  const readFxRates = makeReadFxRates({ fx: getFxRates(), clock });
 
   let priceLookups = await readPrices(instrumentIds);
-  let fxLookups = await readFxRates(currencies);
+  let fxLookups = await readValuationRates(currencies, fxPreference);
 
   const pricesDue = instrumentIds.some((id) => priceLookups.get(id)?.status !== 'fresh');
   const fxDue = currencies.some((code) => fxLookups.get(code)?.status !== 'fresh');
@@ -111,13 +108,10 @@ export async function OpenPositions({
   }
 
   if (fxDue) {
-    const refreshFxRates = makeRefreshFxRates({
-      fx: getFxRates(),
-      provider: getFxProvider(),
-      clock,
-    });
-    await refreshFxRates(currencies);
-    fxLookups = await readFxRates(currencies);
+    // `readValuationRates` already refreshed if anything was due, from whichever
+    // feed the reader's preference resolves to (ADR 0018). Re-reading here would
+    // ask the same question twice.
+    fxLookups = await readValuationRates(currencies, fxPreference);
   }
 
   const ratesToPln = new Map<Currency, Decimal>();
@@ -125,7 +119,7 @@ export async function OpenPositions({
     if (lookup.status !== 'unavailable') ratesToPln.set(code, lookup.mid);
   }
 
-  // All the Money arithmetic — market value, unrealized P&L, the PLN total —
+  // All the Money arithmetic — market value, unrealized P&L, the portfolio total —
   // lives in `core`'s `valuePositions`, tested against fakes there. This
   // component only formats what it returns.
   // Bond values are accrued, not fetched, and arrive as `PriceLookup`s so the
@@ -135,9 +129,9 @@ export async function OpenPositions({
 
   const {
     positions: valued,
-    totalMarketValuePln,
+    totalMarketValue,
     totalIsComplete,
-  } = valuePositions(positions, withBonds, ratesToPln);
+  } = valuePositions(positions, withBonds, ratesToPln, toDisplayCurrencies(display));
 
   const averageCostCell = (position: ValuedPosition) =>
     position.averageCost === null ? (
@@ -275,9 +269,14 @@ export async function OpenPositions({
         </span>
         <span className="flex flex-col items-end">
           <span className="text-lg font-semibold tabular-nums">
-            {formatMoney(totalMarketValuePln, locale)}
+            {formatMoney(totalMarketValue, locale)}
           </span>
-          <span className="text-muted-foreground text-[0.7rem]">{strings.totalValueNote}</span>
+          <span className="text-muted-foreground text-[0.7rem]">
+            {interpolate(strings.totalValueNote, { currency: display.total })}
+          </span>
+          {valuationDivergesFromTax(fxPreference) && (
+            <span className="text-muted-foreground text-[0.7rem]">{strings.totalValueMarket}</span>
+          )}
           {!totalIsComplete && (
             <span className="text-muted-foreground text-[0.7rem]">
               {strings.totalValueIncomplete}

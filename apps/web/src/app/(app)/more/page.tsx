@@ -1,6 +1,8 @@
 import { ChevronRight, Download, Landmark, LineChart, Upload } from 'lucide-react';
 import Link from 'next/link';
 
+import { FxSourceSettings } from '@/components/fx-source-settings';
+import { getFxPreference } from '@/lib/display/server';
 import { getDictionary } from '@/lib/i18n/server';
 
 /**
@@ -9,7 +11,7 @@ import { getDictionary } from '@/lib/i18n/server';
  * four leave room for.
  */
 export default async function MorePage() {
-  const dictionary = await getDictionary();
+  const [dictionary, fx] = await Promise.all([getDictionary(), getFxPreference()]);
 
   return (
     <div className="flex h-full flex-col items-stretch gap-4">
@@ -49,6 +51,8 @@ export default async function MorePage() {
           <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
         </Link>
       </nav>
+
+      <FxSourceSettings preference={fx} />
 
       <p className="text-muted-foreground text-sm">{dictionary.placeholder.more}</p>
     </div>

@@ -3,6 +3,11 @@
 **Status:** Accepted
 **Date:** 2026-08-11
 
+**Amended 2026-08-18:** decision 2's mandatory-approval requirement is
+superseded by ADR 0018 (self-merge permitted after green CI). The rest of
+this ADR — language, file-minimalism, and the PR-only/no-force-push parts of
+decision 2 — still stands.
+
 ## Context
 
 The project has moved from solo scaffolding to active two-person development

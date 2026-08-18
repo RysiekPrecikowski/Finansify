@@ -7,6 +7,42 @@ All of these sit behind ports defined in `packages/core/src/ports/` and are
 implemented in `packages/providers`. Nothing in the domain knows any of these
 names.
 
+## At a glance
+
+What each kind of thing is priced from, and how often that number can change.
+"Refreshed" is our own re-fetch rule; "changes" is how often the upstream number
+actually moves — the two are deliberately different, and confusing them is how
+a 15-minute TTL gets mistaken for a 15-minute rate.
+
+| Asset / figure                  | Source                      | Upstream changes                         | We re-fetch                          |
+| ------------------------------- | --------------------------- | ---------------------------------------- | ------------------------------------ |
+| Equity, ETF, fund (global)      | Yahoo Finance               | Continuously while the exchange is open  | 15 min (`PRICE_TTL_MINUTES`)         |
+| Equity, ETF (GPW)               | Yahoo Finance, `.WA`        | Continuously, 09:00–17:00 CET            | 15 min                               |
+| FX rate — **valuation**         | NBP table A (mid), default  | **Once per business day**, around midday | 15 min (returns the same row)        |
+| FX rate — valuation, opted in   | Yahoo `XXXPLN=X`            | Continuously through the session         | 15 min (a real freshness bound)      |
+| FX rate — pair charts           | NBP table A archive         | Once per business day                    | On gap, or newest print ≥ 4 days     |
+| FX rate — pair charts, opted in | Yahoo `XXXYYY=X`            | Continuously through the session         | Per render, not stored               |
+| Polish retail bonds             | Nothing — accrued in `core` | Recomputed per `asOf`; never quoted      | Never; it is a calculation           |
+| Bond interest tables (source)   | obligacjeskarbowe.pl, Pekao | Monthly, per issue                       | Bootstrapped; not fetched at runtime |
+| NBP reference rate              | NBP XML (`static.nbp.pl`)   | On an RPP decision — a few times a year  | 7 days                               |
+| Polish CPI                      | GUS monthly CSV             | Monthly                                  | Once the calendar month advances     |
+
+**Google is not a source here.** `GOOGLEFINANCE` exists only inside Google
+Sheets and has no API; where a Google-quoted figure matches ours it is because
+both trace back to the same market data, not because we read Google.
+
+**The source is the reader's choice, and NBP is the default** (ADR 0018).
+"Opted in" above means _More → Exchange rates_, where a scope decides whether
+the choice reaches only the pair charts or the portfolio valuation too. Under
+the default nothing but NBP is ever read.
+
+**No free source gives an intraday FX rate except Yahoo.** Measured
+2026-08-17: frankfurter.dev (ECB) and open.er-api.com both publish once a day,
+ECB's XML likewise; Yahoo's `USDPLN=X` moved between two calls twenty seconds
+apart with `exchangeDataDelayedBy: 0`. NBP stays the valuation rate regardless —
+Polish tax uses the NBP rate from the business day before a transaction, so the
+book and the tax return have to agree (ADR 0017, `domain.md`).
+
 ## The feeds
 
 | Need                            | Source                                                                 | Reality                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -14,6 +50,7 @@ names.
 | Global equity and ETF quotes    | `yahoo-finance2` v4                                                    | Unofficial and actively maintained, but no SLA and no terms guarantee. Server-side only — CORS and cookies make it unusable in a browser. No working free second source exists today (see below); resilience comes from storing every fetched bar, not from provider redundancy — ADR 0014.                                                                                                                             |
 | GPW quotes                      | `yahoo-finance2`, `.WA` suffix                                         | Also covers GPW — `PKN.WA` returns `currency: PLN`, `exchangeName: WSE`. Stooq was the planned fallback but is no longer usable: every `stooq.pl/q/d/l/?s=…` request is now behind a proof-of-work anti-bot challenge (SHA-256, verified via POST to `/__verify`), confirmed by direct testing. Not circumvented. There is no free replacement with comparable GPW coverage; the realistic alternatives are paid feeds. |
 | FX                              | NBP Web API, `api.nbp.pl`, table A mid rates                           | Free, official, no key, HTTPS-only since August 2025. Publishes on business days only, so it needs last-business-day carry-forward. Non-PLN crosses derive through PLN.                                                                                                                                                                                                                                                 |
+| FX history (pair charts)        | Same API, `/exchangerates/rates/a/{code}/{from}/{to}/`                 | Same table, same mids, so a chart and the portfolio total can never disagree — ADR 0017 has the measured gap against Yahoo (7–22 bps) and why it disqualifies a market feed here. Archive starts 2002-01-02; **367 days per request** (`400` beyond, so the adapter chunks); a range with no publication is a `404`, meaning empty, not failed.                                                                         |
 | NBP reference rate (ROR, DOR)   | `static.nbp.pl/dane/stopy/stopy_procentowe.xml` and `..._archiwum.xml` | No JSON API. Small XML (3 KB / 37 KB), full history to 1998, comma decimals, parsed into `index_observations`. Changes a handful of times a year. **Not** on `api.nbp.pl`, which serves only FX tables and gold — ADR 0016.                                                                                                                                                                                             |
 | Polish CPI (COI, EDO, ROS, ROD) | GUS monthly CSV, `stat.gov.pl/download/.../miesieczne_wskazniki_…csv`  | 230 KB, `;`-delimited, **cp1250**, comma decimals; filter to "Analogiczny miesiąc poprzedniego roku = 100" for 540 monthly prints from 1982. Future months are blank rows, not zeroes. The **BDL API cannot serve this** — annual and quarterly only — and DBW has no CPI area at all. Verified, ADR 0016.                                                                                                              |
 | Bond per-issue parameters       | obligacjeskarbowe.pl monthly offer pages (GET)                         | One GET per family, both published numbers in prose. **Current month only**: the interest tables and the emission-letter archive are POST forms behind PKO's WAF (403, confirmed with a real browser), so history comes from committed bootstrap data. ADR 0016.                                                                                                                                                        |

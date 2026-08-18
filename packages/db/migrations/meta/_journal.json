@@ -64,6 +64,13 @@
       "when": 1786876546322,
       "tag": "0008_smart_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786954570235,
+      "tag": "0009_broken_monster_badoon",
+      "breakpoints": true
     }
   ]
 }
