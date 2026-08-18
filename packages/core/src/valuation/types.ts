@@ -105,6 +105,21 @@ export interface FxRate {
   readonly mid: Decimal;
 }
 
+/**
+ * A rate from a market feed: a pair, a value, and when it was quoted.
+ *
+ * Carries an `Instant` rather than a `PlainDate` because that is the whole
+ * difference from `FxRate` — an NBP mid belongs to a publication day, a market
+ * quote belongs to a moment, and flattening the second into the first is how a
+ * 10:00 rate gets rendered as "today's rate" hours after it moved.
+ */
+export interface FxQuote {
+  readonly base: Currency;
+  readonly quote: Currency;
+  readonly rate: Decimal;
+  readonly at: Temporal.Instant;
+}
+
 export interface StoredFxRate extends FxRate {
   readonly source: ProviderName;
   readonly fetchedAt: Temporal.Instant;

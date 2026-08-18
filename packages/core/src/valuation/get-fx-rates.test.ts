@@ -49,6 +49,8 @@ describe('makeRefreshFxRates', () => {
     let calls = 0;
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () => {
         calls += 1;
         return Promise.resolve([
@@ -63,7 +65,7 @@ describe('makeRefreshFxRates', () => {
 
     expect(calls).toBe(1);
     expect([...report.refreshed].sort()).toEqual([EUR, USD].sort());
-    const stored = await fx.latestFor([USD, EUR]);
+    const stored = await fx.latestFor([USD, EUR], 'nbp');
     expect(stored.get(USD)?.mid.toString()).toBe('3.7362');
   });
 
@@ -72,6 +74,8 @@ describe('makeRefreshFxRates', () => {
     const fx = new InMemoryFxRates(clock);
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () =>
         Promise.resolve([rate(USD, '2026-08-13', '0'), rate(EUR, '2026-08-13', '4.3058')]),
     };
@@ -81,7 +85,7 @@ describe('makeRefreshFxRates', () => {
 
     expect(report.failed).toEqual([USD]);
     expect(report.refreshed).toEqual([EUR]);
-    expect((await fx.latestFor([USD])).get(USD)).toBeUndefined();
+    expect((await fx.latestFor([USD], 'nbp')).get(USD)).toBeUndefined();
   });
 
   it('refuses a negative mid', async () => {
@@ -89,6 +93,8 @@ describe('makeRefreshFxRates', () => {
     const fx = new InMemoryFxRates(clock);
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () => Promise.resolve([rate(USD, '2026-08-13', '-3.7362')]),
     };
 
@@ -96,7 +102,7 @@ describe('makeRefreshFxRates', () => {
     const report = await refreshFxRates([USD]);
 
     expect(report.failed).toEqual([USD]);
-    expect((await fx.latestFor([USD])).get(USD)).toBeUndefined();
+    expect((await fx.latestFor([USD], 'nbp')).get(USD)).toBeUndefined();
   });
 
   it('does not call the provider when every requested currency is already fresh', async () => {
@@ -106,6 +112,8 @@ describe('makeRefreshFxRates', () => {
     let calls = 0;
     const provider: FxRateProvider = {
       name: 'nbp',
+      // Unused here; `fetchSeriesTo` is exercised in `fx-series.test.ts`.
+      fetchSeriesTo: () => Promise.resolve([]),
       fetchTableTo: () => {
         calls += 1;
         return Promise.resolve([]);

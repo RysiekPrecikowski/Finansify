@@ -73,19 +73,30 @@ export type InstrumentPriceRow = typeof instrumentPrices.$inferSelect;
 export type NewInstrumentPriceRow = typeof instrumentPrices.$inferInsert;
 
 /**
- * One NBP table-A mid rate per currency per publication day. Rates are always
- * *to PLN* — cross pairs are computed on read (`convertViaPln`), never stored.
+ * One rate per currency per day **per source**. Rates are always *to PLN* —
+ * cross pairs are computed on read (`convertViaPln`), never stored.
+ *
+ * `source` is part of the key rather than a label on the row because the two
+ * feeds genuinely disagree: NBP fixes one mid around midday, Yahoo's daily
+ * close is its own session's last tick, and they sit 7-22 bps apart (ADR 0017,
+ * ADR 0018). With `(currency, date)` as the key, whichever refresh ran last
+ * would overwrite the other and the stored series would silently alternate
+ * between two definitions of "the rate".
+ *
+ * Everything that reads a rate therefore has to say which source it means.
+ * That is the point — a query that does not name one is a question with two
+ * different correct answers.
  */
 export const fxRates = pgTable(
   'fx_rates',
   {
     currency: text('currency').notNull(),
-    date: date('date', { mode: 'string' }).notNull(), // NBP's effectiveDate
+    date: date('date', { mode: 'string' }).notNull(), // NBP's effectiveDate, or the session day
     mid: decimalPrice('mid').notNull(),
     source: providerNameEnum('source').notNull(),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.currency, table.date] })],
+  (table) => [primaryKey({ columns: [table.currency, table.date, table.source] })],
 );
 
 export type FxRateRow = typeof fxRates.$inferSelect;

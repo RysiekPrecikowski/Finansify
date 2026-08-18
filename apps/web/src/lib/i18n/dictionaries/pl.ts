@@ -16,6 +16,8 @@ export const pl = {
     toggleTheme: 'Przełącz motyw',
     changeLanguage: 'Zmień język',
     changeCurrency: 'Zmień walutę prezentacji',
+    nativeLines: 'Pozycje w walucie instrumentu',
+    currencySource: 'Przeliczane po kursie średnim NBP, tabela A',
     sort: 'Sortowanie',
     account: 'Konto',
     signOut: 'Wyloguj się',
@@ -29,7 +31,9 @@ export const pl = {
     stale: 'nieaktualne',
     filterByAssetClass: 'Filtruj według klasy aktywów',
     chartRange: 'Zakres wykresu',
-    currencyLocked: 'Przewalutowanie pojawi się w Fazie 2, razem z kursami NBP.',
+    currencyLocked:
+      'Pulpit działa jeszcze na danych demonstracyjnych w PLN — wybór waluty nie dotyczy tych liczb. Działa na stronie Portfel.',
+    currencyIgnored: 'wybrano {currency} — pulpit na danych demonstracyjnych',
     ranges: {
       '1D': '1D',
       '1W': '1T',
@@ -161,6 +165,31 @@ export const pl = {
       invalid: 'Nie udało się zapisać transakcji — sprawdź wprowadzone dane.',
     },
   },
+  settings: {
+    fxTitle: 'Kursy walut',
+    fxSubtitle: 'Skąd bierzemy kurs i czego ten wybór dotyczy.',
+    fxSourceLabel: 'Źródło kursu',
+    fxSourceNames: {
+      nbp: 'NBP, tabela A',
+      yahoo: 'Kurs rynkowy (Yahoo)',
+    },
+    fxSourceNotes: {
+      nbp: 'Jeden kurs średni na dzień roboczy, publikowany około południa. Po tym kursie liczy się podatek.',
+      yahoo:
+        'Zmienia się w trakcie sesji, co kilka sekund. Odświeżamy co 15 minut. Źródło nieoficjalne, bez gwarancji dostępności.',
+    },
+    fxScopeLabel: 'Czego dotyczy',
+    fxScopeNames: {
+      charts: 'Tylko wykresy par walutowych',
+      all: 'Cały portfel',
+    },
+    fxScopeNotes: {
+      charts: 'Wycena portfela zostaje na kursie NBP niezależnie od wyboru powyżej.',
+      all: 'Wartość portfela też jest przeliczana wybranym kursem.',
+    },
+    fxDivergesWarning:
+      'Wartość portfela liczy się teraz z innej serii niż podatek. Polski podatek od zysków przelicza się po kursie NBP z dnia roboczego poprzedzającego transakcję, więc suma na ekranie i kwota w rozliczeniu będą się różnić o spread. Koszt nabycia i zrealizowany zysk się nie zmieniają — one biorą kurs zapisany na transakcji.',
+  },
   wrappers: {
     brokerage: 'Rachunek maklerski',
     ike: 'IKE',
@@ -183,7 +212,8 @@ export const pl = {
     unrealized: 'Niezrealizowany zysk/strata',
     totalValue: 'Wartość portfela',
     totalValueNote:
-      'Tylko otwarte pozycje, przeliczone na PLN po ostatnim kursie NBP. Gotówka nie jest jeszcze wliczona.',
+      'Tylko otwarte pozycje, przeliczone na {currency} po ostatnim kursie NBP. Gotówka nie jest jeszcze wliczona.',
+    totalValueMarket: 'Przeliczone kursem rynkowym, nie NBP — podatek liczy się po kursie NBP.',
     totalValueIncomplete:
       'Część pozycji nie ma jeszcze ceny lub kursu wymiany — ta suma jest niepełna.',
     unavailableNeverFetched: 'cena się ładuje…',
@@ -286,6 +316,18 @@ export const pl = {
     unavailable: 'Brak danych — nic jeszcze nie pobrano.',
     refreshFailed: 'Nie udało się odświeżyć — pokazujemy ostatnią znaną wartość.',
     seeAll: 'Zobacz wskaźniki',
+    fxBy: 'NBP, tabela A — kurs średni',
+    fxByMarket: 'Kurs rynkowy — Yahoo Finance',
+    fxNoteMarket:
+      'Kurs rynkowy, zmienia się w trakcie sesji. Wycena portfela liczy się po kursie NBP, chyba że zmienisz to w Więcej → Kursy walut.',
+    fxPair: 'Para walutowa',
+    fxBase: 'Waluta bazowa',
+    fxQuote: 'Waluta kwotowana',
+    fxSwap: 'Zamień strony',
+    fxRange: 'Zakres',
+    fixedOn: 'Kurs z dnia',
+    fxNote:
+      'Ten sam kurs, po którym przeliczana jest wartość portfela. Tylko dni robocze — w święta i weekendy nie ma notowania.',
   },
   instruments: {
     bondName: 'Obligacja skarbowa',

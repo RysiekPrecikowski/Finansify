@@ -66,15 +66,40 @@ export class InMemorySymbols implements SymbolRepository {
 }
 
 export class InMemoryFxRates implements FxRateRepository {
-  private readonly rows = new Map<Currency, StoredFxRate>();
+  /** The whole history per currency, keyed by date — `fx_rates`'s own primary key. */
+  private readonly rows = new Map<Currency, Map<string, StoredFxRate>>();
 
   constructor(private readonly clock: Clock) {}
 
-  latestFor(currencies: readonly Currency[]): Promise<ReadonlyMap<Currency, StoredFxRate>> {
+  latestFor(
+    currencies: readonly Currency[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<Currency, StoredFxRate>> {
     const result = new Map<Currency, StoredFxRate>();
     for (const code of currencies) {
-      const row = this.rows.get(code);
-      if (row !== undefined) result.set(code, row);
+      const newest = this.sorted(code)
+        .filter((row) => row.source === source)
+        .at(-1);
+      if (newest !== undefined) result.set(code, newest);
+    }
+    return Promise.resolve(result);
+  }
+
+  seriesFor(
+    currencies: readonly Currency[],
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+    source: ProviderName,
+  ): Promise<ReadonlyMap<Currency, readonly StoredFxRate[]>> {
+    const result = new Map<Currency, readonly StoredFxRate[]>();
+    for (const code of currencies) {
+      const inRange = this.sorted(code).filter(
+        (row) =>
+          row.source === source &&
+          Temporal.PlainDate.compare(row.date, from) >= 0 &&
+          Temporal.PlainDate.compare(row.date, to) <= 0,
+      );
+      if (inRange.length > 0) result.set(code, inRange);
     }
     return Promise.resolve(result);
   }
@@ -82,13 +107,19 @@ export class InMemoryFxRates implements FxRateRepository {
   save(rates: readonly FxRate[], source: ProviderName): Promise<void> {
     const fetchedAt = this.clock.now();
     for (const rate of rates) {
-      const existing = this.rows.get(rate.currency);
-      if (existing !== undefined && Temporal.PlainDate.compare(existing.date, rate.date) > 0) {
-        continue;
-      }
-      this.rows.set(rate.currency, { ...rate, source, fetchedAt });
+      const byDate = this.rows.get(rate.currency) ?? new Map<string, StoredFxRate>();
+      // Keyed by date *and* source, matching `fx_rates`'s primary key — two
+      // feeds hold a rate for the same day and must not overwrite each other.
+      byDate.set(`${rate.date.toString()}:${source}`, { ...rate, source, fetchedAt });
+      this.rows.set(rate.currency, byDate);
     }
     return Promise.resolve();
+  }
+
+  private sorted(code: Currency): readonly StoredFxRate[] {
+    return [...(this.rows.get(code)?.values() ?? [])].sort((a, b) =>
+      Temporal.PlainDate.compare(a.date, b.date),
+    );
   }
 }
 

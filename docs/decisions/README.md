@@ -34,9 +34,8 @@ constraint six months from now.
 | 0013 | Application-level encryption at rest                     | Withdrawn, deferred to Phase 1.5 |
 | 0014 | Lazy price ingestion, single provider, exchange required | Accepted                         |
 | 0015 | The import boundary: what a StatementParser owns         | Accepted                         |
-| 0016 | Bond reference data                                      | Accepted                         |
-| 0017 | Pre-production database                                  | Accepted                         |
-| 0018 | Self-merge permitted after green CI                      | Accepted                         |
+| 0017 | NBP, not a market feed, for FX history                   | Superseded in part by 0018       |
+| 0018 | The FX source is the reader's choice, scoped             | Accepted                         |
 
 ## Template
 

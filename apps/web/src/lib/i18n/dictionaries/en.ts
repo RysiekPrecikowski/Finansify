@@ -15,6 +15,8 @@ export const en: Dictionary = {
     toggleTheme: 'Toggle theme',
     changeLanguage: 'Change language',
     changeCurrency: 'Change presentation currency',
+    nativeLines: "Positions in the instrument's currency",
+    currencySource: 'Converted at the NBP table A mid rate',
     sort: 'Sort',
     account: 'Account',
     signOut: 'Sign out',
@@ -28,7 +30,9 @@ export const en: Dictionary = {
     stale: 'stale',
     filterByAssetClass: 'Filter by asset class',
     chartRange: 'Chart range',
-    currencyLocked: 'Currency conversion arrives in Phase 2, together with NBP rates.',
+    currencyLocked:
+      'The dashboard still runs on demo data in PLN — the currency you picked does not apply to these figures. It applies on Portfolio.',
+    currencyIgnored: '{currency} picked — dashboard is on demo data',
     ranges: {
       '1D': '1D',
       '1W': '1W',
@@ -168,7 +172,8 @@ export const en: Dictionary = {
     unrealized: 'Unrealized P&L',
     totalValue: 'Total value',
     totalValueNote:
-      'Open positions only, converted to PLN at the latest NBP rate. Cash is not included yet.',
+      'Open positions only, converted to {currency} at the latest NBP rate. Cash is not included yet.',
+    totalValueMarket: 'Converted at the market rate, not NBP — tax is computed at the NBP rate.',
     totalValueIncomplete:
       'Some positions have no price or exchange rate yet — this total is partial.',
     unavailableNeverFetched: 'price loading…',
@@ -190,6 +195,31 @@ export const en: Dictionary = {
       remainingCost: 'Remaining cost',
       back: 'Back to portfolio',
     },
+  },
+  settings: {
+    fxTitle: 'Exchange rates',
+    fxSubtitle: 'Where the rate comes from, and what the choice applies to.',
+    fxSourceLabel: 'Rate source',
+    fxSourceNames: {
+      nbp: 'NBP, table A',
+      yahoo: 'Market rate (Yahoo)',
+    },
+    fxSourceNotes: {
+      nbp: 'One mid per business day, published around midday. Tax is computed at this rate.',
+      yahoo:
+        'Moves through the session, every few seconds. Refreshed every 15 minutes. Unofficial source, no availability guarantee.',
+    },
+    fxScopeLabel: 'Applies to',
+    fxScopeNames: {
+      charts: 'Currency pair charts only',
+      all: 'The whole portfolio',
+    },
+    fxScopeNotes: {
+      charts: 'Portfolio valuation stays on the NBP rate whatever is picked above.',
+      all: 'The portfolio total is converted at the chosen rate too.',
+    },
+    fxDivergesWarning:
+      'The portfolio total is now computed from a different series than tax. Polish capital-gains tax converts at the NBP rate from the business day before a transaction, so the figure on screen and the amount you file will differ by the spread. Cost basis and realized P&L do not move — those use the rate stored on each transaction.',
   },
   wrappers: {
     brokerage: 'Brokerage account',
@@ -276,6 +306,18 @@ export const en: Dictionary = {
     unavailable: 'No data — nothing has been fetched yet.',
     refreshFailed: 'Could not refresh — showing the last known value.',
     seeAll: 'See indicators',
+    fxBy: 'NBP table A — mid rate',
+    fxByMarket: 'Market rate — Yahoo Finance',
+    fxNoteMarket:
+      'A market rate, moving through the session. Portfolio valuation uses the NBP rate unless you change that in More → Exchange rates.',
+    fxPair: 'Currency pair',
+    fxBase: 'Base currency',
+    fxQuote: 'Quote currency',
+    fxSwap: 'Swap sides',
+    fxRange: 'Range',
+    fixedOn: 'Fixed on',
+    fxNote:
+      'The same rate the portfolio total is converted at. Business days only — no fixing on weekends or public holidays.',
   },
   instruments: {
     bondName: 'Treasury bond',

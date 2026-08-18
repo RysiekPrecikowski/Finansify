@@ -65,6 +65,7 @@ export function HoldingsList({
   dictionary,
 }: Readonly<{
   holdings: readonly Holding[];
+  /** The portfolio total **in the rows' own currency** — the share column is a ratio of the two. */
   total: Money;
   locale: Locale;
   dictionary: Dictionary;
@@ -73,6 +74,11 @@ export function HoldingsList({
 
   const weight = (holding: Holding): string => {
     if (holding.valuation === null || total.isZero()) return '—';
+    // Two currencies have no ratio, and the one this would print looks entirely
+    // ordinary — a dash is the honest answer, not a rate applied on the way
+    // past (rule 7). The dashboard passes a matching total; this catches the
+    // caller that stops doing so.
+    if (holding.valuation.value.currency !== total.currency) return '—';
     return formatRatioAsPercent(
       holding.valuation.value.amount.dividedBy(total.amount).toFixed(6),
       locale,

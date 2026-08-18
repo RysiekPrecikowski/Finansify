@@ -3,10 +3,12 @@ import type { CSSProperties, ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { AppSidebar } from '@/components/app-sidebar';
 import { BottomNav } from '@/components/bottom-nav';
+import { CurrencySwitcher } from '@/components/currency-switcher';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { getCurrentUser, UserMenu } from '@/lib/auth';
+import { getDisplaySettings } from '@/lib/display/server';
 
 // Second layer, not the only one: src/proxy.ts's matcher is the primary gate,
 // but a matcher is routing config, and routing config being the *sole*
@@ -14,7 +16,7 @@ import { getCurrentUser, UserMenu } from '@/lib/auth';
 // is every route under (app), so checking here means one bug in the matcher
 // no longer means an unauthenticated render.
 export default async function AppLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const user = await getCurrentUser();
+  const [user, display] = await Promise.all([getCurrentUser(), getDisplaySettings()]);
   // Not a typedRoutes literal: the sign-in page is the catch-all
   // `/sign-in/[[...sign-in]]`, and `/sign-in` itself isn't in that route's
   // generated type even though Clerk resolves it correctly at runtime.
@@ -27,8 +29,9 @@ export default async function AppLayout({ children }: Readonly<{ children: React
         <header className="flex h-14 items-center gap-2 border-b px-4">
           <SidebarTrigger className="hidden md:flex" />
           <span className="font-semibold tracking-tight md:hidden">Finansify</span>
-          {/* Language and theme are one control cluster at every width. */}
+          {/* Currency, language and theme are one control cluster at every width. */}
           <div className="ml-auto flex items-center gap-0.5">
+            <CurrencySwitcher settings={display} />
             <LocaleSwitcher />
             <ThemeToggle />
             <UserMenu user={user} />

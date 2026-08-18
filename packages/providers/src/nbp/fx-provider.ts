@@ -44,4 +44,81 @@ export const nbpFxRateProvider: FxRateProvider = {
       mid: new Decimal(entry.mid),
     }));
   },
+
+  async fetchSeriesTo(
+    code: Currency,
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ): Promise<readonly FxRate[]> {
+    if (code === currency('PLN')) {
+      throw new Error('NBP table A is PLN-based; there is no PLN series to fetch');
+    }
+    if (Temporal.PlainDate.compare(from, to) > 0) {
+      throw new Error(`NBP range starts after it ends: ${from.toString()}..${to.toString()}`);
+    }
+
+    const rates: FxRate[] = [];
+    for (const chunk of chunkRange(from, to)) {
+      rates.push(...(await fetchChunk(code, chunk.from, chunk.to)));
+    }
+    return rates;
+  },
 };
+
+/**
+ * NBP refuses a range wider than 367 days with a `400`, so a longer window is
+ * split rather than clamped — a five-year chart is five requests, not a
+ * truncated year. 367 rather than 366: the documented limit is inclusive of
+ * both endpoints and covers a leap year plus its bracketing day.
+ */
+const MAX_RANGE_DAYS = 367;
+
+function chunkRange(
+  from: Temporal.PlainDate,
+  to: Temporal.PlainDate,
+): readonly { from: Temporal.PlainDate; to: Temporal.PlainDate }[] {
+  const chunks: { from: Temporal.PlainDate; to: Temporal.PlainDate }[] = [];
+
+  let start = from;
+  while (Temporal.PlainDate.compare(start, to) <= 0) {
+    const candidate = start.add({ days: MAX_RANGE_DAYS - 1 });
+    const end = Temporal.PlainDate.compare(candidate, to) < 0 ? candidate : to;
+    chunks.push({ from: start, to: end });
+    start = end.add({ days: 1 });
+  }
+
+  return chunks;
+}
+
+const seriesSchema = z.object({
+  code: z.string().length(3),
+  rates: z.array(z.object({ effectiveDate: z.string(), mid: z.number() })),
+});
+
+async function fetchChunk(
+  code: Currency,
+  from: Temporal.PlainDate,
+  to: Temporal.PlainDate,
+): Promise<readonly FxRate[]> {
+  const url =
+    `https://api.nbp.pl/api/exchangerates/rates/a/${code.toLowerCase()}` +
+    `/${from.toString()}/${to.toString()}/?format=json`;
+
+  const response = await fetch(url);
+
+  // A range that contains no publication at all — a fortnight of holidays, or
+  // a window before this currency joined table A — is a `404` carrying the
+  // text "Not Found - Brak danych". That is an empty result, not a failure:
+  // treating it as one would take down a chart because one of its chunks fell
+  // on a quiet stretch.
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`NBP responded with ${response.status}`);
+
+  const series = seriesSchema.parse(await response.json());
+
+  return series.rates.map((entry) => ({
+    currency: currency(series.code),
+    date: Temporal.PlainDate.from(entry.effectiveDate),
+    mid: new Decimal(entry.mid),
+  }));
+}
