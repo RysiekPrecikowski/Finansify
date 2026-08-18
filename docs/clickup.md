@@ -74,13 +74,22 @@ Titles, descriptions, and comments are Polish — the team's working language
 GitHub; a ClickUp ticket is neither). Only the branch slug stays English
 (git naming, below), since it has to read as a conventional-commit type.
 
-A description is a short checklist of what to do, not a write-up — the
-"why" belongs in the PR description or an ADR, which are read once things
-are actually decided; a ticket is read while they're still moving. Same for
-comments: state the outcome and what's next, not the reasoning that got
-there. If a real back-and-forth happens in the comments, end it with one
-line that says what was decided — that line is the part anyone re-reads
-later, not the thread above it.
+A description is:
+
+- **One line of context**, only if the ticket needs it to make sense at a
+  glance — skip it when the title already says enough.
+- **A bullet list titled "Co zrobić"** — each line one concrete action, not a
+  paragraph. `- [ ]` checkboxes when the steps are genuinely sequential or
+  worth ticking off individually; a plain `-` list when they're not.
+
+Nothing else goes in the description. Design rationale, alternatives
+considered, "why" — that belongs in the PR description or an ADR, read once
+things are actually decided; a ticket is read while they're still moving,
+so it stays a todo list, not a spec. Comments follow the same shape: state
+the outcome and what's next, not the reasoning that got there. If a real
+back-and-forth happens in the comments, end it with one line that says what
+was decided — that line is the part anyone re-reads later, not the thread
+above it.
 
 ## The flow
 
