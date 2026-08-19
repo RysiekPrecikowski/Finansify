@@ -1,15 +1,7 @@
-import { ArrowLeftRight } from 'lucide-react';
-
-import {
-  directionOf,
-  directionSurface,
-  formatInstant,
-  formatMoney,
-  formatRatioAsPercent,
-} from '@/lib/format';
+import { type DashboardTotals } from '@/lib/dashboard/snapshot';
+import { directionOf, directionSurface, formatMoney, formatRatioAsPercent } from '@/lib/format';
 import { interpolate, type Dictionary } from '@/lib/i18n/dictionaries';
 import { type Locale } from '@/lib/i18n/locales';
-import { type PortfolioSnapshot } from '@/lib/fixtures/portfolio';
 import { type Money } from '@finansify/core';
 import { cn } from '@/lib/utils';
 
@@ -49,19 +41,13 @@ function Change({
 }
 
 export function PortfolioHeadline({
-  snapshot,
+  totals,
   locale,
   dictionary,
-  display,
-  converted,
 }: Readonly<{
-  snapshot: PortfolioSnapshot;
+  totals: DashboardTotals;
   locale: Locale;
   dictionary: Dictionary;
-  /** The currency the reader picked in the header. */
-  display: string;
-  /** `false` when no rate was available, so these figures are still in their own currency. */
-  converted: boolean;
 }>) {
   return (
     <section className="flex flex-col gap-2">
@@ -69,49 +55,25 @@ export function PortfolioHeadline({
         {dictionary.dashboard.totalValue}
       </h2>
 
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
-          {formatMoney(snapshot.totalValue, locale, { bare: true })}
-        </span>
-        {/* The currency these figures are actually in. It follows the header
-            switcher now, converted at the NBP mid — the numbers are still the
-            fixture's, but the control is no longer decorative. When no rate can
-            be had, nothing is converted (rule 7) and the line below says so
-            rather than leaving it to a `title` nobody hovers. */}
-        <span
-          title={dictionary.dashboard.currencyLocked}
-          className="text-muted-foreground inline-flex cursor-help items-center gap-1 text-sm font-medium"
-        >
-          {snapshot.totalValue.currency}
-          <ArrowLeftRight className="size-3.5" />
-        </span>
-      </div>
+      <span className="text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
+        {formatMoney(totals.totalValue, locale, { bare: true })}
+      </span>
 
-      {!converted && display !== snapshot.totalValue.currency && (
-        <p className="text-muted-foreground text-xs">
-          {interpolate(dictionary.dashboard.currencyIgnored, { currency: display })}
-        </p>
-      )}
+      <Change
+        label={dictionary.dashboard.totalChange}
+        amount={totals.changeTotal}
+        ratio={totals.changeTotalRatio}
+        locale={locale}
+      />
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        <Change
-          label={dictionary.dashboard.todayChange}
-          amount={snapshot.changeToday}
-          ratio={snapshot.changeTodayRatio}
-          locale={locale}
-        />
-        <Change
-          label={dictionary.dashboard.totalChange}
-          amount={snapshot.changeTotal}
-          ratio={snapshot.changeTotalRatio}
-          locale={locale}
-        />
-      </div>
-
-      {/* Never render an old number as though it were live (docs/ui.md). */}
       <p className="text-muted-foreground text-xs">
-        {dictionary.dashboard.asOf} {formatInstant(snapshot.asOf, locale)}
+        {interpolate(dictionary.portfolio.totalValueNote, { currency: totals.totalValue.currency })}
       </p>
+
+      {/* Never render a partial sum as though it were the whole figure (rule 7). */}
+      {!totals.totalIsComplete && (
+        <p className="text-muted-foreground text-xs">{dictionary.portfolio.totalValueIncomplete}</p>
+      )}
     </section>
   );
 }

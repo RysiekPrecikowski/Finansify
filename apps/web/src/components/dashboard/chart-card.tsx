@@ -3,9 +3,8 @@
 import { RangeTabs } from '@/components/dashboard/range-tabs';
 import { ValueChart } from '@/components/dashboard/value-chart';
 import { type ChartSeries } from '@/lib/chart-series';
-import { dashboardHref, dashboardUrl } from '@/lib/dashboard-params';
+import { dashboardHref, dashboardUrl, type Range } from '@/lib/dashboard-params';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
-import { type Range } from '@/lib/fixtures/portfolio';
 
 /**
  * The chart range switches without a round trip. Every range is already on the

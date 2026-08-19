@@ -12,9 +12,6 @@ import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { scopedLedgerFor } from '@/server/container';
 
 /**
- * The first screen in the app that reads the real ledger rather than
- * `lib/fixtures/portfolio.ts`.
- *
  * An ordinary dynamic server read: no `use cache`, because Cache Components are
  * not enabled here and a cached read over user data would need the user id in
  * its key to be safe at all (rule 5, ADR 0010).

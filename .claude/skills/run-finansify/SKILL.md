@@ -129,11 +129,18 @@ pnpm dev   # → http://localhost:3000, Ctrl-C to stop
 pnpm check   # build, lint, typecheck, test, format — see /ship
 ```
 
-`/dashboard` is the route worth driving: asset-class chips, the hero chart with
-its range tabs, account tiles and the holdings list, all on fixture data until
-the ledger lands. `/portfolio` and `/transactions` are still placeholders.
+`/dashboard`, `/portfolio`, `/accounts` and `/transactions` all read the real
+ledger now (`scopedLedgerFor`) and require a signed-in user — drive them with
+the `login` command (`@clerk/testing/playwright` under the hood, see
+`docs/deployment.md`, "Test user"), not `/api/dev/test-login` (that route
+redirects cross-origin, which Playwright's dev-browser handshake rejects).
 
-Two things that are awkward to assert from a screenshot, and worth reusing:
+`/dashboard` has no hero chart yet — allocation chips, the headline, account
+tiles and the holdings list are real, but the chart and its range tabs stay
+unrendered until CU-869ej7zk8 backfills a price/FX history to draw them from.
+
+Two things that will be awkward to assert from a screenshot once the chart
+returns, and worth reusing then:
 
 - **A range switch must not hit the server.** Hook `window.fetch` before
   clicking a tab and confirm nothing was requested — the whole point of

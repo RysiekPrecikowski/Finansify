@@ -3,10 +3,8 @@
 import Link from 'next/link';
 import { type MouseEvent } from 'react';
 
-import { dashboardHref } from '@/lib/dashboard-params';
+import { dashboardHref, ranges, type Range } from '@/lib/dashboard-params';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
-import { type Range } from '@/lib/fixtures/portfolio';
-import { ranges } from '@/lib/fixtures/portfolio';
 import { cn } from '@/lib/utils';
 
 export interface RangeTabsProps {

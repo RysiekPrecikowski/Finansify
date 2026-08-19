@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { dashboardHref } from '@/lib/dashboard-params';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
-import { assetClasses, type AssetClass } from '@/lib/fixtures/portfolio';
+import { assetClasses, type AssetClass } from '@/lib/dashboard/snapshot';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
 import { cn } from '@/lib/utils';
 

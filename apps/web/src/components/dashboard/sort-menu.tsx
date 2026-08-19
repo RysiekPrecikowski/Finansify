@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { type SortOrder } from '@/lib/fixtures/portfolio';
+import { type SortOrder } from '@/lib/dashboard/snapshot';
 import { dashboardHref } from '@/lib/dashboard-params';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
 
