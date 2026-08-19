@@ -5,14 +5,23 @@ import {
   type SortOrder,
 } from '@/lib/dashboard/snapshot';
 
-/**
- * The hero chart's range control. Kept alive here even though nothing renders
- * it yet — historical value has no data source until CU-869ej7zk8 lands the
- * price/FX backfill — so that ticket only has to wire a series into the chart
- * components again, not rebuild the range plumbing from scratch.
- */
+/** The hero chart's range control. */
 export const ranges = ['1D', '1W', '1M', 'YTD', '1Y', 'MAX'] as const;
 export type Range = (typeof ranges)[number];
+
+/**
+ * `1D`/`1W` stay in the tab strip but are not selectable yet: the price cache
+ * only ever holds `d1` bars (`docs/architecture.md`), so there is no data
+ * finer than a day to draw either of them from. CU-869em7hdp tracks the
+ * intraday ingestion that would unlock them; this list is what both the route
+ * handler and the tab strip check against, so unlocking a range later is a
+ * one-line change here rather than a change in two places that could drift.
+ */
+export const unsupportedRanges: readonly Range[] = ['1D', '1W'];
+
+export function isSupportedRange(range: Range): boolean {
+  return !unsupportedRanges.includes(range);
+}
 
 /**
  * Range, filter and sort live in the URL. The dashboard renders on the server,

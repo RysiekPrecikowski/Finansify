@@ -3,7 +3,15 @@ import { describe, expect, it } from 'vitest';
 
 import { currency, type Currency } from '../money';
 import { Temporal } from '../time';
-import { isFxSeriesDue, pairSeries, SameCurrencyPairError, summarizeFxSeries } from './fx-series';
+import { FakeClock, InMemoryFxRates } from './in-memory-valuation';
+import {
+  isFxSeriesDue,
+  makeBackfillFxHistory,
+  pairSeries,
+  SameCurrencyPairError,
+  summarizeFxSeries,
+} from './fx-series';
+import { type FxRateProvider } from './ports';
 import { type FxRate } from './types';
 
 const PLN = currency('PLN');
@@ -166,5 +174,120 @@ describe('isFxSeriesDue', () => {
   it('is due once the newest print is older than a long weekend', () => {
     const stale = [rate(USD, '2026-08-01', '3.73'), rate(USD, '2026-08-11', '3.72')];
     expect(isFxSeriesDue(stale, window, today)).toBe(true);
+  });
+});
+
+function fakeFxProvider(
+  behaviour: (
+    code: Currency,
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ) => Promise<readonly FxRate[]>,
+): FxRateProvider {
+  return {
+    name: 'nbp',
+    fetchTableTo: () => Promise.reject(new Error('not used by these tests')),
+    fetchSeriesTo: (code, from, to) => behaviour(code, from, to),
+  };
+}
+
+describe('makeBackfillFxHistory', () => {
+  const NOW = Temporal.Instant.from('2026-08-17T12:00:00Z');
+  const FROM = day('2020-01-01');
+  const TO = day('2026-08-17');
+
+  it('drops PLN silently even when passed in, never asking the provider for it', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    let calls = 0;
+    const provider = fakeFxProvider(() => {
+      calls += 1;
+      return Promise.resolve([]);
+    });
+
+    const backfill = makeBackfillFxHistory({ fx, provider });
+    const report = await backfill([PLN], FROM, TO);
+
+    expect(calls).toBe(0);
+    expect(report).toEqual({ refreshed: [], error: null });
+  });
+
+  it('backfills a due currency once; a second call with the same from does not re-call the provider', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    let calls = 0;
+    const provider = fakeFxProvider((code) => {
+      calls += 1;
+      return Promise.resolve([rate(code, '2020-01-02', '3.70')]);
+    });
+
+    const backfill = makeBackfillFxHistory({ fx, provider });
+    const report = await backfill([USD], FROM, TO);
+
+    expect(calls).toBe(1);
+    expect(report).toEqual({ refreshed: [USD], error: null });
+
+    const second = await backfill([USD], FROM, TO);
+    expect(calls).toBe(1);
+    expect(second).toEqual({ refreshed: [], error: null });
+  });
+
+  it('widens coverage even on an empty response from the provider', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    let calls = 0;
+    const provider = fakeFxProvider(() => {
+      calls += 1;
+      return Promise.resolve([]);
+    });
+
+    const backfill = makeBackfillFxHistory({ fx, provider });
+    const report = await backfill([USD], FROM, TO);
+
+    expect(calls).toBe(1);
+    expect(report.refreshed).toEqual([USD]);
+
+    const coverage = await fx.coverageFor([USD], 'nbp');
+    expect(coverage.get(USD)?.equals(FROM)).toBe(true);
+
+    const second = await backfill([USD], FROM, TO);
+    expect(calls).toBe(1);
+    expect(second.refreshed).toEqual([]);
+  });
+
+  it('stops the whole call on a thrown fetchSeriesTo, reporting the error and whatever succeeded first', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    const calledFor: Currency[] = [];
+    const provider = fakeFxProvider((code) => {
+      calledFor.push(code);
+      if (code === GBP) return Promise.reject(new Error('boom'));
+      return Promise.resolve([rate(code, '2020-01-02', '3.70')]);
+    });
+
+    const backfill = makeBackfillFxHistory({ fx, provider });
+    const report = await backfill([USD, GBP], FROM, TO);
+
+    expect(calledFor).toEqual([USD, GBP]);
+    expect(report.refreshed).toEqual([USD]);
+    expect(report.error).toBe('boom');
+  });
+
+  it('skips a currency whose stored coverage already reaches from, without calling the provider', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    await fx.markCovered([USD], 'nbp', day('2019-01-01'));
+
+    let calls = 0;
+    const provider = fakeFxProvider(() => {
+      calls += 1;
+      return Promise.resolve([]);
+    });
+
+    const backfill = makeBackfillFxHistory({ fx, provider });
+    const report = await backfill([USD], FROM, TO);
+
+    expect(calls).toBe(0);
+    expect(report).toEqual({ refreshed: [], error: null });
   });
 });

@@ -218,3 +218,61 @@ export function makeRefreshFxSeries(deps: {
     return { refreshed, error: null };
   };
 }
+
+/**
+ * Backfills the NBP archive a chart needs, once per currency for as far back
+ * as it is ever asked — guarded by `FxRateRepository`'s coverage table, the
+ * same ban-avoidance mechanism `get-prices.ts`'s `makeBackfillPriceHistory`
+ * uses (CU-869ej7zk8). `provider.fetchSeriesTo` already chunks NBP's 367-day
+ * limit internally, so a five-year backfill for one currency is five requests
+ * total, once.
+ *
+ * Unlike `makeRefreshFxSeries`, which asks "is the stored window stale",
+ * this asks "have we ever asked this source for this window at all" — the
+ * two questions diverge the moment a currency's history has been backfilled
+ * once: `isFxSeriesDue` would keep saying yes for a range NBP has nothing to
+ * publish in (a currency with sparse early history), and this must not
+ * re-request it. Never called from the render path.
+ */
+export function makeBackfillFxHistory(deps: {
+  readonly fx: FxRateRepository;
+  readonly provider: FxRateProvider;
+}) {
+  const { fx, provider } = deps;
+
+  return async function backfillFxHistory(
+    currencies: readonly Currency[],
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ): Promise<FxSeriesRefreshReport> {
+    const wanted = [...new Set(currencies)].filter((code) => code !== PLN);
+    if (wanted.length === 0) return { refreshed: [], error: null };
+
+    const coverage = await fx.coverageFor(wanted, provider.name);
+    const due = wanted.filter((code) => {
+      const coveredFrom = coverage.get(code);
+      return coveredFrom === undefined || Temporal.PlainDate.compare(coveredFrom, from) > 0;
+    });
+    if (due.length === 0) return { refreshed: [], error: null };
+
+    const refreshed: Currency[] = [];
+    for (const code of due) {
+      try {
+        const rows = await provider.fetchSeriesTo(code, from, to);
+        if (rows.length > 0) await fx.save(rows, provider.name);
+        // Widened even on an empty response — see the parity note in
+        // `makeBackfillPriceHistory`. Only a thrown request leaves coverage
+        // unwritten.
+        await fx.markCovered([code], provider.name, from);
+        refreshed.push(code);
+      } catch (cause) {
+        return {
+          refreshed,
+          error: cause instanceof Error ? cause.message : String(cause),
+        };
+      }
+    }
+
+    return { refreshed, error: null };
+  };
+}

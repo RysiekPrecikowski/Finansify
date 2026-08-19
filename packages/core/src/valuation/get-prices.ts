@@ -114,3 +114,88 @@ export function makeRefreshPrices(deps: {
     return { refreshed, unmapped, failed };
   };
 }
+
+/**
+ * How many instruments one backfill round asks a provider for. A full
+ * backfill is **one Yahoo request per instrument, ever** — `fetchDailyBars`
+ * already returns an instrument's whole history in one call — so this bounds
+ * how much provider time a single render's backfill round can spend, not how
+ * much history it fetches. `callYahoo` (the adapter) already throttles to
+ * roughly one request per second, so a full batch costs a few seconds.
+ */
+export const BACKFILL_BATCH = 8;
+
+/**
+ * Backfills the daily history a chart needs, once per instrument for the
+ * life of that instrument. Guarded by `MarketPriceRepository`'s coverage
+ * table rather than by what rows already exist: `instrument_prices`'
+ * `min(date)` can never distinguish "nobody has asked for history before
+ * this" from "the provider has nothing earlier", so without an explicit
+ * record of what was *asked for*, every render of a wide chart would
+ * re-request the same unanswerable window forever — the mistake that would
+ * actually risk a ban (CU-869ej7zk8).
+ *
+ * Bounded to `limit` instruments per call and reported via `remaining`, so a
+ * caller with more instruments than one round can cover keeps making
+ * progress across renders instead of blocking the first one on all of them.
+ * Never called from the render path — same rule `makeRefreshPrices` follows.
+ */
+export function makeBackfillPriceHistory(deps: {
+  prices: MarketPriceRepository;
+  symbols: SymbolRepository;
+  provider: PriceProvider;
+  clock: Clock;
+}) {
+  return async function backfillPriceHistory(
+    ids: readonly InstrumentId[],
+    from: Temporal.PlainDate,
+    limit: number = BACKFILL_BATCH,
+  ): Promise<RefreshReport<InstrumentId> & { readonly remaining: number }> {
+    const now = deps.clock.now();
+    const [coverage, resolved] = await Promise.all([
+      deps.prices.coverageFor(ids, deps.provider.name),
+      deps.symbols.resolvedFor(ids),
+    ]);
+
+    const due = ids.filter((id) => {
+      const coveredFrom = coverage.get(id);
+      return coveredFrom === undefined || Temporal.PlainDate.compare(coveredFrom, from) > 0;
+    });
+    const batch = due.slice(0, limit);
+
+    const refreshed: InstrumentId[] = [];
+    const unmapped: InstrumentId[] = [];
+    const failed: InstrumentId[] = [];
+    let consecutiveFailures = 0;
+    let attempted = 0;
+
+    for (const id of batch) {
+      if (consecutiveFailures >= 2) break;
+      attempted += 1;
+
+      const ref = resolved.get(id);
+      if (ref === undefined) {
+        unmapped.push(id);
+        continue;
+      }
+
+      try {
+        const bars = await deps.provider.fetchDailyBars(ref, from);
+        const usable = bars.filter((bar) => isUsable(bar, now));
+        if (usable.length > 0) await deps.prices.save(usable, deps.provider.name);
+        // Widened even on an empty response: a delisted or recently-listed
+        // instrument must never be asked the same unanswerable question on
+        // every future render. Only a thrown request below leaves coverage
+        // unwritten, so a transient failure gets retried next round.
+        await deps.prices.markCovered([id], deps.provider.name, from);
+        refreshed.push(id);
+        consecutiveFailures = 0;
+      } catch {
+        failed.push(id);
+        consecutiveFailures += 1;
+      }
+    }
+
+    return { refreshed, unmapped, failed, remaining: due.length - attempted };
+  };
+}

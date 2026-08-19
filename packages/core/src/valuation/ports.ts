@@ -9,6 +9,7 @@ import {
   type InstrumentCandidate,
   type PriceBar,
   type ResolvedSymbol,
+  type SeriesGrain,
   type StoredBar,
   type StoredFxRate,
 } from './types';
@@ -48,6 +49,45 @@ export interface InstrumentSearchProvider {
 export interface MarketPriceRepository {
   latestFor(ids: readonly InstrumentId[]): Promise<ReadonlyMap<InstrumentId, StoredBar>>;
   save(bars: readonly PriceBar[], source: ProviderName): Promise<void>;
+
+  /**
+   * The bucketed history a chart actually renders: the last close in each
+   * `grain` bucket between `from` and `to`, **plus one anchor bar strictly
+   * before `from`** (prepended, oldest first) so a caller can carry a price
+   * forward across the left edge of the window instead of showing a gap on
+   * day one. A day with no close at all for an id is simply absent — never
+   * padded (rule 7). Ascending per id.
+   */
+  historyFor(
+    ids: readonly InstrumentId[],
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+    grain: SeriesGrain,
+  ): Promise<ReadonlyMap<InstrumentId, readonly StoredBar[]>>;
+
+  /**
+   * How far back a backfill has already asked this source for each id — the
+   * ban-avoidance mechanism CU-869ej7zk8 depends on. An id absent from the
+   * result has never been asked at all.
+   */
+  coverageFor(
+    ids: readonly InstrumentId[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<InstrumentId, Temporal.PlainDate>>;
+
+  /**
+   * Records that history from `from` onward has been requested for `ids`,
+   * **even when the provider returned nothing** — a delisted or
+   * recently-listed instrument must never be asked the same unanswerable
+   * question on every render. Widens only: implementations must take the
+   * earliest of the stored and the new `from`, never overwrite a wider
+   * coverage with a narrower one.
+   */
+  markCovered(
+    ids: readonly InstrumentId[],
+    source: ProviderName,
+    from: Temporal.PlainDate,
+  ): Promise<void>;
 }
 
 export interface SymbolRepository {
@@ -118,4 +158,30 @@ export interface FxRateRepository {
     source: ProviderName,
   ): Promise<ReadonlyMap<Currency, readonly StoredFxRate[]>>;
   save(rates: readonly FxRate[], source: ProviderName): Promise<void>;
+
+  /**
+   * `seriesFor`'s bucketed counterpart, with the same left-edge anchor
+   * `MarketPriceRepository.historyFor` prepends — see that doc comment.
+   * `seriesFor` itself is untouched: `/indicators` and the FX pair card
+   * depend on its current range-only, unanchored shape.
+   */
+  historyFor(
+    currencies: readonly Currency[],
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+    grain: SeriesGrain,
+    source: ProviderName,
+  ): Promise<ReadonlyMap<Currency, readonly StoredFxRate[]>>;
+
+  coverageFor(
+    currencies: readonly Currency[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<Currency, Temporal.PlainDate>>;
+
+  /** Widens only — same contract as `MarketPriceRepository.markCovered`. */
+  markCovered(
+    currencies: readonly Currency[],
+    source: ProviderName,
+    from: Temporal.PlainDate,
+  ): Promise<void>;
 }

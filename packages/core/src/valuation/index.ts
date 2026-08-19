@@ -10,12 +10,19 @@ export {
   valuationSource,
 } from './fx-source';
 export type { FxQuotePair, FxScope, FxSource, FxSourcePreference } from './fx-source';
-export { makeReadPrices, makeRefreshPrices, PRICE_TTL_MINUTES } from './get-prices';
+export {
+  BACKFILL_BATCH,
+  makeBackfillPriceHistory,
+  makeReadPrices,
+  makeRefreshPrices,
+  PRICE_TTL_MINUTES,
+} from './get-prices';
 export { makeReadFxRates, makeRefreshFxRates } from './get-fx-rates';
 export { FX_QUOTE_TTL_MINUTES, isQuoteDue, makeRefreshFxQuotes } from './fx-quotes';
 export type { FxQuoteRefreshReport } from './fx-quotes';
 export {
   isFxSeriesDue,
+  makeBackfillFxHistory,
   makeRefreshFxSeries,
   pairSeries,
   SameCurrencyPairError,
@@ -34,3 +41,5 @@ export type {
   ValuedPosition,
   PositionsValuation,
 } from './value-positions';
+export { portfolioValueSeries, sampleDates } from './value-series';
+export type { ValuePoint } from './value-series';

@@ -38,11 +38,15 @@ export class UnknownAccountError extends Error {
   }
 }
 
-/** Types that add units to a position. */
-const openingTypes = new Set<TransactionType>(['buy', 'transfer_in', 'bond_purchase']);
+/**
+ * Types that add units to a position. Exported so `valuation/value-series.ts`
+ * can classify the same ledger without a second copy of this table — the
+ * risk rule 13 exists for.
+ */
+export const openingTypes = new Set<TransactionType>(['buy', 'transfer_in', 'bond_purchase']);
 
 /** Types that remove them. */
-const closingTypes = new Set<TransactionType>([
+export const closingTypes = new Set<TransactionType>([
   'sell',
   'transfer_out',
   'bond_redemption',
@@ -77,7 +81,13 @@ function toAccountCurrency(amount: Money, transaction: Transaction, account: Cur
   return Money.of(amount.amount.times(transaction.fxRate), account);
 }
 
-function chronologically(left: Transaction, right: Transaction): number {
+/**
+ * Exported for `valuation/value-series.ts`, which walks the same ledger in the
+ * same order to fold quantities day by day — the ordering FIFO depends on and
+ * the ordering the series walk depends on must be the one comparator, not two
+ * that happen to agree today.
+ */
+export function chronologically(left: Transaction, right: Transaction): number {
   if (!left.tradeDate.equals(right.tradeDate)) {
     return left.tradeDate.since(right.tradeDate).sign;
   }
