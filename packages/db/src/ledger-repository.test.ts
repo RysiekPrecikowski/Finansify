@@ -303,6 +303,34 @@ describe('ledgerRepository — createImportedTransactions', () => {
     expect(created).toHaveLength(2);
     expect(created.map((transaction) => transaction.externalId)).toEqual(['row-1', 'row-2']);
   });
+
+  it('splits a batch above the chunk size into multiple inserts and concatenates the results', async () => {
+    // Mirrors IMPORT_INSERT_CHUNK_SIZE (1000): one item over the boundary
+    // forces a second insert call.
+    const chunkSize = 1000;
+    const itemCount = chunkSize + 1;
+    const uuidFor = (i: number) => `44444444-4444-4444-8444-${i.toString().padStart(12, '0')}`;
+    const firstChunkRows = Array.from({ length: chunkSize }, (_, i) =>
+      transactionRow({
+        id: uuidFor(i),
+        source: 'import',
+        externalId: `row-${i}`,
+      }),
+    );
+    const secondChunkRows = [transactionRow({ source: 'import', externalId: `row-${chunkSize}` })];
+    const { db, insert } = makeDb({ insertResults: [firstChunkRows, secondChunkRows] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const items = Array.from({ length: itemCount }, (_, i) => ({
+      input: IMPORTED_INPUT,
+      origin: { externalId: `row-${i}`, importBatchId: '5555' },
+    }));
+
+    const created = await repo.createImportedTransactions(items);
+
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(created).toHaveLength(itemCount);
+  });
 });
 
 describe('ledgerRepository — refreshImportedTransaction', () => {
@@ -328,5 +356,109 @@ describe('ledgerRepository — refreshImportedTransaction', () => {
     const setArg = updateSet.mock.calls[0]![0] as Record<string, unknown>;
     expect(Object.hasOwn(setArg, 'editedAfterImport')).toBe(false);
     expect(transaction.grossAmount?.equals(Money.of('1250', currency('PLN')))).toBe(true);
+  });
+});
+
+/**
+ * `refreshImportedTransactions` doesn't `.returning()` its `UPDATE` — it
+ * re-`SELECT`s the touched ids instead, since a `CASE`-keyed bulk update has
+ * no per-row input to zip a `.returning()` result back against by anything
+ * but `id`, which a plain re-select already gives for free. Own mock shape:
+ * `update().set().where()` resolves to nothing, `select().from().where()`
+ * (no `.limit()`) resolves to the chunk's rows, one resolution per chunk.
+ */
+function makeRefreshTransactionsDb(config: { selectResults: TransactionRow[][] }): {
+  db: Database;
+  update: Mock;
+  updateSet: Mock;
+  updateWhere: Mock;
+  select: Mock;
+  from: Mock;
+  where: Mock;
+} {
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set: updateSet });
+
+  const where = vi.fn();
+  for (const rows of config.selectResults) where.mockResolvedValueOnce(rows);
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+
+  return {
+    db: { update, select } as unknown as Database,
+    update,
+    updateSet,
+    updateWhere,
+    select,
+    from,
+    where,
+  };
+}
+
+describe('ledgerRepository — refreshImportedTransactions', () => {
+  it('returns an empty array without touching the database when items is empty', async () => {
+    const { db, update, select } = makeRefreshTransactionsDb({ selectResults: [] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const refreshed = await repo.refreshImportedTransactions([]);
+
+    expect(refreshed).toEqual([]);
+    expect(update).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('updates every item in one round trip and never writes editedAfterImport', async () => {
+    const rowA = transactionRow({ source: 'import', externalId: 'row-1', grossAmount: '1250' });
+    const rowB = transactionRow({
+      id: '44444444-4444-4444-8444-444444444444',
+      source: 'import',
+      externalId: 'row-2',
+      grossAmount: '2500',
+    });
+    const { db, update, updateSet } = makeRefreshTransactionsDb({ selectResults: [[rowA, rowB]] });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const refreshed = await repo.refreshImportedTransactions([
+      { id: TRANSACTION_ID, input: { ...IMPORTED_INPUT, grossAmount: '1250' } },
+      {
+        id: transactionId('44444444-4444-4444-8444-444444444444'),
+        input: { ...IMPORTED_INPUT, grossAmount: '2500' },
+      },
+    ]);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const setArg = updateSet.mock.calls[0]![0] as Record<string, unknown>;
+    expect(Object.hasOwn(setArg, 'editedAfterImport')).toBe(false);
+    expect(refreshed).toHaveLength(2);
+    expect(refreshed[0]!.grossAmount?.equals(Money.of('1250', currency('PLN')))).toBe(true);
+    expect(refreshed[1]!.grossAmount?.equals(Money.of('2500', currency('PLN')))).toBe(true);
+  });
+
+  it('splits a batch above the refresh chunk size into multiple update/select round trips', async () => {
+    // Mirrors IMPORT_REFRESH_CHUNK_SIZE (500): one item over the boundary
+    // forces a second update and a second re-select.
+    const chunkSize = 500;
+    const itemCount = chunkSize + 1;
+    const uuidFor = (i: number) => `44444444-4444-4444-8444-${i.toString().padStart(12, '0')}`;
+    const firstChunkRows = Array.from({ length: chunkSize }, (_, i) =>
+      transactionRow({ id: uuidFor(i), source: 'import', externalId: `row-${i}` }),
+    );
+    const secondChunkRows = [transactionRow({ source: 'import', externalId: `row-${chunkSize}` })];
+    const { db, update, select } = makeRefreshTransactionsDb({
+      selectResults: [firstChunkRows, secondChunkRows],
+    });
+    const repo = ledgerRepository(db).forUser(USER_ID);
+
+    const items = Array.from({ length: itemCount }, (_, i) => ({
+      id: i === chunkSize ? TRANSACTION_ID : transactionId(uuidFor(i)),
+      input: IMPORTED_INPUT,
+    }));
+
+    const refreshed = await repo.refreshImportedTransactions(items);
+
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(refreshed).toHaveLength(itemCount);
   });
 });

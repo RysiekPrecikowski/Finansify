@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryImports } from '../imports/in-memory-imports';
 import { InMemoryLedger } from '../ledger/in-memory-ledger';
@@ -169,6 +169,70 @@ describe('makeAcceptImportRows', () => {
     const transactions = await ledger.forUser(USER).listTransactions();
     expect(transactions).toHaveLength(1);
     expect(transactions[0]!.grossAmount?.equals(Money.of('1250', currency('PLN')))).toBe(true);
+  });
+
+  it('settles an identical reimport as accepted without writing to the ledger at all', async () => {
+    const { ledger, imports, account } = await setup();
+    const { batch: firstBatch } = await seedBatch(imports, account, [
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1000', currency('PLN')) }),
+    ]);
+    const scopedLedger = ledger.forUser(USER);
+    const acceptImportRows = makeAcceptImportRows({
+      imports: imports.forUser(USER),
+      ledger: scopedLedger,
+    });
+    const first = await acceptImportRows(firstBatch.id);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const originalTransactionId = first.value[0]!.transactionId!;
+
+    const { batch: secondBatch } = await seedBatch(imports, account, [
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1000', currency('PLN')) }),
+    ]);
+    const refreshSpy = vi.spyOn(scopedLedger, 'refreshImportedTransactions');
+
+    const second = await acceptImportRows(secondBatch.id);
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value[0]!.status).toBe('accepted');
+    expect(second.value[0]!.transactionId).toBe(originalTransactionId);
+    expect(refreshSpy).not.toHaveBeenCalled();
+  });
+
+  it('batches only the rows that actually changed into one refresh call, skipping identical matches', async () => {
+    const { ledger, imports, account } = await setup();
+    const { batch: firstBatch } = await seedBatch(imports, account, [
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1000', currency('PLN')) }),
+      cashRow({ externalId: 'row-2', grossAmount: Money.of('2000', currency('PLN')) }),
+    ]);
+    const scopedLedger = ledger.forUser(USER);
+    const acceptImportRows = makeAcceptImportRows({
+      imports: imports.forUser(USER),
+      ledger: scopedLedger,
+    });
+    const first = await acceptImportRows(firstBatch.id);
+    expect(first.ok).toBe(true);
+
+    const { batch: secondBatch } = await seedBatch(imports, account, [
+      cashRow({ externalId: 'row-1', grossAmount: Money.of('1000', currency('PLN')) }), // unchanged
+      cashRow({ externalId: 'row-2', grossAmount: Money.of('2500', currency('PLN')) }), // changed
+      cashRow({ externalId: 'row-3', grossAmount: Money.of('3000', currency('PLN')) }), // new
+    ]);
+    const refreshSpy = vi.spyOn(scopedLedger, 'refreshImportedTransactions');
+
+    const second = await acceptImportRows(secondBatch.id);
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value.every((row) => row.status === 'accepted')).toBe(true);
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+    expect(refreshSpy.mock.calls[0]![0]).toHaveLength(1);
+
+    const transactions = await ledger.forUser(USER).listTransactions();
+    expect(transactions).toHaveLength(3);
+    const changedRow = transactions.find((transaction) => transaction.externalId === 'row-2');
+    expect(changedRow?.grossAmount?.equals(Money.of('2500', currency('PLN')))).toBe(true);
   });
 
   it('settles as duplicate, without writing, when the match is soft-deleted', async () => {

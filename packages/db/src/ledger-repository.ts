@@ -21,7 +21,7 @@ import {
   type UserId,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, asc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { type Database } from './client';
 import { accounts, type AccountRow } from './schema/accounts';
@@ -111,6 +111,23 @@ function toPortfolio(row: PortfolioRow, memberships: readonly { accountId: strin
     accountIds: memberships.map((membership) => toAccountId(membership.accountId)),
   };
 }
+
+// Not Postgres' documented 65535-bound-parameter ceiling — the neon-http
+// driver's HTTP query transport rejects a request above 32767 (2^15 - 1,
+// an INT16_MAX boundary) bound parameters, found empirically since it isn't
+// documented. This insert binds ~18 params/row; 1000 rows/chunk (18000
+// params) leaves headroom for both that ceiling and future columns.
+const IMPORT_INSERT_CHUNK_SIZE = 1000;
+
+// `refreshImportedTransactions`' `UPDATE` binds one `CASE` per column (13
+// columns: instrument_id, type, trade_date, settle_date, quantity, price,
+// gross_amount, fee, tax, currency, fx_rate, fx_rate_source, note), each
+// `WHEN`/`THEN` pair costing 2 params — 26 params/row — plus 1 for the
+// `WHERE id IN (...)` list: 27 params/row. 500 rows/chunk (13,500 params)
+// keeps the same comfortable margin under the neon-http driver's
+// 32767-param ceiling that IMPORT_INSERT_CHUNK_SIZE keeps for the insert,
+// rather than assuming the insert's chunk size also fits a wider row.
+const IMPORT_REFRESH_CHUNK_SIZE = 500;
 
 /** The row shape a `TransactionInput` becomes. Strings in, strings out. */
 function toRow(input: TransactionInput, userId: UserId) {
@@ -338,17 +355,25 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
 
     async createImportedTransactions(items) {
       if (items.length === 0) return [];
-      const rows = await db
-        .insert(transactions)
-        .values(
-          items.map(({ input, origin }) => ({
-            ...toRow(input, userId),
-            source: 'import' as const,
-            externalId: origin.externalId,
-            importBatchId: origin.importBatchId,
-          })),
-        )
-        .returning();
+      const rows: TransactionRow[] = [];
+      // See IMPORT_INSERT_CHUNK_SIZE: chunking keeps a large accept-all batch
+      // from blowing past the neon-http driver's parameter ceiling, while
+      // still issuing far fewer round trips than one insert per row.
+      for (let start = 0; start < items.length; start += IMPORT_INSERT_CHUNK_SIZE) {
+        const chunk = items.slice(start, start + IMPORT_INSERT_CHUNK_SIZE);
+        const inserted = await db
+          .insert(transactions)
+          .values(
+            chunk.map(({ input, origin }) => ({
+              ...toRow(input, userId),
+              source: 'import' as const,
+              externalId: origin.externalId,
+              importBatchId: origin.importBatchId,
+            })),
+          )
+          .returning();
+        rows.push(...inserted);
+      }
       return rows.map(toTransaction);
     },
 
@@ -363,6 +388,57 @@ function scopedTo(db: Database, userId: UserId): ScopedLedgerRepository {
         .where(and(owned.transaction, eq(transactions.id, id)))
         .returning();
       return toTransaction(row!);
+    },
+
+    async refreshImportedTransactions(items) {
+      if (items.length === 0) return [];
+      const rows: TransactionRow[] = [];
+      for (let start = 0; start < items.length; start += IMPORT_REFRESH_CHUNK_SIZE) {
+        const chunk = items.slice(start, start + IMPORT_REFRESH_CHUNK_SIZE);
+        const ids = chunk.map(({ id }) => id);
+
+        // One `CASE` per column, keyed by `id` — same shape as
+        // `recordRowOutcomes` in `import-repository.ts`. Each `THEN` branch is
+        // cast explicitly: a `sql` fragment carries no column type of its
+        // own, so Postgres would otherwise see `text` and refuse the
+        // numeric/date/enum/uuid columns.
+        const caseOf = <T>(pick: (input: TransactionInput) => T, cast: string) =>
+          sql`CASE ${transactions.id} ${sql.join(
+            chunk.map(({ id, input }) => sql`WHEN ${id}::uuid THEN ${pick(input)}${sql.raw(cast)}`),
+            sql` `,
+          )} END`;
+
+        await db
+          .update(transactions)
+          .set({
+            instrumentId: caseOf((input) => input.instrumentId, '::uuid'),
+            type: caseOf((input) => input.type, '::transaction_type'),
+            tradeDate: caseOf((input) => input.tradeDate, '::date'),
+            settleDate: caseOf((input) => input.settleDate, '::date'),
+            quantity: caseOf((input) => input.quantity, '::numeric'),
+            price: caseOf((input) => input.price, '::numeric'),
+            grossAmount: caseOf((input) => input.grossAmount, '::numeric'),
+            fee: caseOf((input) => input.fee, '::numeric'),
+            tax: caseOf((input) => input.tax, '::numeric'),
+            currency: caseOf((input) => toCurrency(input.currency), '::text'),
+            fxRate: caseOf((input) => input.fxRate, '::numeric'),
+            fxRateSource: caseOf((input) => input.fxRateSource, '::fx_rate_source'),
+            note: caseOf((input) => input.note, '::text'),
+            // Deliberately no `editedAfterImport` write — same reason
+            // `refreshImportedTransaction` never writes it: a re-import
+            // refresh must leave a nobody-has-touched-it row refreshable by
+            // the *next* re-import too.
+            updatedAt: new Date(),
+          })
+          .where(and(owned.transaction, inArray(transactions.id, ids)));
+
+        const updated = await db
+          .select()
+          .from(transactions)
+          .where(and(owned.transaction, inArray(transactions.id, ids)));
+        rows.push(...updated);
+      }
+      return rows.map(toTransaction);
     },
   };
 }

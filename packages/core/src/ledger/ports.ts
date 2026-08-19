@@ -110,6 +110,18 @@ export interface ScopedLedgerRepository {
    * forever and every later re-import would misreport it as a conflict.
    */
   refreshImportedTransaction(id: TransactionId, input: TransactionInput): Promise<Transaction>;
+  /**
+   * The bulk counterpart to `refreshImportedTransaction` — one round trip
+   * refreshing every item in `items` rather than one per row, the same
+   * "fixed number of round trips" shape `createImportedTransactions` already
+   * has. Only for rows `classifyReimport` already found `changed` — the
+   * caller is expected to have filtered out `unchanged` matches itself, since
+   * writing back data that already matches is exactly the wasted work this
+   * exists to avoid.
+   */
+  refreshImportedTransactions(
+    items: readonly { readonly id: TransactionId; readonly input: TransactionInput }[],
+  ): Promise<readonly Transaction[]>;
 }
 
 export interface LedgerRepository {

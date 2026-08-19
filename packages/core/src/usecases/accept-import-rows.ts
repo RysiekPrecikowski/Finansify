@@ -1,18 +1,9 @@
 import { type ScopedLedgerRepository } from '../ledger/ports';
-import { type Transaction, type TransactionInput } from '../ledger/types';
-import {
-  importBatchIdSchema,
-  type ImportRow,
-  type ImportRowOutcome,
-  type ScopedImportRepository,
-} from '../imports';
-import {
-  CONFLICT_REASON,
-  DELETED_REASON,
-  transactionInputFromParsedRow,
-} from './accept-import-row';
-import { validateTransactionInputAgainstAccounts } from './record-transaction';
-import { failure, success, type UseCaseResult } from './result';
+import { type Transaction, type TransactionId, type TransactionInput } from '../ledger/types';
+import { type ImportRow, type ImportRowOutcome, type ScopedImportRepository } from '../imports';
+import { loadPendingImportRows } from './pending-import-rows';
+import { classifyReimport } from './reimport-classification';
+import { success, type UseCaseResult } from './result';
 
 /**
  * The bulk counterpart to `acceptImportRow` — accepts every acceptable
@@ -21,15 +12,18 @@ import { failure, success, type UseCaseResult } from './result';
  * statement was 326 × ~6 sequential HTTP round trips against Neon's HTTP
  * driver).
  *
- * Same branching as `acceptImportRow`, applied to the whole batch at once
- * rather than one row at a time:
- * - No existing transaction for a row's `external_id` → queued for one
- *   multi-row `createImportedTransactions` insert.
- * - An unedited, non-deleted match → `refreshImportedTransaction`, still one
- *   call per row (a re-import-of-an-already-accepted-row case, not the
- *   "first accept" path this ticket measured — batching it would need a
- *   second bulk-update shape for a path that is the exception, not the rule).
- * - A soft-deleted or hand-edited match → settles as `duplicate`, no write to
+ * Every row is classified by `classifyReimport` (same rule `acceptImportRow`
+ * describes in its own doc comment) and grouped so each outcome is reached
+ * with a fixed number of round trips, not one per row:
+ * - `new` → queued for one multi-row `createImportedTransactions` insert.
+ * - `unchanged` → an unedited, non-deleted match whose data already restates
+ *   what is on file. Settled `accepted` against the existing transaction with
+ *   **no write at all** — a re-import of an unchanged statement hits this
+ *   for nearly every row, which is the whole reason this is checked rather
+ *   than refreshed unconditionally.
+ * - `changed` → an unedited, non-deleted match whose data actually differs.
+ *   Queued for one multi-row `refreshImportedTransactions` update.
+ * - `conflict` / `deleted` → settles as `duplicate`, no write to
  *   `transactions` at all.
  *
  * Never taken through `acceptImportRow`'s `overrides` path — this is
@@ -48,67 +42,58 @@ export function makeAcceptImportRows(deps: {
   return async function acceptImportRows(
     batchId: unknown,
   ): Promise<UseCaseResult<readonly ImportRow[]>> {
-    const parsedId = importBatchIdSchema.safeParse(batchId);
-    if (!parsedId.success) return failure([{ path: 'batchId', message: 'Not an import batch id' }]);
-
-    const batch = await deps.imports.getBatch(parsedId.data);
-    if (batch === null) return failure([{ path: 'batchId', message: 'Unknown import batch' }]);
-
-    const rows = await deps.imports.rowsForBatch(parsedId.data);
-    const acceptable = rows.filter(
-      (row) =>
-        row.status === 'pending' &&
-        (row.parsed.instrument === null || row.resolvedInstrumentId !== null),
-    );
-    if (acceptable.length === 0) return success([]);
-
-    const accounts = await deps.ledger.listAccounts();
-    const validated: { row: ImportRow; input: TransactionInput }[] = [];
-    for (const row of acceptable) {
-      const raw = transactionInputFromParsedRow(
-        row.parsed,
-        row.resolvedInstrumentId,
-        batch.accountId,
-      );
-      const result = validateTransactionInputAgainstAccounts(accounts, raw);
-      if (result.ok) validated.push({ row, input: result.value });
-    }
-    if (validated.length === 0) return success([]);
-
-    const existingByExternalId = await deps.ledger.findByExternalIds(
-      batch.accountId,
-      validated.map(({ row }) => row.parsed.externalId),
-    );
+    const loaded = await loadPendingImportRows(deps, batchId);
+    if (!loaded.ok) return loaded;
+    const { batch, pending } = loaded.value;
+    if (pending.length === 0) return success([]);
 
     const outcomes: { id: ImportRow['id']; outcome: ImportRowOutcome }[] = [];
     const toCreate: { row: ImportRow; input: TransactionInput }[] = [];
+    const toRefresh: { row: ImportRow; input: TransactionInput; existingId: TransactionId }[] = [];
 
-    for (const { row, input } of validated) {
-      const existing = existingByExternalId.get(row.parsed.externalId) ?? null;
+    for (const { row, input, existing } of pending) {
+      const classification = classifyReimport(existing, input);
 
-      if (existing === null) {
-        toCreate.push({ row, input });
-        continue;
+      switch (classification.kind) {
+        case 'new':
+          toCreate.push({ row, input });
+          break;
+        case 'unchanged':
+          outcomes.push({
+            id: row.id,
+            outcome: { status: 'accepted', transactionId: classification.existingId },
+          });
+          break;
+        case 'changed':
+          toRefresh.push({ row, input, existingId: classification.existingId });
+          break;
+        case 'conflict':
+        case 'deleted':
+          outcomes.push({
+            id: row.id,
+            outcome: {
+              status: 'duplicate',
+              transactionId: classification.existingId,
+              reason: classification.reason,
+            },
+          });
+          break;
       }
-      if (existing.deleted) {
+    }
+
+    if (toRefresh.length > 0) {
+      const refreshed = await deps.ledger.refreshImportedTransactions(
+        toRefresh.map(({ existingId, input }) => ({ id: existingId, input })),
+      );
+      const refreshedById = new Map(refreshed.map((transaction) => [transaction.id, transaction]));
+      for (const { row, existingId } of toRefresh) {
+        const transaction = refreshedById.get(existingId);
+        if (transaction === undefined) continue;
         outcomes.push({
           id: row.id,
-          outcome: { status: 'duplicate', transactionId: existing.id, reason: DELETED_REASON },
+          outcome: { status: 'accepted', transactionId: transaction.id },
         });
-        continue;
       }
-      if (!existing.editedAfterImport) {
-        const refreshed = await deps.ledger.refreshImportedTransaction(existing.id, input);
-        outcomes.push({
-          id: row.id,
-          outcome: { status: 'accepted', transactionId: refreshed.id },
-        });
-        continue;
-      }
-      outcomes.push({
-        id: row.id,
-        outcome: { status: 'duplicate', transactionId: existing.id, reason: CONFLICT_REASON },
-      });
     }
 
     if (toCreate.length > 0) {
@@ -134,7 +119,7 @@ export function makeAcceptImportRows(deps: {
     }
 
     if (outcomes.length === 0) return success([]);
-    const updated = await deps.imports.recordRowOutcomes(parsedId.data, outcomes);
+    const updated = await deps.imports.recordRowOutcomes(batch.id, outcomes);
     return success(updated);
   };
 }

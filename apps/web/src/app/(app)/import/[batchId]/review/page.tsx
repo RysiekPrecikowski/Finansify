@@ -1,8 +1,11 @@
 import {
   grossValueOf,
   importBatchIdSchema,
+  makeDetectImportDuplicates,
   type ImportRow,
+  type ImportRowId,
   type ImportRowStatus,
+  type ReimportClassification,
 } from '@finansify/core';
 import type { Route } from 'next';
 import Link from 'next/link';
@@ -14,7 +17,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { interpolate } from '@/lib/i18n/dictionaries';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { formatMoney, formatPlainDate } from '@/lib/format';
-import { scopedImportsFor } from '@/server/container';
+import { scopedImportsFor, scopedLedgerFor } from '@/server/container';
 import { acceptAllPendingAction, acceptRowAction } from '../../actions';
 import { AcceptAllButton } from './accept-all-button';
 
@@ -24,6 +27,36 @@ function descriptionOf(row: ImportRow): string {
     return exchange === null ? symbol : `${symbol} (${exchange})`;
   }
   return row.parsed.note ?? row.parsed.externalId;
+}
+
+/**
+ * The status-column override for a still-`pending` row whose reimport
+ * classification says accepting it will not be a plain "create a new
+ * transaction" — `null` for `new` (nothing more to say than the ordinary
+ * `pending` label already says) and for a row with no preview at all
+ * (unresolved or needs-review, both handled by their own overrides first).
+ */
+function previewLabelOf(
+  classification: ReimportClassification | undefined,
+  strings: {
+    previewUnchanged: string;
+    previewChanged: string;
+    previewConflict: string;
+    previewDeleted: string;
+  },
+): string | null {
+  switch (classification?.kind) {
+    case 'unchanged':
+      return strings.previewUnchanged;
+    case 'changed':
+      return strings.previewChanged;
+    case 'conflict':
+      return strings.previewConflict;
+    case 'deleted':
+      return strings.previewDeleted;
+    default:
+      return null;
+  }
 }
 
 function isUnresolved(row: ImportRow): boolean {
@@ -70,14 +103,44 @@ export default async function ImportBatchReviewListPage({
   const batchId = parsedBatchId.data;
 
   const imports = scopedImportsFor(user.id);
-  const [batch, rows, dictionary, locale] = await Promise.all([
+  const ledger = scopedLedgerFor(user.id);
+  const detectImportDuplicates = makeDetectImportDuplicates({ imports, ledger });
+  const [batch, rows, duplicatesPreview, dictionary, locale] = await Promise.all([
     imports.getBatch(batchId),
     imports.rowsForBatch(batchId),
+    detectImportDuplicates(batchId),
     getDictionary(),
     getLocale(),
   ]);
   if (batch === null) notFound();
   const strings = dictionary.imports.review;
+
+  // A reimport's dedup verdict for each still-pending row, computed fresh on
+  // every load rather than persisted — same "review numbers are a live
+  // query, never a second copy of state" posture `docs/domain.md` already
+  // takes for `import_batches`' own counts. `duplicatesPreview` only fails on
+  // a malformed `batchId`, which `notFound()` above has already ruled out.
+  const previewByRowId = new Map<ImportRowId, ReimportClassification>(
+    duplicatesPreview.ok
+      ? duplicatesPreview.value.map((preview) => [preview.rowId, preview.classification])
+      : [],
+  );
+  const previewCounts = { new: 0, unchanged: 0, changed: 0, conflict: 0, deleted: 0 };
+  for (const classification of previewByRowId.values()) previewCounts[classification.kind] += 1;
+  const previewNotices = [
+    previewCounts.unchanged > 0
+      ? interpolate(strings.previewUnchangedCount, { count: String(previewCounts.unchanged) })
+      : null,
+    previewCounts.changed > 0
+      ? interpolate(strings.previewChangedCount, { count: String(previewCounts.changed) })
+      : null,
+    previewCounts.conflict > 0
+      ? interpolate(strings.previewConflictCount, { count: String(previewCounts.conflict) })
+      : null,
+    previewCounts.deleted > 0
+      ? interpolate(strings.previewDeletedCount, { count: String(previewCounts.deleted) })
+      : null,
+  ].filter((notice): notice is string => notice !== null);
 
   const unresolvedCount = rows.filter(
     (row) => row.parsed.instrument !== null && row.resolvedInstrumentId === null,
@@ -153,7 +216,7 @@ export default async function ImportBatchReviewListPage({
             ? strings.resolveLink
             : needsReview(row)
               ? strings.needsReviewStatus
-              : statusLabel[row.status]}
+              : (previewLabelOf(previewByRowId.get(row.id), strings) ?? statusLabel[row.status])}
         </span>
       ),
     },
@@ -228,6 +291,14 @@ export default async function ImportBatchReviewListPage({
           {statusLabel.rejected}: {counts.rejected} · {statusLabel.duplicate}: {counts.duplicate}
         </p>
       </div>
+
+      {previewNotices.length > 0 && (
+        <div className="border-border bg-muted/30 flex flex-col gap-1 rounded-md border p-3 text-sm">
+          {previewNotices.map((notice) => (
+            <span key={notice}>{notice}</span>
+          ))}
+        </div>
+      )}
 
       {acceptableCount > 0 && (
         <form action={acceptAllPendingAction} className="w-fit">
