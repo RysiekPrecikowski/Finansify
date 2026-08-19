@@ -38,6 +38,11 @@ export const pl = {
       '1Y': '1R',
       MAX: 'MAX',
     },
+    chart: {
+      ariaLabel: 'Wartość portfela w czasie',
+      loadingHistory: 'Wczytywanie historii…',
+      unsupportedRange: 'jeszcze niedostępne',
+    },
     assetClasses: {
       all: 'Wszystko',
       equity: 'Akcje',

@@ -62,10 +62,17 @@ function oneOf<T extends string>(candidates: readonly T[], value: string | undef
   return candidates.find((candidate) => candidate === value) ?? null;
 }
 
-/** Unknown or malformed values fall back to the default rather than erroring. */
+/**
+ * Unknown or malformed values fall back to the default rather than erroring.
+ * A `1D`/`1W` in the URL falls back the same way — a hand-edited link to an
+ * unsupported range must not reach a `ChartCard` that has nothing to show for
+ * it (`unsupportedRanges`, above).
+ */
 export function parseDashboardParams(raw: RawSearchParams): DashboardParams {
+  const range = oneOf(ranges, first(raw.range)) ?? defaultDashboardParams.range;
+
   return {
-    range: oneOf(ranges, first(raw.range)) ?? defaultDashboardParams.range,
+    range: isSupportedRange(range) ? range : defaultDashboardParams.range,
     assetClass: oneOf(assetClasses, first(raw.class)),
     sort: oneOf(sortOrders, first(raw.sort)) ?? defaultDashboardParams.sort,
   };

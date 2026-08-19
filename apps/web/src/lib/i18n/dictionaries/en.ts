@@ -37,6 +37,11 @@ export const en: Dictionary = {
       '1Y': '1Y',
       MAX: 'MAX',
     },
+    chart: {
+      ariaLabel: 'Portfolio value over time',
+      loadingHistory: 'Loading more history…',
+      unsupportedRange: 'not available yet',
+    },
     assetClasses: {
       all: 'All',
       equity: 'Equities',

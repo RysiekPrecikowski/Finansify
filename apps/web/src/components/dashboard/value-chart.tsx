@@ -18,6 +18,13 @@ import { type Direction } from '@/lib/format';
 export interface ValueChartProps {
   /** Plain numbers: pixel geometry, not money. The labels carry the money. */
   readonly points: readonly number[];
+  /**
+   * How many leading points are still `partial` (backfill hasn't reached that
+   * date yet) — that prefix of the line renders dashed at reduced opacity, so
+   * a chart that's still loading its left edge looks like it, rather than
+   * like a real (and wrong) flat run. `0` draws entirely solid.
+   */
+  readonly partialBoundary: number;
   readonly direction: Direction;
   readonly highLabel: string;
   readonly lowLabel: string;
@@ -143,6 +150,7 @@ function useTweenedPoints(target: readonly number[], seriesKey: string): readonl
 
 export function ValueChart({
   points,
+  partialBoundary,
   direction,
   highLabel,
   lowLabel,
@@ -157,6 +165,18 @@ export function ValueChart({
   const { xs, ys } = scale(tweened);
   const line = xs.map((x, index) => `${index === 0 ? 'M' : 'L'}${x} ${ys[index]}`).join(' ');
   const area = `${line} L${viewWidth} ${viewHeight} L0 ${viewHeight} Z`;
+
+  // Clamped so a stale prop (a resample width that briefly disagrees with the
+  // tween's own length) can never index past either end. The two segments
+  // share point `boundary` as a seam, so the line never visibly breaks.
+  const boundary = Math.max(0, Math.min(partialBoundary, tweened.length - 1));
+  const pathFrom = (from: number, to: number) =>
+    xs
+      .slice(from, to + 1)
+      .map((x, index) => `${index === 0 ? 'M' : 'L'}${x} ${ys[from + index]}`)
+      .join(' ');
+  const dashedPrefix = boundary > 0 ? pathFrom(0, boundary) : null;
+  const solidSuffix = boundary < tweened.length - 1 ? pathFrom(boundary, tweened.length - 1) : null;
 
   return (
     <figure className="relative">
@@ -204,15 +224,33 @@ export function ValueChart({
         />
 
         <path d={area} fill={`url(#${gradientId})`} />
-        <path
-          d={line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
+        {/* Still-loading history: dashed, at reduced opacity, so a chart with
+            an unbackfilled left edge reads as "loading" rather than as a real
+            (and wrong) flat run at zero. */}
+        {dashedPrefix !== null && (
+          <path
+            d={dashedPrefix}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeDasharray="6 5"
+            strokeOpacity="0.45"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {solidSuffix !== null && (
+          <path
+            d={solidSuffix}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
       </svg>
 
       {/* Labels sit in HTML, not in the SVG: text inside a non-uniformly scaled

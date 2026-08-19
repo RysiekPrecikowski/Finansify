@@ -79,6 +79,31 @@ everybody — see ADR 0010. TTLs by granularity:
 
 Refresh is stale-while-revalidate with no scheduler; see `architecture.md`.
 
+## Historical backfill (the hero chart)
+
+The TTLs above answer "how fresh is the latest close" — CU-869ej7zk8 (ADR 0020)
+answers a different question, "how far back does the history reach", for the
+dashboard's hero chart. `instrument_price_coverage` and `fx_rate_coverage`
+record what a backfill has already asked Yahoo or NBP for, per instrument or
+currency, so a chart request never re-asks a question the provider has already
+answered — including "nothing exists before this date", which
+`min(instrument_prices.date)` alone can never distinguish from "nobody has
+asked yet".
+
+A full backfill is **one provider request per instrument or currency, ever**:
+`fetchDailyBars` and `fetchSeriesTo` already return an instrument's or
+currency's whole history in a single call (NBP chunks its own 367-day limit
+internally). `makeBackfillPriceHistory` bounds one round to `BACKFILL_BATCH`
+(8) instruments, so a portfolio with more quoted instruments than one round
+covers keeps making progress across renders rather than blocking the first one
+on all of them. `callYahoo`'s existing ~1 req/s throttle and 429 backoff (this
+file, above) are untouched and sufficient at this volume.
+
+Historical FX is always NBP table A, regardless of a reader's valuation
+preference (ADR 0018 lets Yahoo's market quote apply to today's valuation; the
+chart's history does not follow that choice) — labelled the same way the FX
+pair card already labels a diverging source, not silently substituted.
+
 ## The Polish data problem
 
 The last three rows of the table above have no clean programmatic source. That

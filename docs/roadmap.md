@@ -47,8 +47,9 @@ lot matching to be correct on their own, with nothing to hide behind.
 Dashboard rendered `lib/fixtures/portfolio.ts` until Phase 2 landed real
 prices (CU-869ej7zk5): headline, allocation, holdings and account tiles now
 read `scopedLedgerFor` through the same `<Suspense>`-scoped valuation
-`/portfolio` uses. The hero chart still has no data source — no price series,
-no history — and stays out until CU-869ej7zk8 backfills one.
+`/portfolio` uses. The hero chart draws real portfolio value over time
+(CU-869ej7zk8, ADR 0020) — derived on read from the ledger and the global
+price/FX cache, backfilled once per instrument and currency.
 
 **Phase 1.5 — encryption, built during Phase 1 then withdrawn before the
 ledger held a row.** Added a master key, an env var, key-escrow and a
@@ -76,9 +77,16 @@ full; revisit when there is data worth protecting.
       first; written after a partial migration wedged production for three
       hours behind a green `check`
 - [x] Dashboard on real data — headline, allocation, holdings, account
-      tiles read `scopedLedgerFor` (CU-869ej7zk5). Historical value and the
-      hero chart are out of scope — no series exists yet — and tracked
-      separately (CU-869ej7zk8).
+      tiles read `scopedLedgerFor` (CU-869ej7zk5).
+- [x] Historical value and the hero chart (CU-869ej7zk8, ADR 0020) —
+      `portfolioValueSeries` derived on read from the ledger and the global
+      price/FX cache; `instrument_price_coverage`/`fx_rate_coverage` bound a
+      full backfill to one provider request per instrument or currency,
+      ever; the chart paints from storage immediately and polls
+      `?refresh=1` while `pending`. `1D`/`1W` stay disabled — no data finer
+      than a day exists yet (CU-869em7hdp). Known gap: a bond position
+      closed entirely before today is invisible to the chart's history (see
+      ADR 0020's "Consequences").
 - [ ] Market calendar / per-instrument fetch lock — accepted gap, see ADR
       0014
 - [ ] IKE/IKZE contribution room on the dashboard's account tiles —
@@ -167,8 +175,10 @@ ISIN.
   a `<Suspense>` boundary — no scheduler, no market calendar; a fixed 15-minute
   TTL is the whole freshness rule for now.
 - Dashboard on real data: headline, allocation, holdings, account tiles. The
-  fixture dies here. The hero chart needs a price/FX history no provider call
-  here fetches, so it ships separately (CU-869ej7zk8).
+  fixture dies here. The hero chart needed a price/FX history no provider call
+  here fetches, so it shipped separately (CU-869ej7zk8, ADR 0020) — coverage
+  tables (`instrument_price_coverage`, `fx_rate_coverage`) bound the backfill
+  to one provider request per instrument or currency, ever.
 
 Depends on Phase 1's positions. Blocked on nothing external.
 

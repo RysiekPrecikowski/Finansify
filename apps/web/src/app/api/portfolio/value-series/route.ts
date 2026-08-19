@@ -4,24 +4,11 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDisplaySettings } from '@/lib/display/server';
 import { parseSeriesParams } from '@/lib/value-series-params';
-import { readValueSeries, refreshValueSeries, type ValueSeriesResult } from '@/server/value-series';
-
-function toResponseBody(result: ValueSeriesResult) {
-  return {
-    currency: result.currency,
-    grain: result.grain,
-    pending: result.pending,
-    error: result.error,
-    points: result.points.map((point) => ({
-      date: point.date.toString(),
-      // A decimal string, not a float: formatting happens on the client with
-      // `Intl.NumberFormat`, never here (`apps/web/AGENTS.md`, "Presentation").
-      value: point.value.amount.toFixed(2),
-      status: point.status,
-      unpriced: point.unpriced,
-    })),
-  };
-}
+import {
+  readValueSeries,
+  refreshValueSeries,
+  toApiValueSeriesResponse,
+} from '@/server/value-series';
 
 /**
  * The hero chart's data source (CU-869ej7zk8). `GET ?range=&grain=&refresh=`.
@@ -42,5 +29,5 @@ export async function GET(request: Request) {
     ? await refreshValueSeries(user.id, params)
     : await readValueSeries(user.id, params);
 
-  return NextResponse.json(toResponseBody(result));
+  return NextResponse.json(toApiValueSeriesResponse(result));
 }
