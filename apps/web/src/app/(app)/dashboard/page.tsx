@@ -92,7 +92,7 @@ async function DashboardSections({
     // Every dashboard row is a single `Money`, never an array of them —
     // `lines` is pinned to the presentation total regardless of what the
     // reader picked for `/portfolio`'s detailed, per-line-currency table.
-    valuePositionsFor(open, display, fxPreference, { total, lines: total }),
+    valuePositionsFor(open, cash, display, fxPreference, { total, lines: total }),
     readValueSeries(userId, { range, grain: null, presentIn: total }),
   ]);
 

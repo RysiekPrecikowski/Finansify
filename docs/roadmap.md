@@ -109,6 +109,12 @@ in parallel, which is why the migration and ADR numbering interleaves.
       parsing, FX-rate inference by median ratio, reconciliation warnings
       (never blocking), a synthetic fixture covering every case found in real
       exports
+- [x] `importers`: `BosStatementParser` — `windows-1250` CSV, cost basis in
+      the position's settlement currency (ADR 0021, since a BOŚ IKZE holds
+      PLN/EUR/USD natively with currency exchange as its own operation, not a
+      per-trade conversion), ISIN as the resolution key BOŚ actually gives
+      (PR2's auto-match), a synthetic fixture covering every case found in two
+      real accounts
 - [x] `FileStore` Blob adapter + upload
 - [x] Instrument-resolution UI — auto-match by `(symbol, exchange)`,
       bulk-confirm, manual fallback; every mapping stays editable until the
@@ -120,7 +126,9 @@ in parallel, which is why the migration and ADR numbering interleaves.
 - [x] Import review UI — `/import/[batchId]/review`, per-row accept /
       reject / edit-and-accept, bilingual, linked from `/more`
 
-Boś stays blocked — no real exported statement examined yet.
+**Boś unblocked** — two real accounts (an IKZE and a brokerage account) were
+examined during planning; `BosStatementParser` is built and tested against a
+synthetic fixture derived from them.
 
 **Phase 3 — in progress.**
 
@@ -206,8 +214,9 @@ The most bespoke code in the project, because no provider prices these.
 
 **XTB unblocked** — real exports were examined during planning;
 `XtbStatementParser` is built and tested against a synthetic fixture derived
-from them. **Boś stays blocked** — no real exported statement examined yet,
-and a profile built from guesses is worse than no profile.
+from them. **Boś unblocked too** — two real accounts were examined the same
+way; `BosStatementParser` is built and tested against a synthetic fixture
+derived from them.
 
 ### Phase 5 — Performance
 
@@ -300,12 +309,9 @@ error page or, far worse, a silently wrong number.
 
 ## Open questions
 
-1. **Boś export format.** Resolved for XTB — `XtbStatementParser` exists,
-   built from real files (see "Where we are", Phase 4). Boś still needs a real
-   exported statement before its parser can be more than a guess.
-2. **Benchmark set.** WIG, an accumulating world ETF and the S&P 500 are
+1. **Benchmark set.** WIG, an accumulating world ETF and the S&P 500 are
    proposed; each becomes a tracked instrument with its own price history.
-3. **KMS choice and key scheme** — see Data protection.
+2. **KMS choice and key scheme** — see Data protection.
 
 ## Feature backlog
 

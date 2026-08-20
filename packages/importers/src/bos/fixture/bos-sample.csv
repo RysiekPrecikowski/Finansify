@@ -1,0 +1,11 @@
+data;tytu³ operacji;szczegó³y;kwota;waluta
+2026-01-05;Przelew do DM BOŒ;;5000,00;PLN
+2026-01-05;Przelew do DM BOŒ;;5000,00;PLN
+2026-01-10;Rozliczenie transakcji kupna:;Vanguard FTSE All-World UCITS ETF (IE00B3RBWM25) 10 x 100.00 EUR nr Z00000000001;-1000,00;EUR
+2026-01-15;Rozliczenie transakcji kupna:;Vanguard FTSE All-World UCITS ETF (IE00B3RBWM25) 5 x 100.00 EUR nr Z00000000002;-502,50;EUR
+2026-01-20;Wymiana waluty PLN/EUR 4.3000;;-4300,00;PLN
+2026-01-20;Wymiana waluty PLN/EUR 4.3000;;1000,00;EUR
+2026-02-01;Wyp³ata dywidendy brutto VWRL EUR;;12,50;USD
+2026-02-05;Wyp³ata dywidendy brutto ETFSP500;;30,00;PLN
+2026-02-10;Odsetki od œrodków pieniê¿nych;;4,20;PLN
+2026-02-15;Rozliczenie transakcji kupna:;coœ nietypowego, nie pasuje do wzorca;-100,00;PLN

@@ -12,7 +12,7 @@ import {
   symbolRepository,
   type Database,
 } from '@finansify/db';
-import { xtbStatementParser } from '@finansify/importers';
+import { bosStatementParser, xtbStatementParser } from '@finansify/importers';
 import {
   makeResolveBondTerms,
   Temporal,
@@ -196,7 +196,7 @@ export function getFileStore(): FileStore {
   return cachedFileStore;
 }
 
-/** Every registered broker parser — just XTB today (ADR 0015, ticket for Boś not started). */
+/** Every registered broker parser (ADR 0015). */
 export function getStatementParsers(): readonly StatementParser[] {
-  return [xtbStatementParser];
+  return [xtbStatementParser, bosStatementParser];
 }

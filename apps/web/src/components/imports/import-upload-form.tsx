@@ -59,7 +59,7 @@ export function ImportUploadForm({ accounts }: Props) {
           id="file"
           name="file"
           type="file"
-          accept=".xlsx"
+          accept=".xlsx,.csv"
           required
           className="border-input bg-input/30 rounded-md border px-2.5 py-1.5 text-sm"
         />
