@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resample } from './chart-series';
+import { resample, resampleLabels } from './chart-series';
 
 describe('resample', () => {
   it('returns exactly the requested number of points', () => {
@@ -147,5 +147,33 @@ describe('resample downsampling (LTTB)', () => {
     expect(resampled).toHaveLength(64);
     expect(resampled[0]).toBe(points[0]);
     expect(resampled[resampled.length - 1]).toBe(points[64]);
+  });
+});
+
+describe('resampleLabels', () => {
+  it('returns exactly the requested count and preserves both endpoints', () => {
+    const dates = Array.from({ length: 200 }, (_unused, index) => `day-${index}`);
+    const labels = resampleLabels(dates, 64);
+
+    expect(labels).toHaveLength(64);
+    expect(labels[0]).toBe('day-0');
+    expect(labels[labels.length - 1]).toBe('day-199');
+  });
+
+  it('never invents a label past what the source actually has', () => {
+    const dates = ['day-0', 'day-1', 'day-2'];
+    const labels = resampleLabels(dates, 5);
+
+    for (const label of labels) {
+      expect(dates).toContain(label);
+    }
+  });
+
+  it('repeats the single source label rather than dividing by zero', () => {
+    expect(resampleLabels(['only'], 4)).toEqual(['only', 'only', 'only', 'only']);
+  });
+
+  it('returns nothing for an empty source', () => {
+    expect(resampleLabels([], 64)).toEqual([]);
   });
 });

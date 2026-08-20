@@ -110,6 +110,24 @@ export function resample(points: readonly number[], count: number): number[] {
 }
 
 /**
+ * Nearest-source label for each of `count` resampled positions — used to carry
+ * a series' dates alongside `resample`'s values for a tooltip. Deliberately
+ * simpler than `resample` itself: a label is read, not plotted, so the closest
+ * source index is enough, whichever direction (LTTB's bucket pick or linear
+ * interpolation) actually produced the value sitting at that position.
+ */
+export function resampleLabels<T>(labels: readonly T[], count: number): T[] {
+  const last = labels.length - 1;
+  if (last < 0) return [];
+  if (last === 0) return Array.from({ length: count }, () => labels[0]!);
+
+  return Array.from({ length: count }, (_unused, index) => {
+    const position = Math.round((index / (count - 1)) * last);
+    return labels[position]!;
+  });
+}
+
+/**
  * One range's worth of chart, precomputed on the server. Every string here is
  * already formatted: `Money` and `Intl` never cross to the client, so
  * formatting still happens only at the edge (apps/web/AGENTS.md).

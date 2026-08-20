@@ -5,7 +5,12 @@ import { useEffect, useState } from 'react';
 import { RangeTabs } from '@/components/dashboard/range-tabs';
 import { ValueChart } from '@/components/dashboard/value-chart';
 import { dashboardHref, dashboardUrl, type Range } from '@/lib/dashboard-params';
-import { buildHeroSeries, formatChartValue, type ApiValueSeriesResponse } from '@/lib/hero-series';
+import {
+  buildHeroSeries,
+  formatChartDate,
+  formatChartValue,
+  type ApiValueSeriesResponse,
+} from '@/lib/hero-series';
 import { useI18n } from '@/lib/i18n/client';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
 
@@ -126,8 +131,10 @@ export function ChartCard({
   const isLoading = loadingRange === params.range;
   const hero =
     response !== undefined
-      ? buildHeroSeries(response.points, (value) =>
-          formatChartValue(value, response.currency, locale),
+      ? buildHeroSeries(
+          response.points,
+          (value) => formatChartValue(value, response.currency, locale),
+          (date) => formatChartDate(date, locale),
         )
       : null;
 
@@ -140,13 +147,20 @@ export function ChartCard({
           direction={hero.direction}
           highLabel={hero.highLabel}
           lowLabel={hero.lowLabel}
+          midLabel={hero.midLabel}
+          dateLabels={hero.dateLabels}
+          valueLabels={hero.valueLabels}
           label={ariaLabel}
           seriesKey={params.range}
         />
       ) : (
-        // Same footprint as the chart, so the range tabs below don't jump
-        // once a series lands — `aria-hidden`, there is nothing to read yet.
-        <div className="h-40 w-full sm:h-56" aria-hidden="true" />
+        // Same footprint as the chart — svg plus its x-axis row — so the range
+        // tabs below don't jump once a series lands. `aria-hidden`, there is
+        // nothing to read yet.
+        <div className="flex flex-col gap-1" aria-hidden="true">
+          <div className="h-40 w-full sm:h-56" />
+          <div className="h-[14px] w-full" />
+        </div>
       )}
 
       {isLoading && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { type Direction } from '@/lib/format';
 
@@ -28,6 +28,15 @@ export interface ValueChartProps {
   readonly direction: Direction;
   readonly highLabel: string;
   readonly lowLabel: string;
+  /** Third y-axis reference line, between high and low. */
+  readonly midLabel: string;
+  /**
+   * One formatted date and value per entry in `points`, for the x-axis ticks
+   * and the hover tooltip. Same length as `points`; index `i` here always
+   * describes index `i` there.
+   */
+  readonly dateLabels: readonly string[];
+  readonly valueLabels: readonly string[];
   readonly label: string;
   /**
    * Changes when the series does. The tween keys off this rather than array
@@ -154,13 +163,27 @@ export function ValueChart({
   direction,
   highLabel,
   lowLabel,
+  midLabel,
+  dateLabels,
+  valueLabels,
   label,
   seriesKey,
 }: ValueChartProps) {
   const gradientId = useId();
   const tweened = useTweenedPoints(points, seriesKey);
+  const figureRef = useRef<HTMLElement>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
+  // Hooks above this line run every render regardless of `tweened.length`,
+  // same reason the tween effect itself never returns early on it.
   if (tweened.length < 2) return null;
+
+  function updateHover(clientX: number): void {
+    const rect = figureRef.current?.getBoundingClientRect();
+    if (rect === undefined || rect.width === 0) return;
+    const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+    setHoverIndex(Math.round(ratio * (tweened.length - 1)));
+  }
 
   const { xs, ys } = scale(tweened);
   const line = xs.map((x, index) => `${index === 0 ? 'M' : 'L'}${x} ${ys[index]}`).join(' ');
@@ -177,99 +200,203 @@ export function ValueChart({
       .join(' ');
   const dashedPrefix = boundary > 0 ? pathFrom(0, boundary) : null;
   const solidSuffix = boundary < tweened.length - 1 ? pathFrom(boundary, tweened.length - 1) : null;
+  const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
+
+  // Three evenly spread x-axis ticks. `tweened.length` is always
+  // `chartPointCount` in practice, so these never collide.
+  const tickIndices = [0, Math.round((tweened.length - 1) / 2), tweened.length - 1];
+
+  const hoverPoint =
+    hoverIndex !== null
+      ? {
+          x: xs[hoverIndex]!,
+          y: ys[hoverIndex]!,
+          date: dateLabels[hoverIndex],
+          value: valueLabels[hoverIndex],
+        }
+      : null;
+  // Flip the tooltip's horizontal anchor near either edge so it never renders
+  // partly off the figure.
+  const leftPct = hoverPoint !== null ? (hoverPoint.x / viewWidth) * 100 : 0;
+  const anchor = leftPct < 20 ? 'start' : leftPct > 80 ? 'end' : 'center';
+  const anchorTranslateX = anchor === 'start' ? '0%' : anchor === 'end' ? '-100%' : '-50%';
+
+  function clearHover(): void {
+    setHoverIndex(null);
+  }
 
   return (
-    <figure className="relative">
-      <svg
-        viewBox={`0 0 ${viewWidth} ${viewHeight}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={label}
-        // One `color` drives both the line and the gradient, so a range whose
-        // direction differs cross-fades instead of snapping between green and
-        // red. The dashed bounds set their own colour and are unaffected.
-        style={{ color: direction === 'down' ? 'var(--loss)' : 'var(--gain)' }}
-        className="h-40 w-full transition-colors duration-300 sm:h-56"
+    <div className="flex flex-col gap-1">
+      <figure
+        ref={figureRef}
+        className="relative touch-none"
+        onPointerMove={(event: ReactPointerEvent<HTMLElement>) => updateHover(event.clientX)}
+        onPointerDown={(event: ReactPointerEvent<HTMLElement>) => updateHover(event.clientX)}
+        onPointerUp={clearHover}
+        onPointerCancel={clearHover}
+        onPointerLeave={clearHover}
       >
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {/* `non-scaling-stroke` keeps widths and dash patterns honest under the
-            non-uniform scaling that makes the chart fill its box. */}
-        <line
-          x1="0"
-          x2={viewWidth}
-          y1={Math.min(...ys)}
-          y2={Math.min(...ys)}
-          stroke="currentColor"
-          strokeDasharray="2 6"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-          className="text-border"
-        />
-        <line
-          x1="0"
-          x2={viewWidth}
-          y1={Math.max(...ys)}
-          y2={Math.max(...ys)}
-          stroke="currentColor"
-          strokeDasharray="2 6"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-          className="text-border"
-        />
-
-        <path d={area} fill={`url(#${gradientId})`} />
-        {/* Still-loading history: dashed, at reduced opacity, so a chart with
-            an unbackfilled left edge reads as "loading" rather than as a real
-            (and wrong) flat run at zero. */}
-        {dashedPrefix !== null && (
-          <path
-            d={dashedPrefix}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            strokeDasharray="6 5"
-            strokeOpacity="0.45"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-        {solidSuffix !== null && (
-          <path
-            d={solidSuffix}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-      </svg>
-
-      {/* Labels sit in HTML, not in the SVG: text inside a non-uniformly scaled
-          viewBox stretches. Keyed on the range so a new pair fades in rather
-          than the digits changing under the reader mid-tween. */}
-      <figcaption className="pointer-events-none absolute inset-0 flex flex-col justify-between py-1 text-right">
-        <span
-          key={`high-${seriesKey}`}
-          className="text-muted-foreground bg-background/60 animate-in fade-in ml-auto rounded px-1 text-xs tabular-nums duration-300"
+        <svg
+          viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={label}
+          // One `color` drives both the line and the gradient, so a range whose
+          // direction differs cross-fades instead of snapping between green and
+          // red. The dashed bounds set their own colour and are unaffected.
+          style={{ color: direction === 'down' ? 'var(--loss)' : 'var(--gain)' }}
+          className="h-40 w-full transition-colors duration-300 sm:h-56"
         >
-          {highLabel}
-        </span>
-        <span
-          key={`low-${seriesKey}`}
-          className="text-muted-foreground bg-background/60 animate-in fade-in ml-auto rounded px-1 text-xs tabular-nums duration-300"
-        >
-          {lowLabel}
-        </span>
-      </figcaption>
-    </figure>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {/* `non-scaling-stroke` keeps widths and dash patterns honest under the
+              non-uniform scaling that makes the chart fill its box. Three lines,
+              not two: high/low/mid is the y-scale a reader can actually place a
+              value against. */}
+          <line
+            x1="0"
+            x2={viewWidth}
+            y1={Math.min(...ys)}
+            y2={Math.min(...ys)}
+            stroke="currentColor"
+            strokeDasharray="2 6"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            className="text-border"
+          />
+          <line
+            x1="0"
+            x2={viewWidth}
+            y1={midY}
+            y2={midY}
+            stroke="currentColor"
+            strokeDasharray="2 6"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            className="text-border"
+          />
+          <line
+            x1="0"
+            x2={viewWidth}
+            y1={Math.max(...ys)}
+            y2={Math.max(...ys)}
+            stroke="currentColor"
+            strokeDasharray="2 6"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            className="text-border"
+          />
+
+          <path d={area} fill={`url(#${gradientId})`} />
+          {/* Still-loading history: dashed, at reduced opacity, so a chart with
+              an unbackfilled left edge reads as "loading" rather than as a real
+              (and wrong) flat run at zero. */}
+          {dashedPrefix !== null && (
+            <path
+              d={dashedPrefix}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeDasharray="6 5"
+              strokeOpacity="0.45"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          {solidSuffix !== null && (
+            <path
+              d={solidSuffix}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {hoverPoint !== null && (
+            <>
+              <line
+                x1={hoverPoint.x}
+                x2={hoverPoint.x}
+                y1="0"
+                y2={viewHeight}
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                vectorEffect="non-scaling-stroke"
+                className="text-muted-foreground"
+              />
+              <circle
+                cx={hoverPoint.x}
+                cy={hoverPoint.y}
+                r="4"
+                fill="currentColor"
+                stroke="var(--background)"
+                strokeWidth="1.5"
+                vectorEffect="non-scaling-stroke"
+              />
+            </>
+          )}
+        </svg>
+
+        {/* Labels sit in HTML, not in the SVG: text inside a non-uniformly scaled
+            viewBox stretches. Keyed on the range so a new pair fades in rather
+            than the digits changing under the reader mid-tween. */}
+        <figcaption className="pointer-events-none absolute inset-0 flex flex-col justify-between py-1 text-right">
+          <span
+            key={`high-${seriesKey}`}
+            className="text-muted-foreground bg-background/60 animate-in fade-in ml-auto rounded px-1 text-xs tabular-nums duration-300"
+          >
+            {highLabel}
+          </span>
+          <span
+            key={`mid-${seriesKey}`}
+            className="text-muted-foreground/70 bg-background/60 animate-in fade-in ml-auto rounded px-1 text-[10px] tabular-nums duration-300"
+          >
+            {midLabel}
+          </span>
+          <span
+            key={`low-${seriesKey}`}
+            className="text-muted-foreground bg-background/60 animate-in fade-in ml-auto rounded px-1 text-xs tabular-nums duration-300"
+          >
+            {lowLabel}
+          </span>
+        </figcaption>
+
+        {hoverPoint !== null && (
+          <div
+            className="bg-foreground text-background pointer-events-none absolute z-10 flex flex-col items-center gap-0.5 rounded-md px-2 py-1 shadow-md"
+            style={{
+              left: `${leftPct}%`,
+              top: `${(hoverPoint.y / viewHeight) * 100}%`,
+              transform: `translate(${anchorTranslateX}, calc(-100% - 10px))`,
+            }}
+          >
+            <span className="text-xs font-medium tabular-nums">{hoverPoint.value}</span>
+            <span className="text-background/70 text-[10px] tabular-nums">{hoverPoint.date}</span>
+          </div>
+        )}
+      </figure>
+
+      {/* The x-scale: first, middle and last plotted date. `aria-hidden` — the
+          same dates are already implied by the range tabs below, this is a
+          sighted-reader convenience, not new information. */}
+      <div
+        className="text-muted-foreground flex justify-between px-0.5 text-[10px] tabular-nums"
+        aria-hidden="true"
+      >
+        {tickIndices.map((index, position) => (
+          <span key={position}>{dateLabels[index]}</span>
+        ))}
+      </div>
+    </div>
   );
 }
