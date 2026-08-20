@@ -101,3 +101,47 @@ export const fxRates = pgTable(
 
 export type FxRateRow = typeof fxRates.$inferSelect;
 export type NewFxRateRow = typeof fxRates.$inferInsert;
+
+/**
+ * What we have already asked a provider for, per instrument per source — not
+ * what we hold. `min(date)` in `instrument_prices` can never tell the
+ * difference between "nobody has asked for anything before this" and "we
+ * asked, and the provider has nothing earlier" (a newly listed instrument, a
+ * delisting). Without this table every render of a MAX-range chart would
+ * re-request the same unanswerable history from Yahoo forever — the one
+ * mistake in this feature that would actually risk a ban (CU-869ej7zk8).
+ *
+ * `coveredFrom` only ever widens: `markCovered` takes the `LEAST` of the
+ * existing value and the new one, so a narrower later call can never shrink
+ * what an earlier, wider backfill already established.
+ */
+export const instrumentPriceCoverage = pgTable(
+  'instrument_price_coverage',
+  {
+    instrumentId: uuid('instrument_id')
+      .notNull()
+      .references(() => instruments.id, { onDelete: 'cascade' }),
+    source: providerNameEnum('source').notNull(),
+    coveredFrom: date('covered_from', { mode: 'string' }).notNull(),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.instrumentId, table.source] })],
+);
+
+export type InstrumentPriceCoverageRow = typeof instrumentPriceCoverage.$inferSelect;
+export type NewInstrumentPriceCoverageRow = typeof instrumentPriceCoverage.$inferInsert;
+
+/** Same shape as `instrumentPriceCoverage`, for the NBP archive backfill. */
+export const fxRateCoverage = pgTable(
+  'fx_rate_coverage',
+  {
+    currency: text('currency').notNull(),
+    source: providerNameEnum('source').notNull(),
+    coveredFrom: date('covered_from', { mode: 'string' }).notNull(),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.currency, table.source] })],
+);
+
+export type FxRateCoverageRow = typeof fxRateCoverage.$inferSelect;
+export type NewFxRateCoverageRow = typeof fxRateCoverage.$inferInsert;

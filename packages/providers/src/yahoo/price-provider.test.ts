@@ -110,4 +110,64 @@ describe('yahooPriceProvider', () => {
 
     expect(bars[0]!.close.amount.toFixed(2)).toBe('155.68');
   });
+
+  it('rejects a response that starts long after `from`, with no firstTradeDate to explain it', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/Warsaw', priceHint: 2, firstTradeDate: null },
+      quotes: [{ date: new Date('2026-07-21T14:00:00Z'), close: 484 }],
+    } as never);
+
+    await expect(
+      yahooPriceProvider.fetchDailyBars(ref, Temporal.PlainDate.from('2022-10-31')),
+    ).rejects.toThrow(/truncated/);
+  });
+
+  it('accepts a response starting after `from` when firstTradeDate says the instrument is that new', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: {
+        exchangeTimezoneName: 'Europe/Warsaw',
+        priceHint: 2,
+        firstTradeDate: new Date('2026-07-20T08:00:00Z'),
+      },
+      quotes: [{ date: new Date('2026-07-21T14:00:00Z'), close: 484 }],
+    } as never);
+
+    const bars = await yahooPriceProvider.fetchDailyBars(
+      ref,
+      Temporal.PlainDate.from('2022-10-31'),
+    );
+
+    expect(bars).toHaveLength(1);
+  });
+
+  it('rejects a response with a gap in the middle wider than a real market calendar produces', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/Warsaw', priceHint: 2, firstTradeDate: null },
+      quotes: [
+        { date: new Date('2025-07-07T14:00:00Z'), close: 400 },
+        { date: new Date('2026-07-20T14:00:00Z'), close: 484 },
+      ],
+    } as never);
+
+    await expect(
+      yahooPriceProvider.fetchDailyBars(ref, Temporal.PlainDate.from('2025-07-01')),
+    ).rejects.toThrow(/gapped/);
+  });
+
+  it('tolerates an ordinary long-weekend-plus-holiday gap', async () => {
+    vi.mocked(yahooFinance.chart).mockResolvedValue({
+      meta: { exchangeTimezoneName: 'Europe/Warsaw', priceHint: 2, firstTradeDate: null },
+      quotes: [
+        { date: new Date('2025-12-23T14:00:00Z'), close: 400 },
+        { date: new Date('2026-01-05T14:00:00Z'), close: 405 },
+      ],
+    } as never);
+
+    const bars = await yahooPriceProvider.fetchDailyBars(
+      ref,
+      Temporal.PlainDate.from('2025-12-20'),
+    );
+
+    expect(bars).toHaveLength(2);
+  });
 });

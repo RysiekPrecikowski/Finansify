@@ -2,7 +2,9 @@ import {
   FractionalBondError,
   interestTableKeyFor,
   makeRefreshIndexSeries,
+  type Money,
   parseSeriesCode,
+  Temporal,
   valueBondPosition,
   type BondInterestTable,
   type BondSeriesCode,
@@ -12,6 +14,7 @@ import {
   type PublishedTables,
   type PurchaseDayKey,
 } from '@finansify/core';
+import Decimal from 'decimal.js';
 
 import {
   clock,
@@ -225,4 +228,107 @@ export async function bondPriceLookups(
   }
 
   return lookups;
+}
+
+/**
+ * A bond's per-unit value on every one of `dates`, for the hero chart
+ * (CU-869ej7zk8). A sibling to `bondPriceLookups` rather than a
+ * generalization of it: that function is exercised on `/portfolio` and the
+ * dashboard today, and reshaping it to serve both a single `asOf` and a whole
+ * date range risked the one thing worth protecting here — it stays untouched,
+ * and this reuses only its two genuinely date-independent helpers
+ * (`storedTablesFor`, `refreshTablesFor`).
+ *
+ * **Known limitation, stated rather than hidden (rule 7 still holds — a gap
+ * is never filled with a guess):** a lot's `remainingQuantity`/`lots` on
+ * `InstrumentPosition` reflects *today's* open lots only — a lot fully
+ * redeemed before "today" has already been consumed out of that list by
+ * `buildPositions`' FIFO matching, so its historical period cannot be
+ * reconstructed from what `listPositions()` hands back. A bond position that
+ * has since closed entirely is therefore invisible to this function (it is
+ * simply absent from the caller's `positions`, same as the `open`/`closed`
+ * split `listPositions` already makes) and a lot that was itself redeemed
+ * while others in the same position stayed open contributes nothing to the
+ * per-unit average for the period before its redemption. Both degrade to
+ * `unpriced`/`partial` in `portfolioValueSeries`, never to a fabricated
+ * number — the chart shows a gap, not a wrong line.
+ */
+export async function bondUnitValuesFor(
+  positions: readonly InstrumentPosition[],
+  dates: readonly Temporal.PlainDate[],
+  options: { readonly refresh: boolean },
+): Promise<ReadonlyMap<InstrumentId, ReadonlyMap<string, Money>>> {
+  const bonds = positions.filter((position) => position.instrument.kind === 'bond');
+  const result = new Map<InstrumentId, Map<string, Money>>();
+  if (bonds.length === 0 || dates.length === 0) return result;
+
+  const today = dates.at(-1)!;
+  const resolver = getBondTermsResolver();
+  const repository = getIndexObservations();
+
+  if (options.refresh) {
+    const refresh = makeRefreshIndexSeries({
+      repository,
+      providers: [getReferenceRateProvider(), getCpiProvider()],
+      today: () => today,
+    });
+    await Promise.all([refresh('nbp_reference'), refresh('pl_cpi_yoy')]);
+  }
+
+  const [referenceRates, cpi] = await Promise.all([
+    repository.history('nbp_reference'),
+    repository.history('pl_cpi_yoy'),
+  ]);
+  const observations = [...referenceRates, ...cpi];
+
+  for (const position of bonds) {
+    const lots = position.lines.flatMap((line) => line.lots);
+    if (lots.length === 0) continue;
+
+    try {
+      const code = parseSeriesCode(position.instrument.symbol).code;
+      const dayKeys = new Set(lots.map((lot) => interestTableKeyFor(lot.openedOn)));
+
+      const resolvedLots = await Promise.all(
+        lots.map(async (lot) => ({ lot, terms: await resolver.resolve(code, lot.openedOn) })),
+      );
+      if (resolvedLots.some((entry) => entry.terms === null)) continue;
+      const holdings = resolvedLots.map((entry) => ({ terms: entry.terms!, lot: entry.lot }));
+
+      let tables = await storedTablesFor(code, dayKeys);
+      if (options.refresh) {
+        const probe = valueBondPosition(holdings, today, observations, tables);
+        if (probe.source === 'computed') {
+          tables = await refreshTablesFor(code, dayKeys, tables);
+        }
+      }
+
+      const byDate = new Map<string, Money>();
+      for (const date of dates) {
+        // Only lots already purchased by this date contribute — the same
+        // "only what was actually held" rule `portfolioValueSeries` applies
+        // to quantity, applied here to which lots may value it.
+        const held = holdings.filter(
+          (entry) => Temporal.PlainDate.compare(entry.lot.openedOn, date) <= 0,
+        );
+        const quantity = held.reduce(
+          (total, entry) => total.plus(entry.lot.remainingQuantity),
+          new Decimal(0),
+        );
+        if (held.length === 0 || !quantity.greaterThan(0)) continue;
+
+        const valued = valueBondPosition(held, date, observations, tables);
+        byDate.set(date.toString(), valued.marketValue.dividedBy(quantity));
+      }
+
+      if (byDate.size > 0) result.set(position.instrument.id, byDate);
+    } catch (error) {
+      // Same stance as `bondPriceLookups`: a series this function cannot
+      // value degrades to absent (→ `unpriced` downstream), never thrown —
+      // one bad instrument must not blank the whole chart.
+      console.error(`Could not value bond history for ${position.instrument.symbol}`, error);
+    }
+  }
+
+  return result;
 }

@@ -11,18 +11,22 @@ import {
   type PriceBar,
   type ProviderName,
   type ResolvedSymbol,
+  type SeriesGrain,
   type StoredBar,
   type StoredFxRate,
   type SymbolRepository,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
+import { type PgColumn } from 'drizzle-orm/pg-core';
 
 import { type Database } from './client';
 import { instruments } from './schema/instruments';
 import {
+  fxRateCoverage,
   fxRates,
   instrumentIdentifiers,
+  instrumentPriceCoverage,
   instrumentPrices,
   type FxRateRow,
   type InstrumentPriceRow,
@@ -60,6 +64,27 @@ function toStoredFxRate(row: FxRateRow): StoredFxRate {
     source: row.source,
     fetchedAt: toInstant(row.fetchedAt),
   };
+}
+
+/**
+ * `date_trunc`'s bucket boundary for `historyFor`'s `week`/`month` grains —
+ * never called for `day`, which needs no bucketing at all.
+ *
+ * `grain` is interpolated as raw SQL text, not bound as a query parameter —
+ * deliberately, and only because the closed `SeriesGrain` union makes it safe
+ * (never raw user input reaching this far unvalidated). Binding it as a normal
+ * parameter instead produces two *different* placeholders (`$1`, `$18`) for
+ * the two call sites below — one inside `selectDistinctOn`'s expression list,
+ * one inside `.orderBy(...)` — even though both carry the same value at
+ * runtime. Postgres's `DISTINCT ON` requires its expressions to be the exact
+ * same parse-tree nodes as the leading `ORDER BY` expressions, and two
+ * distinct `Param` nodes fail that match regardless of what they're bound to:
+ * `SELECT DISTINCT ON expressions must match initial ORDER BY expressions`.
+ * Raw text makes both occurrences literally identical SQL, which is what the
+ * match actually requires. Confirmed against a live Neon branch.
+ */
+function bucketExpr(grain: 'week' | 'month', column: PgColumn) {
+  return sql`date_trunc(${sql.raw(`'${grain}'`)}, ${column}::date)`;
 }
 
 export function marketPriceRepository(db: Database): MarketPriceRepository {
@@ -104,6 +129,127 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
             currency: sql`excluded.currency`,
             source: sql`excluded.source`,
             fetchedAt: sql`excluded.fetched_at`,
+          },
+        });
+    },
+
+    async historyFor(
+      ids: readonly InstrumentId[],
+      from: Temporal.PlainDate,
+      to: Temporal.PlainDate,
+      grain: SeriesGrain,
+    ) {
+      if (ids.length === 0) return new Map();
+      const idList = [...ids];
+
+      // The left-edge anchor: the last bar strictly before `from`, one per
+      // instrument, so a caller can carry a price into day one instead of
+      // showing a gap there.
+      const anchorRows = await db
+        .selectDistinctOn([instrumentPrices.instrumentId])
+        .from(instrumentPrices)
+        .where(
+          and(
+            inArray(instrumentPrices.instrumentId, idList),
+            lt(instrumentPrices.date, from.toString()),
+          ),
+        )
+        .orderBy(instrumentPrices.instrumentId, desc(instrumentPrices.date));
+
+      const inRange = and(
+        inArray(instrumentPrices.instrumentId, idList),
+        gte(instrumentPrices.date, from.toString()),
+        lte(instrumentPrices.date, to.toString()),
+      );
+
+      // `day` needs no bucketing; `week`/`month` keep the last close in each
+      // `date_trunc` bucket via `DISTINCT ON`, re-sorted ascending below —
+      // `ORDER BY ... DESC` is what `DISTINCT ON` needs to pick the *last*
+      // row per bucket, not the display order.
+      const rangeRows =
+        grain === 'day'
+          ? await db
+              .select()
+              .from(instrumentPrices)
+              .where(inRange)
+              .orderBy(instrumentPrices.instrumentId, asc(instrumentPrices.date))
+          : await db
+              .selectDistinctOn([
+                instrumentPrices.instrumentId,
+                bucketExpr(grain, instrumentPrices.date),
+              ])
+              .from(instrumentPrices)
+              .where(inRange)
+              .orderBy(
+                instrumentPrices.instrumentId,
+                bucketExpr(grain, instrumentPrices.date),
+                desc(instrumentPrices.date),
+              );
+
+      const byInstrument = new Map<InstrumentId, StoredBar[]>();
+      for (const row of anchorRows) {
+        byInstrument.set(toInstrumentId(row.instrumentId), [toStoredBar(row)]);
+      }
+      for (const row of rangeRows) {
+        const id = toInstrumentId(row.instrumentId);
+        const bars = byInstrument.get(id) ?? [];
+        bars.push(toStoredBar(row));
+        byInstrument.set(id, bars);
+      }
+
+      const result = new Map<InstrumentId, readonly StoredBar[]>();
+      for (const [id, bars] of byInstrument) {
+        result.set(
+          id,
+          bars.sort((a, b) => Temporal.PlainDate.compare(a.date, b.date)),
+        );
+      }
+      return result;
+    },
+
+    async coverageFor(ids: readonly InstrumentId[], source: ProviderName) {
+      if (ids.length === 0) return new Map();
+      const rows = await db
+        .select()
+        .from(instrumentPriceCoverage)
+        .where(
+          and(
+            inArray(instrumentPriceCoverage.instrumentId, [...ids]),
+            eq(instrumentPriceCoverage.source, source),
+          ),
+        );
+
+      const result = new Map<InstrumentId, Temporal.PlainDate>();
+      for (const row of rows) {
+        result.set(toInstrumentId(row.instrumentId), Temporal.PlainDate.from(row.coveredFrom));
+      }
+      return result;
+    },
+
+    async markCovered(
+      ids: readonly InstrumentId[],
+      source: ProviderName,
+      from: Temporal.PlainDate,
+    ) {
+      if (ids.length === 0) return;
+      const checkedAt = new Date();
+      await db
+        .insert(instrumentPriceCoverage)
+        .values(
+          ids.map((instrumentId) => ({
+            instrumentId,
+            source,
+            coveredFrom: from.toString(),
+            checkedAt,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [instrumentPriceCoverage.instrumentId, instrumentPriceCoverage.source],
+          set: {
+            // Widens only: a narrower later call must never shrink coverage
+            // an earlier, wider backfill already established.
+            coveredFrom: sql`LEAST(${instrumentPriceCoverage.coveredFrom}, excluded.covered_from)`,
+            checkedAt: sql`excluded.checked_at`,
           },
         });
     },
@@ -242,6 +388,111 @@ export function fxRateRepository(db: Database): FxRateRepository {
             mid: sql`excluded.mid`,
             source: sql`excluded.source`,
             fetchedAt: sql`excluded.fetched_at`,
+          },
+        });
+    },
+
+    async historyFor(
+      currencies: readonly Currency[],
+      from: Temporal.PlainDate,
+      to: Temporal.PlainDate,
+      grain: SeriesGrain,
+      source: ProviderName,
+    ) {
+      if (currencies.length === 0) return new Map();
+      const codeList = [...currencies];
+
+      const anchorRows = await db
+        .selectDistinctOn([fxRates.currency])
+        .from(fxRates)
+        .where(
+          and(
+            inArray(fxRates.currency, codeList),
+            eq(fxRates.source, source),
+            lt(fxRates.date, from.toString()),
+          ),
+        )
+        .orderBy(fxRates.currency, desc(fxRates.date));
+
+      const inRange = and(
+        inArray(fxRates.currency, codeList),
+        eq(fxRates.source, source),
+        gte(fxRates.date, from.toString()),
+        lte(fxRates.date, to.toString()),
+      );
+
+      const rangeRows =
+        grain === 'day'
+          ? await db
+              .select()
+              .from(fxRates)
+              .where(inRange)
+              .orderBy(fxRates.currency, asc(fxRates.date))
+          : await db
+              .selectDistinctOn([fxRates.currency, bucketExpr(grain, fxRates.date)])
+              .from(fxRates)
+              .where(inRange)
+              .orderBy(fxRates.currency, bucketExpr(grain, fxRates.date), desc(fxRates.date));
+
+      const byCurrency = new Map<Currency, StoredFxRate[]>();
+      for (const row of anchorRows) {
+        byCurrency.set(toCurrency(row.currency), [toStoredFxRate(row)]);
+      }
+      for (const row of rangeRows) {
+        const code = toCurrency(row.currency);
+        const series = byCurrency.get(code) ?? [];
+        series.push(toStoredFxRate(row));
+        byCurrency.set(code, series);
+      }
+
+      const result = new Map<Currency, readonly StoredFxRate[]>();
+      for (const [code, series] of byCurrency) {
+        result.set(
+          code,
+          series.sort((a, b) => Temporal.PlainDate.compare(a.date, b.date)),
+        );
+      }
+      return result;
+    },
+
+    async coverageFor(currencies: readonly Currency[], source: ProviderName) {
+      if (currencies.length === 0) return new Map();
+      const rows = await db
+        .select()
+        .from(fxRateCoverage)
+        .where(
+          and(inArray(fxRateCoverage.currency, [...currencies]), eq(fxRateCoverage.source, source)),
+        );
+
+      const result = new Map<Currency, Temporal.PlainDate>();
+      for (const row of rows) {
+        result.set(toCurrency(row.currency), Temporal.PlainDate.from(row.coveredFrom));
+      }
+      return result;
+    },
+
+    async markCovered(
+      currencies: readonly Currency[],
+      source: ProviderName,
+      from: Temporal.PlainDate,
+    ) {
+      if (currencies.length === 0) return;
+      const checkedAt = new Date();
+      await db
+        .insert(fxRateCoverage)
+        .values(
+          currencies.map((code) => ({
+            currency: code,
+            source,
+            coveredFrom: from.toString(),
+            checkedAt,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [fxRateCoverage.currency, fxRateCoverage.source],
+          set: {
+            coveredFrom: sql`LEAST(${fxRateCoverage.coveredFrom}, excluded.covered_from)`,
+            checkedAt: sql`excluded.checked_at`,
           },
         });
     },

@@ -7,6 +7,14 @@ import { type Temporal } from '../time';
 export * from './vocabulary';
 import { type ProviderName } from './vocabulary';
 
+/**
+ * How closely a historical series is sampled — a request parameter (chart
+ * range picks a default, a caller can override it), not a stored property of
+ * anything. `day` is exact; `week`/`month` bucket the underlying `day` rows so
+ * a MAX-range chart stays in the hundreds of points rather than thousands.
+ */
+export type SeriesGrain = 'day' | 'week' | 'month';
+
 /** One trading day's closing price for one instrument, from one provider. */
 export interface PriceBar {
   readonly instrumentId: InstrumentId;

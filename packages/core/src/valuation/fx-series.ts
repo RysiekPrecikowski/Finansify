@@ -218,3 +218,89 @@ export function makeRefreshFxSeries(deps: {
     return { refreshed, error: null };
   };
 }
+
+/**
+ * Backfills the NBP archive a chart needs, once per currency for as far back
+ * as it is ever asked — guarded by `FxRateRepository`'s coverage table, the
+ * same ban-avoidance mechanism `get-prices.ts`'s `makeBackfillPriceHistory`
+ * uses (CU-869ej7zk8). `provider.fetchSeriesTo` already chunks NBP's 367-day
+ * limit internally, so a five-year backfill for one currency is five requests
+ * total, once.
+ *
+ * Unlike `makeRefreshFxSeries`, which asks "is the stored window stale",
+ * this asks "have we ever asked this source for this window at all" — the
+ * two questions diverge the moment a currency's history has been backfilled
+ * once: `isFxSeriesDue` would keep saying yes for a range NBP has nothing to
+ * publish in (a currency with sparse early history), and this must not
+ * re-request it. Never called from the render path.
+ *
+ * One currency's failure does not cost every other currency its turn: this
+ * loop tolerates and continues past it, the same way `makeBackfillPriceHistory`
+ * tolerates one instrument's failure — a portfolio backfilling ten currencies
+ * must not have nine good ones held hostage by a tenth that keeps 404ing or
+ * hitting a broken constraint, since `readValueSeries`' `pending` (and the
+ * client's poll loop) key off *every* currency's own coverage row, not off
+ * this report. Only two consecutive failures break early, the same circuit
+ * breaker `makeBackfillPriceHistory` and `makeRefreshPrices` both use — a
+ * provider that is genuinely down should not be hammered once per currency.
+ *
+ * Requests a week before `from`, not `from` itself — the same left-edge
+ * anchor buffer `get-prices.ts`'s `makeBackfillPriceHistory` uses, for the
+ * same reason: `historyFor`'s anchor row needs a rate strictly before `from`
+ * to carry forward, and a `from` landing on a day table A didn't publish
+ * (any non-business day) would otherwise leave day one permanently
+ * `partial` once `markCovered` claims it. `coveredFrom` is still recorded at
+ * the real `from`.
+ */
+const ANCHOR_BUFFER_DAYS = 7;
+
+export function makeBackfillFxHistory(deps: {
+  readonly fx: FxRateRepository;
+  readonly provider: FxRateProvider;
+}) {
+  const { fx, provider } = deps;
+
+  return async function backfillFxHistory(
+    currencies: readonly Currency[],
+    from: Temporal.PlainDate,
+    to: Temporal.PlainDate,
+  ): Promise<FxSeriesRefreshReport> {
+    const wanted = [...new Set(currencies)].filter((code) => code !== PLN);
+    if (wanted.length === 0) return { refreshed: [], error: null };
+
+    const coverage = await fx.coverageFor(wanted, provider.name);
+    const due = wanted.filter((code) => {
+      const coveredFrom = coverage.get(code);
+      return coveredFrom === undefined || Temporal.PlainDate.compare(coveredFrom, from) > 0;
+    });
+    if (due.length === 0) return { refreshed: [], error: null };
+
+    const refreshed: Currency[] = [];
+    let error: string | null = null;
+    let consecutiveFailures = 0;
+
+    for (const code of due) {
+      if (consecutiveFailures >= 2) break;
+
+      try {
+        const rows = await provider.fetchSeriesTo(
+          code,
+          from.subtract({ days: ANCHOR_BUFFER_DAYS }),
+          to,
+        );
+        if (rows.length > 0) await fx.save(rows, provider.name);
+        // Widened even on an empty response — see the parity note in
+        // `makeBackfillPriceHistory`. Only a thrown request leaves coverage
+        // unwritten.
+        await fx.markCovered([code], provider.name, from);
+        refreshed.push(code);
+        consecutiveFailures = 0;
+      } catch (cause) {
+        error = cause instanceof Error ? cause.message : String(cause);
+        consecutiveFailures += 1;
+      }
+    }
+
+    return { refreshed, error };
+  };
+}
