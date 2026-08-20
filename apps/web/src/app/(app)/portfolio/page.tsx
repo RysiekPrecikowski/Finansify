@@ -12,6 +12,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getDisplaySettings, getFxPreference } from '@/lib/display/server';
 import { formatMoney } from '@/lib/format';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
+import { loadPositions } from '@/lib/positions';
 import { getInstruments, scopedLedgerFor } from '@/server/container';
 
 /** Shown while `<OpenPositions>` reads storage and, if due, refreshes it — never a spinner over the whole page. */
@@ -40,8 +41,8 @@ export default async function PortfolioPage() {
   const ledger = scopedLedgerFor(user.id);
   const listPositions = makeListPositions({ ledger, instruments: getInstruments() });
 
-  const [view, accounts, dictionary, locale, display, fxPreference] = await Promise.all([
-    listPositions(),
+  const [positions, accounts, dictionary, locale, display, fxPreference] = await Promise.all([
+    loadPositions(listPositions),
     ledger.listAccounts(),
     getDictionary(),
     getLocale(),
@@ -50,6 +51,16 @@ export default async function PortfolioPage() {
   ]);
 
   const strings = dictionary.portfolio;
+
+  if (!positions.ok) {
+    return (
+      <div className="flex flex-col gap-4">
+        <h1 className="text-lg font-semibold">{strings.title}</h1>
+        <p className="text-muted-foreground px-1 py-8 text-sm">{strings.mixedCurrencyError}</p>
+      </div>
+    );
+  }
+  const view = positions.view;
 
   // `rowHref` on `<DataList>` only wires the mobile card link — the desktop
   // `<table>` has no click-through of its own, same as `/transactions`, so an

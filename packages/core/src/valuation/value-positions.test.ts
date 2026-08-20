@@ -212,6 +212,28 @@ describe('valuePositions', () => {
     expect(result.totalIsComplete).toBe(true);
   });
 
+  it('reports unrealized in the position basis currency, EUR, on a PLN account (ADR 0021)', () => {
+    // A settlement currency independent of the holding account is exactly
+    // what ADR 0021 makes possible — no fxRate anywhere in this fixture.
+    const line = makeLine({
+      account: makeAccount({ currency: PLN }),
+      quantity: new Decimal('10'),
+      costBasis: Money.of('400', EUR),
+    });
+    const position = makePosition([line], { instrument: makeInstrument({ currency: EUR }) });
+
+    const prices = new Map([[position.instrument.id, freshPrice(Money.of('50', EUR))]]);
+    const rates = new Map<typeof USD, Decimal>(); // no rate needed — EUR basis, EUR price
+
+    const result = valuePositions([position], prices, rates, NATIVE_IN_PLN);
+
+    const [valued] = result.positions;
+    const [valuedLine] = valued!.lines;
+    // market value = 10 * 50 EUR = 500 EUR; unrealized = 500 - 400 = 100 EUR
+    expect(valuedLine!.unrealized?.currency).toBe(EUR);
+    expect(valuedLine!.unrealized?.equals(Money.of('100', EUR))).toBe(true);
+  });
+
   it('sums the total across multiple valuable positions', () => {
     const instrumentA = makeInstrument({
       id: instrumentId('44444444-4444-4444-8444-444444444444'),

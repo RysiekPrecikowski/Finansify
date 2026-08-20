@@ -46,7 +46,14 @@ export interface Account {
   readonly name: string;
   readonly broker: string;
   readonly wrapper: Wrapper;
-  /** The currency of this account's cash balance — not the instruments'. */
+  /**
+   * The account's base/reporting currency. It does not constrain what the
+   * account may hold: `buildCashBalances` already tracks cash per
+   * `(account, currency)`, and per ADR 0021 a position's cost basis is held
+   * in whatever currency it actually settled in, not this one — an account
+   * such as a BOŚ IKZE can hold cash and positions in several currencies at
+   * once.
+   */
   readonly currency: Currency;
   readonly openedAt: Temporal.PlainDate;
   readonly closedAt: Temporal.PlainDate | null;
@@ -75,8 +82,11 @@ export interface Instrument {
  * how trade dates acquire a timezone bug (ADR 0007).
  *
  * Every monetary field carries `currency`, the **transaction** currency, which
- * is not necessarily the account's. When they differ, `fxRate` holds the rate
- * as actually executed — never reconstructed later (rule 6, ADR 0006).
+ * is not necessarily the account's. Where a conversion actually took place,
+ * `fxRate` holds the rate as executed — never reconstructed later (rule 6,
+ * ADR 0006) — but a currency differing from the account's no longer implies a
+ * conversion happened at this transaction (ADR 0021): the position engine
+ * does not read `fxRate` to convert anything.
  */
 export interface Transaction {
   readonly id: TransactionId;
@@ -258,33 +268,32 @@ export const transactionInputSchema = z
 export type TransactionInput = z.infer<typeof transactionInputSchema>;
 
 /**
- * The account's currency is not on the transaction, so rule 6 cannot be a plain
- * schema refinement — it needs to know what the money is being converted *to*.
- * Building the schema against a known account makes the requirement structural
- * at the one place a transaction is created.
+ * Rule 6 / ADR 0006: wherever an executed rate is recorded, its provenance
+ * must be too — a rate with no source, or a source with no rate, records
+ * nothing usable for tax reporting. That is a "both or neither" check on
+ * `fxRate` / `fxRateSource` alone; per ADR 0021 a currency differing from the
+ * account's no longer implies a conversion happened at this transaction, so
+ * this refinement no longer compares `input.currency` against
+ * `accountCurrency` at all.
  *
- * A broker converts at its own spread, so there is no defensible rate to
- * default to here. Refusing the row is the honest answer; inventing a rate
- * would silently corrupt cost basis and realized P&L forever.
+ * `accountCurrency` stays a parameter deliberately: it is the seam a future
+ * BOŚ conversion-on-transaction rule would use, even though nothing in this
+ * function's body reads it today.
  */
-export function transactionInputSchemaFor(accountCurrency: Currency) {
+export function transactionInputSchemaFor(_accountCurrency: Currency) {
   return transactionInputSchema.superRefine((input, context) => {
-    const sameCurrency = input.currency.toUpperCase() === accountCurrency;
-
-    if (sameCurrency) return;
-
-    if (input.fxRate === null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['fxRate'],
-        message: `A transaction in ${input.currency} on a ${accountCurrency} account needs the rate as executed`,
-      });
-    }
-    if (input.fxRateSource === null) {
+    if (input.fxRate !== null && input.fxRateSource === null) {
       context.addIssue({
         code: 'custom',
         path: ['fxRateSource'],
         message: 'Record where the executed rate came from',
+      });
+    }
+    if (input.fxRateSource !== null && input.fxRate === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['fxRate'],
+        message: 'A recorded rate source needs the rate itself',
       });
     }
   });

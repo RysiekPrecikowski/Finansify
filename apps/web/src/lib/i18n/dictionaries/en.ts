@@ -79,7 +79,7 @@ export const en: Dictionary = {
     name: 'Name',
     broker: 'Broker',
     wrapper: 'Account type',
-    currency: 'Currency',
+    currency: 'Base currency',
     openedAt: 'Opened',
     save: 'Save',
     saving: 'Saving…',
@@ -118,7 +118,7 @@ export const en: Dictionary = {
     fxRate: 'Executed rate',
     fxRateSource: 'Rate source',
     fxRequired:
-      'the transaction currency differs from the account currency, so the rate must be the one actually executed. It is never reconstructed later — a broker converts at its own spread.',
+      "the transaction currency differs from the account's. If the broker actually converted this transaction, record the rate actually executed — it is never reconstructed later, a broker converts at its own spread. If the account simply holds this currency directly, leave it blank.",
     tradeDate: 'Trade date',
     settleDate: 'Settle date',
     note: 'Note',
@@ -176,6 +176,11 @@ export const en: Dictionary = {
       'Some positions have no price or exchange rate yet — this total is partial.',
     unavailableNeverFetched: 'price loading…',
     unavailableUnmapped: 'not mapped to a provider yet',
+    // ADR 0021: one position can't hold lots in two currencies on the same
+    // account — the engine refuses to guess a rate. Fix: edit or delete the
+    // transaction that introduced the second currency.
+    mixedCurrencyError:
+      'This position has transactions in two different currencies on one account, so its cost basis can’t be computed without guessing a rate. Fix or delete one of the transactions on the Transactions page so they’re all in the same currency.',
     closed: {
       title: 'Closed positions',
     },

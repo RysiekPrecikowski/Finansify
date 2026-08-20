@@ -310,12 +310,13 @@ describe('makeAcceptImportRows', () => {
   it('leaves an invalid row pending without aborting the rest of the batch', async () => {
     const { ledger, imports, account } = await setup();
     const { batch, rows } = await seedBatch(imports, account, [
-      // Currency differs from the account with no fxRate — refused by validation.
+      // An fxRate with no fxRateSource records nothing (rule 6 / ADR 0006) —
+      // refused by validation, independent of the account's currency.
       cashRow({
         externalId: 'row-1',
         currency: currency('USD'),
         grossAmount: Money.of('1000', currency('USD')),
-        fxRate: null,
+        fxRate: new Decimal('4.05'),
         fxRateSource: null,
       }),
       cashRow({ externalId: 'row-2', grossAmount: Money.of('2000', currency('PLN')) }),

@@ -80,7 +80,7 @@ export const pl = {
     name: 'Nazwa',
     broker: 'Broker',
     wrapper: 'Typ rachunku',
-    currency: 'Waluta',
+    currency: 'Waluta bazowa',
     openedAt: 'Data otwarcia',
     save: 'Zapisz',
     saving: 'Zapisywanie…',
@@ -122,7 +122,7 @@ export const pl = {
     fxRate: 'Kurs wykonania',
     fxRateSource: 'Źródło kursu',
     fxRequired:
-      'waluta transakcji różni się od waluty konta, więc kurs musi być ten faktycznie wykonany. Nie odtwarzamy go później — broker przewalutowuje po własnym spreadzie.',
+      'waluta transakcji różni się od waluty konta. Jeśli broker faktycznie przewalutował tę transakcję, podaj kurs faktycznie wykonany — nie odtwarzamy go później, broker przewalutowuje po własnym spreadzie. Jeśli konto po prostu trzyma tę walutę bezpośrednio, zostaw puste.',
     tradeDate: 'Data transakcji',
     settleDate: 'Data rozliczenia',
     note: 'Notatka',
@@ -216,6 +216,11 @@ export const pl = {
       'Część pozycji nie ma jeszcze ceny lub kursu wymiany — ta suma jest niepełna.',
     unavailableNeverFetched: 'cena się ładuje…',
     unavailableUnmapped: 'jeszcze niezmapowane do dostawcy',
+    // ADR 0021: jedna pozycja nie może mieć lotów w dwóch walutach na tym
+    // samym koncie — silnik odmawia zgadywania kursu. Do naprawy: usuń lub
+    // popraw transakcję, która wprowadziła drugą walutę.
+    mixedCurrencyError:
+      'Ta pozycja ma transakcje w dwóch różnych walutach na jednym koncie, więc nie da się policzyć jej kosztu nabycia bez zgadywania kursu. Popraw lub usuń jedną z transakcji na liście Transakcje, żeby wszystkie były w tej samej walucie.',
     closed: {
       title: 'Zamknięte pozycje',
     },

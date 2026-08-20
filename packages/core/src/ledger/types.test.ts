@@ -127,16 +127,15 @@ describe('transactionInputSchemaFor', () => {
     expect(result.success).toBe(true);
   });
 
-  // Rule 6 / ADR 0006: a broker converts at its own spread, so the rate must be
-  // the one actually executed. There is no defensible default to fall back to,
-  // which is exactly why this has to be a hard refusal, not a soft one.
-  it('refuses a foreign-currency transaction with no executed rate', () => {
+  // ADR 0021: a currency differing from the account's no longer implies a
+  // conversion happened at this transaction — BOŚ settles a EUR buy out of a
+  // EUR sub-balance funded by an earlier, separate exchange. `accountCurrency`
+  // is kept as a parameter (the seam for a future BOŚ conversion-on-transaction
+  // rule) but the body no longer reads it.
+  it('accepts a foreign-currency transaction with no rate — a currency difference no longer implies a conversion', () => {
     const result = transactionInputSchemaFor(PLN).safeParse({ ...baseInput, currency: 'USD' });
 
-    expect(result.success).toBe(false);
-    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
-    expect(paths).toContain('fxRate');
-    expect(paths).toContain('fxRateSource');
+    expect(result.success).toBe(true);
   });
 
   it('accepts a foreign-currency transaction once both the rate and its source are given', () => {
@@ -150,10 +149,33 @@ describe('transactionInputSchemaFor', () => {
     expect(result.success).toBe(true);
   });
 
-  it('is case-insensitive when comparing the transaction currency to the account currency', () => {
+  it('is case-insensitive parsing the currency, independent of any account match', () => {
     const result = transactionInputSchemaFor(USD).safeParse({ ...baseInput, currency: 'usd' });
 
     expect(result.success).toBe(true);
+  });
+
+  // Rule 6 / ADR 0006: wherever a rate IS recorded, its provenance must be too
+  // — a rate with no source, or a source with no rate, records nothing. This
+  // check no longer depends on whether the transaction currency matches the
+  // account's.
+  it('rejects a rate with no source, on an account-currency transaction', () => {
+    const result = transactionInputSchemaFor(PLN).safeParse({ ...baseInput, fxRate: '4.05' });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('fxRateSource');
+  });
+
+  it('rejects a source with no rate, on an account-currency transaction', () => {
+    const result = transactionInputSchemaFor(PLN).safeParse({
+      ...baseInput,
+      fxRateSource: 'broker',
+    });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
+    expect(paths).toContain('fxRate');
   });
 });
 
@@ -229,21 +251,20 @@ describe('transactionInputSchema — positive-quantity refinement on buy/sell', 
   });
 
   // Both `.superRefine` calls — this schema's own and the FX-rate one
-  // `transactionInputSchemaFor` layers on top — must compose: a bad quantity on
-  // a foreign-currency trade with no `fxRate` should report both issues, not
+  // `transactionInputSchemaFor` layers on top — must compose: a bad quantity
+  // together with a rate carrying no source should report both issues, not
   // just whichever refinement ran last swallowing the other.
-  it('reports both the quantity issue and the fxRate issue when chained through transactionInputSchemaFor', () => {
+  it('reports both the quantity issue and the fxRateSource issue when chained through transactionInputSchemaFor', () => {
     const result = transactionInputSchemaFor(PLN).safeParse({
       ...baseInput,
       type: 'sell',
       quantity: '0',
-      currency: 'USD',
+      fxRate: '4.05',
     });
 
     expect(result.success).toBe(false);
     const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
     expect(paths).toContain('quantity');
-    expect(paths).toContain('fxRate');
     expect(paths).toContain('fxRateSource');
   });
 });

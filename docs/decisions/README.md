@@ -41,6 +41,7 @@ constraint six months from now.
 | 0018 | Self-merge permitted after green CI                       | Accepted                         |
 | 0019 | Bond values come from the published interest tables       | Accepted                         |
 | 0020 | Portfolio value history: derived on read, backfilled once | Accepted                         |
+| 0021 | Cost basis lives in the position's settlement currency    | Accepted                         |
 
 ## Template
 

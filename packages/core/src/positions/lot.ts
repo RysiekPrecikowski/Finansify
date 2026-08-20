@@ -24,12 +24,18 @@ export interface Lot {
   readonly openedOn: Temporal.PlainDate;
   readonly originalQuantity: Decimal;
   readonly remainingQuantity: Decimal;
-  /** Cost basis of the whole original purchase, in the **account** currency. */
+  /**
+   * Cost basis of the whole original purchase, in the currency the position
+   * actually settled in — fixed by the first chronological transaction on
+   * its `(account, instrument)` queue, not necessarily the account's
+   * currency (ADR 0021).
+   */
   readonly originalCost: Money;
   /**
-   * Basis still attributable to what is left. Carried by subtraction rather
-   * than recomputed from a ratio, so that consuming a lot completely returns
-   * it to exactly zero instead of a recurring-decimal residue.
+   * Basis still attributable to what is left, in the position's settlement
+   * currency (see `originalCost`). Carried by subtraction rather than
+   * recomputed from a ratio, so that consuming a lot completely returns it to
+   * exactly zero instead of a recurring-decimal residue.
    */
   readonly remainingCost: Money;
 }

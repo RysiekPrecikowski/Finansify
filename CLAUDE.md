@@ -74,8 +74,9 @@ tests pass. They are enforced by review rather than tooling — see ADR 0002.
 5. **Any `use cache` over user data takes the user id as an argument**, so it
    lands in the cache key. Only prices, FX, and macro series are shared between
    users. Getting this wrong leaks one user's portfolio to another. (ADR 0010)
-6. **Store the executed FX rate on the transaction.** Never reconstruct a
-   historical rate later — brokers convert at their own spread. (ADR 0006)
+6. **Store the executed FX rate whenever the broker actually converted.**
+   Never reconstruct a historical rate later — brokers convert at their own
+   spread. (ADR 0006, ADR 0021)
 7. **A missing price is an error, never an estimate.** Show stale with a
    timestamp, or show nothing. Never interpolate and never substitute.
 8. **Intra-package imports are extensionless.** Turbopack cannot resolve a `.js`

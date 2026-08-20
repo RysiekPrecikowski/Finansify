@@ -180,7 +180,11 @@ export default async function ImportRowReviewPage({
             tax: row.parsed.tax.amount.toFixed(),
             currency: row.parsed.currency,
             fxRate: row.parsed.fxRate?.toFixed() ?? '',
-            fxRateSource: row.parsed.fxRateSource ?? 'broker',
+            // No fallback to 'broker': ADR 0021 made the rate optional, so a
+            // parsed row with no fxRateSource must round-trip as genuinely
+            // unset, not silently pre-select a source with no rate typed and
+            // trip the "rate source with no rate" validation on save.
+            fxRateSource: row.parsed.fxRateSource ?? '',
             note: row.parsed.note ?? '',
           }}
         />
