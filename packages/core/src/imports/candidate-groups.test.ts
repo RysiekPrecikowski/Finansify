@@ -111,4 +111,25 @@ describe('groupInstrumentCandidates', () => {
   it('returns no groups for an empty row list', () => {
     expect(groupInstrumentCandidates([])).toEqual([]);
   });
+
+  it("carries the candidate's isin onto its group", () => {
+    const rows = [
+      importRow({
+        rowIndex: 0,
+        parsed: parsedRow({
+          instrument: { symbol: 'AAPL', exchange: null, name: null, isin: 'US0378331005' },
+        }),
+      }),
+    ];
+
+    const groups = groupInstrumentCandidates(rows);
+
+    expect(groups[0]!.isin).toBe('US0378331005');
+  });
+
+  it('defaults isin to null when the candidate carries none — XTB never supplies one', () => {
+    const groups = groupInstrumentCandidates([importRow({ rowIndex: 0 })]);
+
+    expect(groups[0]!.isin).toBeNull();
+  });
 });

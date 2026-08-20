@@ -307,7 +307,9 @@ export class InMemoryInstruments implements InstrumentRepository {
     return Promise.resolve(
       this.rows.filter(
         (row) =>
-          row.symbol.toLowerCase().includes(needle) || row.name.toLowerCase().includes(needle),
+          row.symbol.toLowerCase().includes(needle) ||
+          row.name.toLowerCase().includes(needle) ||
+          (row.isin?.toLowerCase().includes(needle) ?? false),
       ),
     );
   }

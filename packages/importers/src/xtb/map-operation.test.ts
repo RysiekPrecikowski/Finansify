@@ -73,7 +73,12 @@ describe('mapCashOperationRow — plain cash types', () => {
     expect(result?.type).toBe('dividend');
     // .PL is XTB's listing-country suffix, not the market symbol — normalized
     // to .WA (Warsaw) the same way instrumentOf normalizes every ticker.
-    expect(result?.instrument).toEqual({ symbol: 'ETFX.WA', exchange: null, name: null });
+    expect(result?.instrument).toEqual({
+      symbol: 'ETFX.WA',
+      exchange: null,
+      name: null,
+      isin: null,
+    });
     expect(result?.grossAmount?.toString()).toBe('12.34 PLN');
   });
 
@@ -200,7 +205,12 @@ describe('mapCashOperationRow — Fractional shares', () => {
     expect(result?.quantity.toString()).toBe('0');
     expect(result?.grossAmount?.toString()).toBe('2.5 PLN');
     // Same ticker normalization every other row type goes through.
-    expect(result?.instrument).toEqual({ symbol: 'SPLT.WA', exchange: null, name: null });
+    expect(result?.instrument).toEqual({
+      symbol: 'SPLT.WA',
+      exchange: null,
+      name: null,
+      isin: null,
+    });
     expect(result?.warnings).toHaveLength(1);
     // Substance, not exact wording: names the row's own comment, and makes
     // clear the fractional quantity closed was not imported.
@@ -286,7 +296,12 @@ describe('mapOpenPositionLot', () => {
   it('carries the lot’s ticker onto the instrument candidate as-is, without re-normalizing it', () => {
     const result = mapOpenPositionLot(lot({ ticker: 'SPIN.WA' }), PLN);
 
-    expect(result.instrument).toEqual({ symbol: 'SPIN.WA', exchange: null, name: null });
+    expect(result.instrument).toEqual({
+      symbol: 'SPIN.WA',
+      exchange: null,
+      name: null,
+      isin: null,
+    });
   });
 
   it('sets quantity to the lot’s volume', () => {

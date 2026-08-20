@@ -8,11 +8,12 @@ import {
   type TransactionInput,
   type UserId,
 } from '@finansify/core';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, ilike, inArray, or } from 'drizzle-orm';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { type Database } from './client';
-import { ledgerRepository } from './ledger-repository';
+import { instrumentRepository, ledgerRepository } from './ledger-repository';
+import { instruments } from './schema/instruments';
 import { transactions, type TransactionRow } from './schema/transactions';
 
 const USER_ID = userId('11111111-1111-4111-8111-111111111111');
@@ -460,5 +461,27 @@ describe('ledgerRepository — refreshImportedTransactions', () => {
     expect(update).toHaveBeenCalledTimes(2);
     expect(select).toHaveBeenCalledTimes(2);
     expect(refreshed).toHaveLength(itemCount);
+  });
+});
+
+describe('instrumentRepository — search', () => {
+  it('matches on symbol, name, or ISIN, not just symbol/name — the query BOŚ ISIN matching relies on', async () => {
+    const limit = vi.fn().mockResolvedValue([]);
+    const orderBy = vi.fn().mockReturnValue({ limit });
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+    const db = { select } as unknown as Database;
+
+    await instrumentRepository(db).search('US0378331005');
+
+    const needle = '%US0378331005%';
+    expect(where).toHaveBeenCalledWith(
+      or(
+        ilike(instruments.symbol, needle),
+        ilike(instruments.name, needle),
+        ilike(instruments.isin, needle),
+      ),
+    );
   });
 });

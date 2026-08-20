@@ -48,6 +48,15 @@ export interface ParsedInstrumentCandidate {
   readonly symbol: string;
   readonly exchange: string | null;
   readonly name: string | null;
+  /**
+   * Optional because most parsers don't have one — XTB's exports carry no
+   * ISIN column at all. BOŚ identifies instruments by ISIN rather than
+   * ticker, so its parser sets this; downstream matching (`match-import-
+   * instruments.ts`) prefers it over symbol/exchange whenever it is present,
+   * since it is a stronger identity signal than a broker's own ticker
+   * spelling.
+   */
+  readonly isin?: string | null;
 }
 
 /**
