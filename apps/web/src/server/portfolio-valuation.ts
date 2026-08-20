@@ -2,6 +2,7 @@ import {
   makeReadPrices,
   makeRefreshPrices,
   valuePositions,
+  type CashBalanceLine,
   type Currency,
   type DisplayCurrencies,
   type FxSourcePreference,
@@ -41,9 +42,19 @@ export interface PortfolioValuation {
  * own: every row there is a single `Money`, never an array of them, so it
  * pins `lines` to `display.total` regardless of what the reader picked for
  * the detailed table.
+ *
+ * `cash` is required, not optional with an empty default: a caller that
+ * converts cash balances into a total (`/dashboard`'s account tiles) must
+ * pass them here so their currencies are actually requested, or that
+ * conversion permanently fails for any currency held only as uninvested cash
+ * (accumulated dividends, say) and never by a priced position — the bug this
+ * parameter exists to close. A caller that never converts cash at all
+ * (`/portfolio`'s total, which shows cash in its own table, unconverted)
+ * passes `[]` explicitly rather than relying on a silent default.
  */
 export async function valuePositionsFor(
   positions: readonly InstrumentPosition[],
+  cash: readonly CashBalanceLine[],
   display: DisplaySettings,
   fxPreference: FxSourcePreference,
   displayCurrencies: DisplayCurrencies = toDisplayCurrencies(display),
@@ -56,16 +67,20 @@ export async function valuePositionsFor(
   const quoted = positions.filter((position) => position.instrument.kind !== 'bond');
   const instrumentIds = quoted.map((position) => position.instrument.id);
   // Instrument currencies (for pricing) union cost-basis currencies (for
-  // unrealized P&L) union the currency the reader is totalling in — that last
-  // one need not be held by anything, and without a rate for it the total is a
-  // partial sum of nothing. `currenciesToRefresh` drops PLN: NBP table A has no
-  // PLN row, so including it made `fxDue` permanently true and re-fetched the
-  // table on every render regardless of what was actually stale.
+  // unrealized P&L) union cash-balance currencies (for a caller that converts
+  // cash into a total — a currency held only as uninvested cash, never by a
+  // priced position, otherwise never gets asked for) union the currency the
+  // reader is totalling in — that last one need not be held by anything, and
+  // without a rate for it the total is a partial sum of nothing.
+  // `currenciesToRefresh` drops PLN: NBP table A has no PLN row, so including
+  // it made `fxDue` permanently true and re-fetched the table on every render
+  // regardless of what was actually stale.
   const currencies = currenciesToRefresh(display, [
     ...quoted.map((position) => position.instrument.currency),
     ...positions.flatMap((position) =>
       position.costBasisByCurrency.map((amount) => amount.currency),
     ),
+    ...cash.map((line) => line.amount.currency),
   ]);
 
   const readPrices = makeReadPrices({ prices: getMarketPrices(), clock });

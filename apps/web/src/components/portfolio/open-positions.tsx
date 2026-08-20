@@ -51,7 +51,10 @@ export async function OpenPositions({
   const {
     valuation: { positions: valued, totalMarketValue, totalIsComplete },
     priceLookups,
-  } = await valuePositionsFor(positions, display, fxPreference);
+    // This page's total is positions only — cash shows in its own table
+    // below, unconverted — so there is no cash currency to request a rate
+    // for.
+  } = await valuePositionsFor(positions, [], display, fxPreference);
 
   const averageCostCell = (position: ValuedPosition) =>
     position.averageCost === null ? (
