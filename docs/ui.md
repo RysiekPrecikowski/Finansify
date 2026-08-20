@@ -8,21 +8,21 @@ All UI lives in `apps/web` — see `architecture.md` for why there is no
 
 ## Stack
 
-| Concern               | Choice                                                                                                 | Why, and what else was considered                                                                                                                                                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Styling               | **Tailwind v4**, CSS-first `@theme`                                                                    | Already installed and configured                                                                                                                                                                                                                                                                                                                                 |
-| Components            | **shadcn/ui**, Vega style (the CLI's current name for what used to be called "new-york"), neutral base | Copy-in, so no runtime dependency and no upgrade treadmill. Works with Tailwind 4 and React 19. Alternatives: Park UI, Mantine — heavier and more lock-in.                                                                                                                                                                                                       |
-| Primitives            | **Base UI**, arriving via shadcn (the `render` prop, not `asChild`)                                    | What the Vega preset installs. Radix is the same team's earlier library; the shadcn components we copy in target Base UI, so following them is cheaper than porting them.                                                                                                                                                                                        |
-| Dashboard charts      | **Recharts** through shadcn's `<ChartContainer>`                                                       | Allocation donut and treemap, income bars, benchmark comparison. Themed by the same CSS variables as everything else. Alternatives: visx (more control, much more work), Nivo (bigger bundle).                                                                                                                                                                   |
-| Portfolio value chart | **`lightweight-charts`** (TradingView)                                                                 | ~45 kB, built for exactly this: years of bars, pan and zoom, a 15m/1h/1d granularity toggle. Recharts degrades badly past a few thousand points.                                                                                                                                                                                                                 |
-| Tables                | **TanStack Table v8** with the shadcn table                                                            | The ledger needs sorting, filtering, column visibility, and virtualization                                                                                                                                                                                                                                                                                       |
-| Forms                 | **Server Actions + `useActionState`**, zod schemas from `core`                                         | The authoritative validation is `transactionInputSchemaFor(account.currency)`, which needs the account and so runs on the server regardless; a client mirror would be a second copy of the same rule. Progressive enhancement for free, no dependency. react-hook-form comes back for a form that genuinely needs field arrays or cross-field client validation. |
-| Icons                 | **lucide-react**                                                                                       | Ships with shadcn                                                                                                                                                                                                                                                                                                                                                |
-| Dates                 | **Temporal** internally, `Intl.DateTimeFormat` at the edge                                             | ADR 0007                                                                                                                                                                                                                                                                                                                                                         |
-| Numbers               | `Intl.NumberFormat`, currency- and locale-aware                                                        | Formatting never happens inside `core`                                                                                                                                                                                                                                                                                                                           |
-| Theme                 | `next-themes`, **dark by default**                                                                     | Financial dashboards read better dark; light theme still supported                                                                                                                                                                                                                                                                                               |
-| Language              | **Polish and English**, own dictionaries behind a cookie                                               | One audience, two languages, ~200 strings. `next-intl` and `/[locale]/` routing would double every route and add a dependency for a `Record<Locale, Dictionary>` and one server action.                                                                                                                                                                          |
-| View state            | **Range, filter and sort live in the URL**                                                             | Every control is a real link, and a view survives a reload and a share. Client-side tab state does none of that. Chart range also switches without a navigation — see "The hero chart" below.                                                                                                                                                                    |
+| Concern               | Choice                                                                                                 | Why, and what else was considered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Styling               | **Tailwind v4**, CSS-first `@theme`                                                                    | Already installed and configured                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Components            | **shadcn/ui**, Vega style (the CLI's current name for what used to be called "new-york"), neutral base | Copy-in, so no runtime dependency and no upgrade treadmill. Works with Tailwind 4 and React 19. Alternatives: Park UI, Mantine — heavier and more lock-in.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Primitives            | **Base UI**, arriving via shadcn (the `render` prop, not `asChild`)                                    | What the Vega preset installs. Radix is the same team's earlier library; the shadcn components we copy in target Base UI, so following them is cheaper than porting them.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Dashboard charts      | **Recharts** through shadcn's `<ChartContainer>`                                                       | Allocation donut and treemap, income bars, benchmark comparison. Themed by the same CSS variables as everything else. Alternatives: visx (more control, much more work), Nivo (bigger bundle).                                                                                                                                                                                                                                                                                                                                                                                  |
+| Portfolio value chart | **Inline SVG**, deferred to `lightweight-charts`                                                       | CU-869ej7zk8 (ADR 0020) shipped the real series on the same inline-SVG chart Phase 0 sketched, with LTTB downsampling (`lib/chart-series.ts`) rather than adopting `lightweight-charts` — the tween, the partial/complete split and the mobile layout all already worked, and pan/zoom/a granularity toggle earn their ~45 kB once intraday data (CU-869em7hdp) makes deep, fine-grained history worth panning through. Recharts degrades badly past a few thousand points, which is why neither this nor the eventual `lightweight-charts` move go through `<ChartContainer>`. |
+| Tables                | **TanStack Table v8** with the shadcn table                                                            | The ledger needs sorting, filtering, column visibility, and virtualization                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Forms                 | **Server Actions + `useActionState`**, zod schemas from `core`                                         | The authoritative validation is `transactionInputSchemaFor(account.currency)`, which needs the account and so runs on the server regardless; a client mirror would be a second copy of the same rule. Progressive enhancement for free, no dependency. react-hook-form comes back for a form that genuinely needs field arrays or cross-field client validation.                                                                                                                                                                                                                |
+| Icons                 | **lucide-react**                                                                                       | Ships with shadcn                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Dates                 | **Temporal** internally, `Intl.DateTimeFormat` at the edge                                             | ADR 0007                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Numbers               | `Intl.NumberFormat`, currency- and locale-aware                                                        | Formatting never happens inside `core`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Theme                 | `next-themes`, **dark by default**                                                                     | Financial dashboards read better dark; light theme still supported                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Language              | **Polish and English**, own dictionaries behind a cookie                                               | One audience, two languages, ~200 strings. `next-intl` and `/[locale]/` routing would double every route and add a dependency for a `Record<Locale, Dictionary>` and one server action.                                                                                                                                                                                                                                                                                                                                                                                         |
+| View state            | **Range, filter and sort live in the URL**                                                             | Every control is a real link, and a view survives a reload and a share. Client-side tab state does none of that. Chart range also switches without a navigation — see "The hero chart" below.                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## Visual direction
 
@@ -91,17 +91,33 @@ with no view state held anywhere else.
 
 ### The hero chart
 
-Inline SVG rather than `lightweight-charts`, which takes over in Phase 2: until
-the series comes from a price feed there is nothing to pan, zoom or inspect.
+Draws `portfolioValueSeries` (CU-869ej7zk8, ADR 0020) — the ledger folded
+day-by-day against the global price/FX cache, derived on read, never stored.
+Still inline SVG, not `lightweight-charts`: see the stack table above for why
+that move stays deferred.
 
-**All six ranges are prepared on the server and switch on the client.** Six
-series of 64 points is a trivial payload, and asking the server to redraw a line
-the browser is already holding buys nothing but the round trip that makes the
-switch feel slow. The URL stays the single source of truth — the range is read
-from it on the client too, and each switch writes it straight back with
-`history.replaceState` — so reload and share behave exactly as they did when
-this was a plain navigation. The tabs stay real links: cmd-click still opens a
-new tab, and with JavaScript off they navigate.
+**The server renders the current range immediately from storage** —
+`readValueSeries` touches no network, so the chart paints on the same request
+as the rest of the dashboard. `ChartCard` (client) then polls
+`GET /api/portfolio/value-series?range=…&refresh=1` in bounded rounds
+(`MAX_REFRESH_ROUNDS = 6`) whenever the response comes back `pending`, and the
+dashed prefix (below) visibly shrinks as each round's backfill lands — that
+progressive fill, not a spinner, is the "as fast as possible" requirement
+CU-869ej7zk8 was scoped around.
+
+**Range switches on the client, without a round trip, once cached** — kept
+exactly as Phase 0 designed it, the one piece of view state that lives outside
+the URL-driven server render `class` and `sort` still use. The URL stays the
+single source of truth regardless: the range is read from it on the client
+too, and each switch writes it straight back with `history.replaceState`, so
+reload and share behave exactly as a plain navigation would. The tabs stay
+real links: cmd-click still opens a new tab, and with JavaScript off they
+navigate. A range not yet cached client-side (anything but the one the server
+rendered) fetches once, storage-only, then starts the same `refresh=1` polling
+above. `1D`/`1W` are the one exception to "real link" — rendered as inert
+`<span>`s, because the price cache holds no bar finer than a day
+(`unsupportedRanges`, `lib/dashboard-params.ts`; CU-869em7hdp tracks unlocking
+them).
 
 That guarantee rests on one rule, and breaks quietly without it: **every
 dashboard control builds its href from the live params** (`useDashboardParams`),
@@ -114,30 +130,38 @@ The switch is animated — the line interpolates into its new shape over 350 ms
 and the y-axis travels with it, rather than the reader being handed a different
 chart between blinks. **`prefers-reduced-motion: reduce` snaps instead**, which
 is not optional: a chart that redraws itself is exactly the motion that setting
-exists to turn off.
+exists to turn off. A `refresh=1` poll landing new points for the _same_ range
+snaps rather than tweens — nothing to animate between two readings of one
+range, same as a chip or sort re-render always did.
 
-Range is the only view state safe to lift out this way, because nothing else
-reads it — `class` and `sort` still drive the chips and the holdings list from
-the server.
+**A missing price is drawn, not hidden.** A point the backfill hasn't reached
+yet renders `partial`: the line segment up to the first `complete` point is
+dashed, at reduced opacity (`ValueChart`'s `partialBoundary`) — proportional to
+how much of the _source_ series is still partial, since LTTB's bucket
+selection doesn't preserve a 1:1 index mapping to draw an exact boundary from.
+This is rule 7 applied to a series instead of a single value: never
+interpolated, never hidden, always shown as what it is.
 
 Two consequences worth knowing:
 
-- Every series is resampled to one fixed width (`lib/chart-series.ts`) so the
-  tween can pair point _i_ with point _i_. That is display geometry only; the
-  high and low labels are formatted from the true series. Resampling is
-  currently always upsampling, so no source point is skipped — real price
-  series in Phase 2 are longer than the target and will need something
-  shape-preserving (LTTB) instead.
-- `lightweight-charts` **does not animate a series swap** either. It is built
-  for pan and zoom over many bars. The tween is the part that will need
+- Every series is resampled to one fixed width (`lib/chart-series.ts`,
+  `chartPointCount = 64`) so the tween can pair point _i_ with point _i_ and so
+  a `MAX` window's few hundred points don't get sent to the SVG's `d` attribute
+  wholesale. Upsampling (a young portfolio, fewer source points than the
+  target) stays linear, exact at both endpoints; downsampling uses LTTB
+  (largest-triangle-three-buckets), which keeps a real spike visible instead of
+  averaging it away — the failure mode a naive linear downsample has once
+  `MAX`/`1Y` routinely carry more points than the chart draws.
+- `lightweight-charts` **does not animate a series swap** either, when that
+  move eventually happens. It is built for pan and zoom over many bars. The
+  tween — and the partial/complete split above — are the parts that will need
   re-solving inside the canvas, not something the library hands over.
-
-**What exists today** (Phase 0): the layout above, minus allocation (3) and income
-(5), rendered from `src/lib/fixtures/portfolio.ts` — demo data that computes every
-derived figure from a handful of declared inputs, so the headline and the rows
-always agree. The fixture is single-currency on purpose — there is no FX adapter
-before Phase 2, and the presentation-currency switcher says so instead of
-converting. Delete the fixture when the ledger lands.
+- Money never crosses to the client as a `Money`/`Decimal` — the API route
+  (and the server's own first paint) serialize each point's value as a plain
+  decimal string, and `lib/hero-series.ts` parses it to a `number` for pixel
+  geometry only, the same "display geometry, not a number anyone reads
+  directly" stance `chart-series.ts` already took. `@finansify/core` never
+  reaches the client bundle this way (`apps/web/AGENTS.md`).
 
 ## The transactions screen
 

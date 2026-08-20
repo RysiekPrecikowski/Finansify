@@ -5,6 +5,7 @@ import {
   type CashBalanceLine,
   type FxSourcePreference,
   type InstrumentPosition,
+  type UserId,
 } from '@finansify/core';
 import type { Route } from 'next';
 import Link from 'next/link';
@@ -13,6 +14,7 @@ import { Suspense } from 'react';
 
 import { AccountTiles } from '@/components/dashboard/account-tiles';
 import { AssetClassChips } from '@/components/dashboard/asset-class-chips';
+import { ChartCard } from '@/components/dashboard/chart-card';
 import { HoldingsList } from '@/components/dashboard/holdings-list';
 import { PortfolioHeadline } from '@/components/dashboard/portfolio-headline';
 import { SortMenu, type SortOption } from '@/components/dashboard/sort-menu';
@@ -29,7 +31,7 @@ import {
   type AssetClass,
   type SortOrder,
 } from '@/lib/dashboard/snapshot';
-import { parseDashboardParams } from '@/lib/dashboard-params';
+import { parseDashboardParams, type Range } from '@/lib/dashboard-params';
 import { type DisplaySettings } from '@/lib/display/currencies';
 import { getDisplaySettings, getFxPreference } from '@/lib/display/server';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
@@ -37,6 +39,7 @@ import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { type Locale } from '@/lib/i18n/locales';
 import { getInstruments, scopedLedgerFor } from '@/server/container';
 import { valuePositionsFor } from '@/server/portfolio-valuation';
+import { readValueSeries, toApiValueSeriesResponse } from '@/server/value-series';
 
 /** Shown while `<DashboardSections>` reads storage and, if due, refreshes it — never a spinner over the whole page. */
 function DashboardSectionsFallback() {
@@ -55,6 +58,7 @@ function DashboardSectionsFallback() {
  * `/portfolio`'s `<OpenPositions>` (ADR 0014, section 03).
  */
 async function DashboardSections({
+  userId,
   open,
   cash,
   accounts,
@@ -62,9 +66,11 @@ async function DashboardSections({
   fxPreference,
   sort,
   assetClass,
+  range,
   locale,
   dictionary,
 }: Readonly<{
+  userId: UserId;
   open: readonly InstrumentPosition[];
   cash: readonly CashBalanceLine[];
   accounts: readonly Account[];
@@ -72,23 +78,23 @@ async function DashboardSections({
   fxPreference: FxSourcePreference;
   sort: SortOrder;
   assetClass: AssetClass | null;
+  range: Range;
   locale: Locale;
   dictionary: Dictionary;
 }>) {
   const total = toCurrency(display.total);
 
-  // Every dashboard row is a single `Money`, never an array of them — `lines`
-  // is pinned to the presentation total regardless of what the reader picked
-  // for `/portfolio`'s detailed, per-line-currency table.
-  const { valuation, priceLookups, ratesToPln } = await valuePositionsFor(
-    open,
-    display,
-    fxPreference,
-    {
-      total,
-      lines: total,
-    },
-  );
+  // The hero chart reads storage only (`readValueSeries`, no network) and
+  // doesn't touch `valuePositionsFor`'s price/FX refresh at all, so running it
+  // in parallel rather than after adds essentially nothing to this section's
+  // own wait — it resolves at `max(valuation, series)`, not their sum.
+  const [{ valuation, priceLookups, ratesToPln }, series] = await Promise.all([
+    // Every dashboard row is a single `Money`, never an array of them —
+    // `lines` is pinned to the presentation total regardless of what the
+    // reader picked for `/portfolio`'s detailed, per-line-currency table.
+    valuePositionsFor(open, display, fxPreference, { total, lines: total }),
+    readValueSeries(userId, { range, grain: null, presentIn: total }),
+  ]);
 
   const totals = buildTotals(valuation.positions, valuation, ratesToPln, total);
   const allHoldings = buildDashboardHoldings(valuation.positions, priceLookups);
@@ -108,6 +114,16 @@ async function DashboardSections({
       <AssetClassChips present={present} dictionary={dictionary} />
 
       <PortfolioHeadline totals={totals} locale={locale} dictionary={dictionary} />
+
+      <ChartCard
+        initialRange={range}
+        initialResponse={toApiValueSeriesResponse(series)}
+        rangeLabels={dictionary.dashboard.ranges}
+        navLabel={dictionary.dashboard.chartRange}
+        ariaLabel={dictionary.dashboard.chart.ariaLabel}
+        loadingLabel={dictionary.dashboard.chart.loadingHistory}
+        unsupportedRangeLabel={dictionary.dashboard.chart.unsupportedRange}
+      />
 
       <AccountTiles accounts={accountTiles} locale={locale} dictionary={dictionary} />
 
@@ -190,6 +206,7 @@ export default async function DashboardPage({
       ) : (
         <Suspense fallback={<DashboardSectionsFallback />}>
           <DashboardSections
+            userId={user.id}
             open={view.open}
             cash={view.cash}
             accounts={accounts}
@@ -197,6 +214,7 @@ export default async function DashboardPage({
             fxPreference={fxPreference}
             sort={params.sort}
             assetClass={params.assetClass}
+            range={params.range}
             locale={locale}
             dictionary={dictionary}
           />

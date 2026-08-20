@@ -19,6 +19,7 @@ import {
 } from '@finansify/core';
 
 import { type Range } from '@/lib/dashboard-params';
+import { type ApiValuePoint, type ApiValueSeriesResponse } from '@/lib/hero-series';
 import { defaultGrainFor, windowFor } from '@/lib/value-series-params';
 import { bondUnitValuesFor } from '@/server/bond-valuation';
 import {
@@ -234,4 +235,31 @@ export async function refreshValueSeries(
 
   const read = await readValueSeries(userId, params);
   return error === null ? read : { ...read, error };
+}
+
+/**
+ * Money crosses to the client as a decimal string here, and only here — the
+ * one place `ValueSeriesResult`'s `Money`/`Temporal` values turn into the
+ * plain JSON shape both the route handler and the chart's server-rendered
+ * first paint send onward. `apps/web/AGENTS.md`: formatting (and the numeric
+ * cast that precedes it) happens at the edge, never inside `core` or in
+ * anything a client component imports.
+ */
+export function toApiValuePoints(points: readonly ValuePoint[]): readonly ApiValuePoint[] {
+  return points.map((point) => ({
+    date: point.date.toString(),
+    value: point.value.amount.toFixed(2),
+    status: point.status,
+    unpriced: point.unpriced,
+  }));
+}
+
+export function toApiValueSeriesResponse(result: ValueSeriesResult): ApiValueSeriesResponse {
+  return {
+    currency: result.currency,
+    grain: result.grain,
+    pending: result.pending,
+    error: result.error,
+    points: toApiValuePoints(result.points),
+  };
 }
