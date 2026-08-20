@@ -18,9 +18,11 @@ import { failure, issuesOf, success, type FieldIssue, type UseCaseResult } from 
  * is not expressible in one.
  *
  * The first pass is the shape: without it the account id is not even readable.
- * The second pass is `transactionInputSchemaFor(account.currency)`, which is
- * where rule 6 lives — a transaction in a currency other than its account's
- * needs the rate **as executed** (ADR 0006).
+ * The second pass is `transactionInputSchemaFor(account.currency)`, which
+ * checks rate provenance — whenever `fxRate` or `fxRateSource` is set, the
+ * other must be too (rule 6, ADR 0006). Per ADR 0021 a currency differing
+ * from the account's no longer implies a conversion happened at this
+ * transaction, so this pass no longer compares the two currencies at all.
  *
  * Looking the account up in between is what proves the account belongs to the
  * caller: `accounts` is expected to already be scoped (`listAccounts()`'s own

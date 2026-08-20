@@ -9,7 +9,7 @@ stored. See ADR 0003.
 | Table                               | Purpose                                        | Notes                                                                                                                                 |
 | ----------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `users`                             | App user                                       | `id` is **our own UUID**. `auth_provider` + `auth_subject` hold the Clerk identity. Nothing else references a provider id. (ADR 0009) |
-| `accounts`                          | A brokerage or wrapper account                 | `wrapper`, `broker`, `currency` (the account currency), `opened_at`, `closed_at`                                                      |
+| `accounts`                          | A brokerage or wrapper account                 | `wrapper`, `broker`, `currency` (base/reporting currency, ADR 0021), `opened_at`, `closed_at`                                         |
 | `portfolios` / `portfolio_accounts` | Reporting groups                               | An account can belong to several portfolios                                                                                           |
 | `instruments`                       | **Global**, shared across users                | `kind`, `isin`, `symbol`, `exchange`, `currency`, `name`                                                                              |
 | `instrument_identifiers`            | Provider ticker mapping                        | `(instrument_id, provider, provider_symbol)` — decouples us from `PKN.WA` vs `PKN` vs `BTC-USD`                                       |
@@ -38,7 +38,7 @@ id, user_id, account_id, instrument_id (nullable for pure cash),
 type, trade_date, settle_date,
 quantity NUMERIC, price NUMERIC, gross_amount NUMERIC, fee NUMERIC, tax NUMERIC,
 currency,                    -- transaction currency
-fx_rate NUMERIC,             -- to the ACCOUNT currency, as executed
+fx_rate NUMERIC,             -- the executed rate, only where the broker actually converted (ADR 0021)
 fx_rate_source,              -- 'broker' | 'nbp' | 'user'
 source,                      -- 'manual' | 'import'
 external_id,                 -- broker's own id; unique per (account, external_id)
@@ -87,21 +87,26 @@ See ADR 0005.
 ## Four currencies, three conversions
 
 This is where portfolio trackers go quietly wrong, so it is specified
-explicitly. See ADR 0006.
+explicitly. See ADR 0006 and ADR 0021.
 
 | Currency                  | Meaning                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------ |
 | **Instrument currency**   | What the instrument trades in — USD for VOO                                    |
 | **Transaction currency**  | What the cash leg actually settled in; may be PLN if the broker auto-converted |
-| **Account currency**      | The currency of the account's cash balance                                     |
+| **Account currency**      | The account's base/reporting currency — not a constraint on what it may hold   |
 | **Presentation currency** | What the user wants to read — a per-user default, overridable per view         |
 
 Two rules, which must not be confused:
 
-1. **Historical legs use the rate stored on the transaction.** Brokers convert
-   at their own spread, not NBP's. Reconstructing that rate later produces wrong
-   cost basis and wrong realized P&L, so `fx_rate` is captured at import or entry
-   time and never recomputed.
+1. **Cost basis is held in the currency a position actually settled in, and is
+   never converted to the account currency.** A PLN account can hold a
+   EUR-basis position — a BOŚ IKZE genuinely does — with no rate involved at
+   all. Where the broker _did_ convert at the transaction itself, the executed
+   rate is captured on that transaction and never reconstructed later, because
+   brokers convert at their own spread, not NBP's; `fx_rate` is informational
+   in that case, kept for tax reporting, and the position engine does not read
+   it. A single lot queue that genuinely mixes currencies is refused
+   (`MixedCurrencyPositionError`) rather than converted — see ADR 0021.
 2. **Presentation uses the valuation-date rate** from `fx_rates` — NBP table A
    mid. Changing presentation currency restates the _view_, never the _book_.
 

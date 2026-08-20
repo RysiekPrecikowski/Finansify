@@ -171,7 +171,10 @@ describe('makeAcceptImportRow', () => {
     expect(await ledger.forUser(USER).listTransactions()).toHaveLength(1);
   });
 
-  it('refuses a row whose currency differs from its account and carries no fxRate, writing nothing', async () => {
+  // ADR 0021: a row's currency differing from its account no longer implies a
+  // conversion happened at this row — BOŚ settles a EUR/USD row out of that
+  // currency's own sub-balance, funded by an earlier, separate exchange.
+  it('accepts a row whose currency differs from its account and carries no fxRate, keeping the row currency', async () => {
     const { ledger, imports, account } = await setup();
     const { row } = await seedRow(
       imports,
@@ -187,9 +190,33 @@ describe('makeAcceptImportRow', () => {
 
     const result = await acceptImportRow(row.id);
 
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const transaction = await ledger.forUser(USER).getTransaction(result.value.transactionId!);
+    expect(transaction!.currency).toBe(currency('USD'));
+    expect(transaction!.fxRate).toBeNull();
+  });
+
+  // Rule 6 / ADR 0006: wherever a rate IS recorded, its provenance must be too.
+  it('refuses a row carrying an fxRate with no fxRateSource, writing nothing', async () => {
+    const { ledger, imports, account } = await setup();
+    const { row } = await seedRow(
+      imports,
+      account,
+      cashRow({
+        currency: currency('USD'),
+        grossAmount: Money.of('1000', currency('USD')),
+        fxRate: new Decimal('4.05'),
+        fxRateSource: null,
+      }),
+    );
+    const acceptImportRow = makeUseCase(ledger, imports);
+
+    const result = await acceptImportRow(row.id);
+
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(issueAt(result.issues, 'fxRate')).toBeDefined();
+    expect(issueAt(result.issues, 'fxRateSource')).toBeDefined();
     expect(await ledger.forUser(USER).listTransactions()).toHaveLength(0);
   });
 

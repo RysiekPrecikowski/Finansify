@@ -20,6 +20,7 @@ import {
   formatQuantity,
 } from '@/lib/format';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
+import { loadPositions } from '@/lib/positions';
 import { cn } from '@/lib/utils';
 import { getInstruments, scopedLedgerFor } from '@/server/container';
 
@@ -46,11 +47,31 @@ export default async function PositionDetailPage({
   const ledger = scopedLedgerFor(user.id);
   const listPositions = makeListPositions({ ledger, instruments: getInstruments() });
 
-  const [view, dictionary, locale] = await Promise.all([
-    listPositions(),
+  const [positions, dictionary, locale] = await Promise.all([
+    loadPositions(listPositions),
     getDictionary(),
     getLocale(),
   ]);
+
+  const strings = dictionary.portfolio;
+
+  if (!positions.ok) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Button
+          size="sm"
+          variant="ghost"
+          nativeButton={false}
+          render={<Link href="/portfolio" />}
+          className="-ml-2 w-fit"
+        >
+          {strings.lots.back}
+        </Button>
+        <p className="text-muted-foreground px-1 py-8 text-sm">{strings.mixedCurrencyError}</p>
+      </div>
+    );
+  }
+  const view = positions.view;
 
   // Not scoped by a second query — `open` and `closed` already come from this
   // user's own ledger, so a foreign id is simply absent here, same as a
@@ -59,8 +80,6 @@ export default async function PositionDetailPage({
     (candidate) => candidate.instrument.id === parsedId.data,
   );
   if (position === undefined) notFound();
-
-  const strings = dictionary.portfolio;
 
   const lotColumns: readonly DataListColumn<Lot>[] = [
     {

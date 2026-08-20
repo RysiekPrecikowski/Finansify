@@ -5,6 +5,7 @@ import { type Account, type Instrument, type TransactionInput } from '../ledger'
 import { InMemoryInstruments, InMemoryLedger } from '../ledger/in-memory-ledger';
 import { currency, Money } from '../money';
 import { userId } from '../ports';
+import { MixedCurrencyPositionError } from '../positions';
 import { Temporal } from '../time';
 import { makeListPositions } from './list-positions';
 
@@ -224,7 +225,7 @@ describe('makeListPositions', () => {
     expect(closed.realizedByCurrency[0]!.equals(Money.of('300', currency('PLN')))).toBe(true);
   });
 
-  it('converts a foreign-currency buy to the account currency using the executed rate', async () => {
+  it('keeps a foreign-currency buy in its own settlement currency, never the account currency', async () => {
     const ledger = new InMemoryLedger();
     const instruments = new InMemoryInstruments();
     const instrument = await setupInstrument(instruments);
@@ -238,8 +239,8 @@ describe('makeListPositions', () => {
         quantity: '10',
         price: '100',
         currency: 'USD',
-        fxRate: '4',
-        fxRateSource: 'broker',
+        fxRate: null,
+        fxRateSource: null,
       }),
     );
 
@@ -248,9 +249,41 @@ describe('makeListPositions', () => {
 
     expect(view.open).toHaveLength(1);
     const position = view.open[0]!;
-    // 10 * 100 USD * fx 4 = 4000 PLN, the account currency
+    // 10 * 100 USD = 1000 USD, the transaction's own currency — no rate needed.
     expect(position.costBasisByCurrency).toHaveLength(1);
-    expect(position.costBasisByCurrency[0]!.equals(Money.of('4000', currency('PLN')))).toBe(true);
+    expect(position.costBasisByCurrency[0]!.equals(Money.of('1000', currency('USD')))).toBe(true);
+  });
+
+  it('rejects a single account whose lots for one instrument mix currencies (ADR 0021)', async () => {
+    const ledger = new InMemoryLedger();
+    const instruments = new InMemoryInstruments();
+    const instrument = await setupInstrument(instruments);
+    const account = await plnAccount(ledger);
+    const scoped = ledger.forUser(USER);
+
+    await scoped.createTransaction(
+      buy({
+        accountId: account.id,
+        instrumentId: instrument.id,
+        quantity: '10',
+        price: '100',
+        currency: 'USD',
+      }),
+    );
+    await scoped.createTransaction(
+      buy({
+        accountId: account.id,
+        instrumentId: instrument.id,
+        quantity: '5',
+        price: '150',
+        currency: 'PLN',
+        tradeDate: '2024-02-10',
+      }),
+    );
+
+    const listPositions = makeListPositions({ ledger: scoped, instruments });
+
+    await expect(listPositions()).rejects.toThrow(MixedCurrencyPositionError);
   });
 
   it('moves cash for deposits and dividends without creating a position', async () => {

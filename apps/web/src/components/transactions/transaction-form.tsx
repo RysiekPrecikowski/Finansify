@@ -109,10 +109,13 @@ export function TransactionForm({
 
   // Conditional visibility is convenience only. The server re-validates every
   // submission through `transactionInputSchemaFor(account.currency)`, so what the
-  // form chooses to show never decides what is allowed.
+  // form chooses to show never decides what is allowed. A currency differing
+  // from the account's no longer implies a conversion happened here (ADR
+  // 0021) — an account can hold several currencies natively — so the rate
+  // fields below are offered, not required.
   const shape = shapes[type] ?? { instrument: 'none', amount: 'gross' };
   const accountCurrency = accounts.find((account) => account.id === accountId)?.currency;
-  const needsRate = accountCurrency !== undefined && currency !== accountCurrency;
+  const currencyDiffersFromAccount = accountCurrency !== undefined && currency !== accountCurrency;
 
   const invalid = (field: string) => (state.fieldErrors[field] === undefined ? undefined : true);
   const describedBy = (field: string) =>
@@ -304,10 +307,13 @@ export function TransactionForm({
         </Select>
       </Field>
 
-      {needsRate && (
-        /* Rule 6 / ADR 0006. A broker converts at its own spread, so there is no
-           defensible rate to default to and none is offered. The server refuses
-           the row through `transactionInputSchemaFor`; this only explains why. */
+      {currencyDiffersFromAccount && (
+        /* Rule 6 / ADR 0006, ADR 0021. Offered, not required: the account may
+           simply hold this currency directly (a multi-currency wrapper). Filled
+           in only where the broker actually converted — there is no defensible
+           rate to default to, so none is offered, and the server still refuses
+           a rate given with no source (or the reverse) through
+           `transactionInputSchemaFor`. */
         <fieldset className="border-border flex flex-col gap-5 rounded-md border p-4">
           {/* The pair is interpolated in JSX rather than through a dictionary
               function: dictionaries are plain objects, which is the only reason

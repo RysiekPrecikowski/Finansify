@@ -12,7 +12,8 @@ import {
 import { Money, currency, type Currency } from '../money';
 import { Temporal } from '../time';
 import {
-  MissingExecutedRateError,
+  MixedCurrencyPositionError,
+  UnknownAccountError,
   UnsupportedTransactionTypeError,
   averageCostOf,
   buildPositions,
@@ -20,7 +21,7 @@ import {
 } from './build-positions';
 
 const PLN = currency('PLN');
-const USD = currency('USD');
+const EUR = currency('EUR');
 
 // Ids are UUIDs in production; short labels keep the fixtures readable and the
 // same-day tiebreak is a plain string compare either way.
@@ -219,68 +220,6 @@ describe('buildPositions', () => {
     );
   });
 
-  it('converts each leg at the rate stored on that transaction, not one shared rate', () => {
-    // Rule 6 / ADR 0006: brokers convert at their own spread, so two USD buys
-    // on the same PLN account land at two different rates and the basis has to
-    // reflect both.
-    //   buy A  10 × 20.00 USD + 1.00 fee = 201.00 USD × 4.0000 =  804.00 PLN
-    //   buy B  10 × 25.00 USD + 2.00 fee = 252.00 USD × 4.5000 = 1134.00 PLN
-    const transactions = [
-      transaction({
-        id: 'buy-a',
-        accountId: 'acc',
-        instrumentId: 'inst',
-        type: 'buy',
-        tradeDate: '2024-01-05',
-        quantity: '10',
-        price: '20.00',
-        fee: '1.00',
-        currency: USD,
-        fxRate: '4.0000',
-      }),
-      transaction({
-        id: 'buy-b',
-        accountId: 'acc',
-        instrumentId: 'inst',
-        type: 'buy',
-        tradeDate: '2024-06-05',
-        quantity: '10',
-        price: '25.00',
-        fee: '2.00',
-        currency: USD,
-        fxRate: '4.5000',
-      }),
-    ];
-
-    const position = only(buildPositions(transactions, [account('acc', PLN)]));
-
-    expect(position.currency).toBe(PLN);
-    expect(position.quantity.equals(20)).toBe(true);
-    expect(position.costBasis.equals(Money.of('1938.00', PLN))).toBe(true);
-    expect(position.lots[0]!.originalCost.equals(Money.of('804.00', PLN))).toBe(true);
-    expect(position.lots[1]!.originalCost.equals(Money.of('1134.00', PLN))).toBe(true);
-  });
-
-  it('refuses a cross-currency leg with no executed rate rather than inventing one', () => {
-    const transactions = [
-      transaction({
-        id: 'buy-a',
-        accountId: 'acc',
-        instrumentId: 'inst',
-        type: 'buy',
-        tradeDate: '2024-01-05',
-        quantity: '10',
-        price: '20.00',
-        currency: USD,
-        fxRate: null,
-      }),
-    ];
-
-    expect(() => buildPositions(transactions, [account('acc', PLN)])).toThrow(
-      MissingExecutedRateError,
-    );
-  });
-
   it('leaves lots untouched for dividends, fees and deposits', () => {
     const transactions = [
       transaction({
@@ -355,5 +294,240 @@ describe('buildPositions', () => {
     expect(position.costBasis.isZero()).toBe(true);
     expect(position.realized.equals(Money.of('20.00', PLN))).toBe(true);
     expect(averageCostOf(position)).toBeNull();
+  });
+
+  // ADR 0021: cost basis lives in the currency the position was actually
+  // settled in, never converted to the account's currency.
+
+  it('holds cost basis in the transaction currency, not the account currency, with no rate needed', () => {
+    const transactions = [
+      transaction({
+        id: 'buy-1',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-01-01',
+        quantity: '10',
+        price: '10.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'buy-2',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-02-01',
+        quantity: '5',
+        price: '12.00',
+        fee: '1.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'buy-3',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-03-01',
+        quantity: '5',
+        price: '11.00',
+        currency: EUR,
+      }),
+    ];
+
+    const position = only(buildPositions(transactions, [account('acc', PLN)]));
+
+    expect(position.currency).toBe(EUR);
+    expect(position.quantity.equals(20)).toBe(true);
+    // Plain EUR sums: 100.00 + (60.00 + 1.00) + 55.00 — no rate applied anywhere.
+    expect(position.costBasis.equals(Money.of('216.00', EUR))).toBe(true);
+  });
+
+  it('fixes the queue currency from the first chronological transaction, not the first array element', () => {
+    const transactions = [
+      // Later-dated PLN buy appears first in the array...
+      transaction({
+        id: 'buy-pln',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-06-01',
+        quantity: '10',
+        price: '10.00',
+        currency: PLN,
+      }),
+      // ...but this EUR buy is chronologically first.
+      transaction({
+        id: 'buy-eur',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-01-01',
+        quantity: '10',
+        price: '10.00',
+        currency: EUR,
+      }),
+    ];
+
+    expect(() => buildPositions(transactions, [account('acc', PLN)])).toThrow(
+      MixedCurrencyPositionError,
+    );
+
+    // Confirm the direction: the EUR-only prefix alone builds a EUR position.
+    const eurOnly = only(buildPositions([transactions[1]!], [account('acc', PLN)]));
+    expect(eurOnly.currency).toBe(EUR);
+  });
+
+  it('produces no position for dividends, interest or deposits in a foreign currency', () => {
+    const transactions = [
+      transaction({
+        id: 'div-1',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'dividend',
+        tradeDate: '2024-01-01',
+        grossAmount: '50.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'int-1',
+        accountId: 'acc',
+        type: 'interest',
+        tradeDate: '2024-01-02',
+        grossAmount: '5.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'dep-1',
+        accountId: 'acc',
+        type: 'deposit',
+        tradeDate: '2024-01-03',
+        grossAmount: '1000.00',
+        currency: EUR,
+      }),
+    ];
+
+    expect(buildPositions(transactions, [account('acc', PLN)])).toHaveLength(0);
+  });
+
+  it('produces no position for cash-only transfers with no instrument', () => {
+    const transactions = [
+      transaction({
+        id: 'xfer-in',
+        accountId: 'acc',
+        instrumentId: null,
+        type: 'transfer_in',
+        tradeDate: '2024-01-01',
+        grossAmount: '500.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'xfer-out',
+        accountId: 'acc',
+        instrumentId: null,
+        type: 'transfer_out',
+        tradeDate: '2024-01-02',
+        grossAmount: '500.00',
+        currency: EUR,
+      }),
+    ];
+
+    expect(buildPositions(transactions, [account('acc', PLN)])).toHaveLength(0);
+  });
+
+  it('refuses a currency-mixed lot queue, naming both currencies, whether or not a rate is set', () => {
+    const withoutRate = [
+      transaction({
+        id: 'buy-eur',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-01-01',
+        quantity: '10',
+        price: '10.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'buy-pln',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-02-01',
+        quantity: '10',
+        price: '10.00',
+        currency: PLN,
+      }),
+    ];
+
+    expect(() => buildPositions(withoutRate, [account('acc', PLN)])).toThrow(
+      MixedCurrencyPositionError,
+    );
+    expect(() => buildPositions(withoutRate, [account('acc', PLN)])).toThrow(/PLN/);
+    expect(() => buildPositions(withoutRate, [account('acc', PLN)])).toThrow(/EUR/);
+
+    // A rate does not make the case supported: still refused with the rate present.
+    const withRate = [
+      withoutRate[0]!,
+      transaction({
+        id: 'buy-pln-rated',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-02-01',
+        quantity: '10',
+        price: '10.00',
+        currency: PLN,
+        fxRate: '4.3000',
+      }),
+    ];
+
+    expect(() => buildPositions(withRate, [account('acc', PLN)])).toThrow(
+      MixedCurrencyPositionError,
+    );
+  });
+
+  it('denominates realized P&L in the queue currency', () => {
+    const transactions = [
+      transaction({
+        id: 'buy-1',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-01-01',
+        quantity: '10',
+        price: '10.00',
+        currency: EUR,
+      }),
+      transaction({
+        id: 'sell-1',
+        accountId: 'acc',
+        instrumentId: 'inst',
+        type: 'sell',
+        tradeDate: '2024-02-01',
+        quantity: '10',
+        price: '12.00',
+        currency: EUR,
+      }),
+    ];
+
+    const position = only(buildPositions(transactions, [account('acc', PLN)]));
+
+    expect(position.realized.currency).toBe(EUR);
+    expect(position.realized.equals(Money.of('20.00', EUR))).toBe(true);
+  });
+
+  it('throws UnknownAccountError for a transaction naming an account not supplied', () => {
+    const transactions = [
+      transaction({
+        id: 'buy-1',
+        accountId: 'ghost-acc',
+        instrumentId: 'inst',
+        type: 'buy',
+        tradeDate: '2024-01-01',
+        quantity: '10',
+        price: '10.00',
+      }),
+    ];
+
+    expect(() => buildPositions(transactions, [account('acc')])).toThrow(UnknownAccountError);
   });
 });

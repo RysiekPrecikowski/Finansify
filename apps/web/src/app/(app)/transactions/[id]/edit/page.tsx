@@ -62,7 +62,11 @@ export default async function EditTransactionPage({
           tax: transaction.tax.amount.toFixed(),
           currency: transaction.currency,
           fxRate: transaction.fxRate?.toFixed() ?? '',
-          fxRateSource: transaction.fxRateSource ?? 'broker',
+          // No fallback to 'broker': ADR 0021 made the rate optional, so a
+          // stored `fxRateSource: null` must round-trip as genuinely unset,
+          // not silently pre-select a source with no rate typed and trip the
+          // "rate source with no rate" validation on save.
+          fxRateSource: transaction.fxRateSource ?? '',
           note: transaction.note ?? '',
         }}
       />

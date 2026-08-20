@@ -22,12 +22,12 @@ export class UnsupportedTransactionTypeError extends Error {
   }
 }
 
-export class MissingExecutedRateError extends Error {
-  constructor(from: Currency, to: Currency) {
+export class MixedCurrencyPositionError extends Error {
+  constructor(queueCurrency: Currency, transactionCurrency: Currency) {
     super(
-      `A ${from} transaction on a ${to} account carries no executed FX rate; a rate must never be reconstructed after the fact`,
+      `A position already holding lots in ${queueCurrency} received a transaction in ${transactionCurrency}; the position engine performs no currency conversion, so a lot queue cannot mix currencies (ADR 0021)`,
     );
-    this.name = 'MissingExecutedRateError';
+    this.name = 'MixedCurrencyPositionError';
   }
 }
 
@@ -56,29 +56,17 @@ export const closingTypes = new Set<TransactionType>([
 export interface Position {
   readonly accountId: AccountId;
   readonly instrumentId: InstrumentId;
-  /** Always the **account** currency — see `toAccountCurrency`. */
+  /**
+   * The currency the position's lots actually settled in — fixed by the
+   * first chronological transaction on this `(account, instrument)` queue,
+   * not the account's currency (ADR 0021).
+   */
   readonly currency: Currency;
   readonly quantity: Decimal;
   readonly costBasis: Money;
   readonly realized: Money;
   /** Open lots only, oldest first. */
   readonly lots: readonly Lot[];
-}
-
-/**
- * Historical legs use the rate stored on the transaction, never a rate looked
- * up later: brokers convert at their own spread, and reconstructing it produces
- * a wrong cost basis and a wrong realized P&L (rule 6, ADR 0006).
- *
- * This is also what lets a position hold one comparable basis when the same
- * instrument was bought once in USD and once in broker-converted PLN — with no
- * FX feed in sight, which is exactly what Phase 1 needs.
- */
-function toAccountCurrency(amount: Money, transaction: Transaction, account: Currency): Money {
-  if (transaction.currency === account) return amount;
-  if (transaction.fxRate === null)
-    throw new MissingExecutedRateError(transaction.currency, account);
-  return Money.of(amount.amount.times(transaction.fxRate), account);
 }
 
 /**
@@ -116,11 +104,10 @@ export function buildPositions(
   accounts: readonly Account[],
   strategy: LotStrategy = defaultLotStrategy,
 ): readonly Position[] {
-  const currencyOf = new Map<AccountId, Currency>(
-    accounts.map((account) => [account.id, account.currency]),
-  );
+  const knownAccountIds = new Set<AccountId>(accounts.map((account) => account.id));
   const lotsByKey = new Map<string, Lot[]>();
   const realizedByKey = new Map<string, Money>();
+  const queueCurrencyByKey = new Map<string, Currency>();
   const order: string[] = [];
 
   for (const transaction of [...transactions].sort(chronologically)) {
@@ -131,14 +118,23 @@ export function buildPositions(
     if (!opens && !closes) continue;
     if (transaction.instrumentId === null) continue;
 
-    const accountCurrency = currencyOf.get(transaction.accountId);
-    if (accountCurrency === undefined) throw new UnknownAccountError(transaction.accountId);
+    if (!knownAccountIds.has(transaction.accountId)) {
+      throw new UnknownAccountError(transaction.accountId);
+    }
 
     const key = keyOf(transaction.accountId, transaction.instrumentId);
-    if (!lotsByKey.has(key)) {
+    if (!queueCurrencyByKey.has(key)) {
+      // The first chronologically processed transaction on this queue fixes
+      // its currency (ADR 0021) — every later transaction, opening or
+      // closing, must match it.
       lotsByKey.set(key, []);
-      realizedByKey.set(key, Money.zero(accountCurrency));
+      realizedByKey.set(key, Money.zero(transaction.currency));
+      queueCurrencyByKey.set(key, transaction.currency);
       order.push(key);
+    }
+    const queueCurrency = queueCurrencyByKey.get(key)!;
+    if (transaction.currency !== queueCurrency) {
+      throw new MixedCurrencyPositionError(queueCurrency, transaction.currency);
     }
     const lots = lotsByKey.get(key)!;
 
@@ -150,8 +146,8 @@ export function buildPositions(
         openedOn: transaction.tradeDate,
         originalQuantity: transaction.quantity,
         remainingQuantity: transaction.quantity,
-        originalCost: toAccountCurrency(costBasisOf(transaction), transaction, accountCurrency),
-        remainingCost: toAccountCurrency(costBasisOf(transaction), transaction, accountCurrency),
+        originalCost: costBasisOf(transaction),
+        remainingCost: costBasisOf(transaction),
       });
       continue;
     }
@@ -165,7 +161,7 @@ export function buildPositions(
     // A per-sale override is honoured by passing `matched_lot_ids` straight
     // through, which is what keeps specific-lot selection from making the
     // engine stateful.
-    const proceeds = toAccountCurrency(netProceedsOf(transaction), transaction, accountCurrency);
+    const proceeds = netProceedsOf(transaction);
 
     lotsByKey.set(key, [...match.lots]);
     realizedByKey.set(key, realizedByKey.get(key)!.plus(proceeds).minus(match.costOfSale));

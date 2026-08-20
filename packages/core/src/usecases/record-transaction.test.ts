@@ -98,18 +98,34 @@ describe('makeRecordTransaction', () => {
     expect(await ledger.forUser(userA).listTransactions()).toHaveLength(0);
   });
 
-  // Rule 6 (root CLAUDE.md) / ADR 0006: store the rate as executed, never
-  // reconstruct it later. This is the single most important test in this file
-  // — get it wrong and cost basis and realized P&L drift silently forever.
-  it('refuses a USD buy on a PLN account with no executed rate, and writes nothing', async () => {
+  // ADR 0021: a currency difference no longer implies a conversion happened at
+  // this transaction — BOŚ settles a EUR buy out of a EUR sub-balance funded
+  // by an earlier, separate exchange. The position engine holds the cost
+  // basis in USD, not the account's PLN.
+  it('creates a USD buy on a PLN account with no rate — the basis stays in USD', async () => {
     const { ledger, userA, plnAccount } = await setup();
     const recordTransaction = makeRecordTransaction({ ledger: ledger.forUser(userA) });
 
     const result = await recordTransaction(buyInput(plnAccount, { currency: 'USD' }));
 
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.currency).toBe(currency('USD'));
+    expect(result.value.fxRate).toBeNull();
+  });
+
+  // Rule 6 (root CLAUDE.md) / ADR 0006: wherever a rate IS recorded, its
+  // provenance must be too — never store a rate with no source, or vice versa.
+  it('refuses a rate given with no source, and writes nothing', async () => {
+    const { ledger, userA, plnAccount } = await setup();
+    const recordTransaction = makeRecordTransaction({ ledger: ledger.forUser(userA) });
+
+    const result = await recordTransaction(
+      buyInput(plnAccount, { currency: 'USD', fxRate: '4.05' }),
+    );
+
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(issueAt(result.issues, 'fxRate')).toBeDefined();
     expect(issueAt(result.issues, 'fxRateSource')).toBeDefined();
     expect(await ledger.forUser(userA).listTransactions()).toHaveLength(0);
   });

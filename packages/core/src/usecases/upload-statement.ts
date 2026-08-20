@@ -18,14 +18,18 @@ export interface UploadStatementInput {
  * file. Nothing before this point compares the two, so picking the wrong one
  * of several accounts at the same broker — the exact case a multi-currency
  * XTB user has, one account per currency — stages a whole statement of
- * amounts against an account that does not hold that currency, and every
- * number looks right in isolation.
+ * amounts against the wrong account, and every number looks right in
+ * isolation.
  *
- * A warning rather than a refusal: the parsed rows carry their own currency
- * and are correct as parsed, the batch is staged for review before anything
- * becomes a `Transaction`, and a genuine one-off (a broker reporting in a
- * second currency) should not be unimportable. Statement-level, because it is
- * a fact about the pairing of file and account, not about any single row.
+ * A warning rather than a refusal, and worded as one: a currency the account
+ * is not denominated in is not on its own wrong (ADR 0021 — an account can
+ * hold several currencies natively, e.g. a BOŚ IKZE), so this must not read
+ * as an error on a legitimately multi-currency account. It exists for the
+ * one case it can actually catch: the wrong account was picked from the
+ * dropdown. The parsed rows carry their own currency and are correct as
+ * parsed, and the batch is staged for review before anything becomes a
+ * `Transaction`. Statement-level, because it is a fact about the pairing of
+ * file and account, not about any single row.
  */
 function currencyMismatchWarnings(account: Account, rows: readonly ParsedRow[]): readonly string[] {
   const found = [...new Set(rows.map((row) => row.currency))].filter(
@@ -34,8 +38,8 @@ function currencyMismatchWarnings(account: Account, rows: readonly ParsedRow[]):
   if (found.length === 0) return [];
 
   return [
-    `This statement reports amounts in ${found.join(', ')}, but the selected account "${account.name}" holds ${account.currency}. ` +
-      'Check that the right account was chosen before accepting these rows.',
+    `This statement reports amounts in ${found.join(', ')}; the selected account "${account.name}" is denominated in ${account.currency}. ` +
+      'If that is a mistake, check that the right account was chosen before accepting these rows.',
   ];
 }
 

@@ -50,7 +50,12 @@ export default async function NewTransactionPage() {
           tax: '',
           currency: firstAccount.currency,
           fxRate: '',
-          fxRateSource: 'broker',
+          // No default: ADR 0021 made these optional rather than required on
+          // a currency mismatch, and pre-selecting a source with no rate typed
+          // would trip the "rate source with no rate" validation on submit
+          // for the — now common — case of an account simply holding the
+          // transaction's currency natively.
+          fxRateSource: '',
           note: '',
         }}
       />
