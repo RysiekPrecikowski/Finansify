@@ -243,7 +243,17 @@ export function makeRefreshFxSeries(deps: {
  * this report. Only two consecutive failures break early, the same circuit
  * breaker `makeBackfillPriceHistory` and `makeRefreshPrices` both use — a
  * provider that is genuinely down should not be hammered once per currency.
+ *
+ * Requests a week before `from`, not `from` itself — the same left-edge
+ * anchor buffer `get-prices.ts`'s `makeBackfillPriceHistory` uses, for the
+ * same reason: `historyFor`'s anchor row needs a rate strictly before `from`
+ * to carry forward, and a `from` landing on a day table A didn't publish
+ * (any non-business day) would otherwise leave day one permanently
+ * `partial` once `markCovered` claims it. `coveredFrom` is still recorded at
+ * the real `from`.
  */
+const ANCHOR_BUFFER_DAYS = 7;
+
 export function makeBackfillFxHistory(deps: {
   readonly fx: FxRateRepository;
   readonly provider: FxRateProvider;
@@ -273,7 +283,11 @@ export function makeBackfillFxHistory(deps: {
       if (consecutiveFailures >= 2) break;
 
       try {
-        const rows = await provider.fetchSeriesTo(code, from, to);
+        const rows = await provider.fetchSeriesTo(
+          code,
+          from.subtract({ days: ANCHOR_BUFFER_DAYS }),
+          to,
+        );
         if (rows.length > 0) await fx.save(rows, provider.name);
         // Widened even on an empty response — see the parity note in
         // `makeBackfillPriceHistory`. Only a thrown request leaves coverage
