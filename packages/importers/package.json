@@ -9,7 +9,8 @@
   "scripts": {
     "transit": "exit 0",
     "typecheck": "tsc --noEmit",
-    "fixture:generate": "tsx src/xtb/fixture/generate.ts"
+    "fixture:generate": "tsx src/xtb/fixture/generate.ts",
+    "fixture:generate:bos": "tsx src/bos/fixture/generate.ts"
   },
   "dependencies": {
     "@finansify/core": "workspace:*",
