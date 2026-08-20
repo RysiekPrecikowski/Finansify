@@ -7,8 +7,12 @@ import {
   sampleDates,
   Temporal,
   type Currency,
+  type InstrumentId,
   type InstrumentPosition,
+  type Money,
   type SeriesGrain,
+  type StoredBar,
+  type StoredFxRate,
   type Transaction,
   type UserId,
   type ValuePoint,
@@ -94,6 +98,18 @@ async function resolveContext(userId: UserId, params: { range: Range; grain: Ser
  * from it; `pending` tells the caller whether a `refreshValueSeries` round
  * would still add anything.
  *
+ * **Nothing here may throw past this point** (same rule `readFxPairSeries`
+ * follows in `server/fx-series.ts`): this is called directly from
+ * `DashboardSections`' render, not only from the route handler, so a storage
+ * failure here must degrade the chart, never take the whole dashboard down
+ * with it — exactly the case a preview deployment hits before this PR's own
+ * migration has reached its Neon branch (`docs/deployment.md`: a migration
+ * first meets a real database on merge, not on the PR). Each read is caught
+ * independently, so one failing call doesn't discard results the others
+ * would have returned; `portfolioValueSeries` over the empty maps that are
+ * left behind naturally produces an honest, fully-`partial` series rather
+ * than a fabricated one.
+ *
  * The historical FX leg is always NBP, regardless of the reader's valuation
  * preference (ADR 0018 lets a reader opt Yahoo into today's rate; this chart
  * does not follow that choice) — a second historical FX path is not worth
@@ -116,26 +132,50 @@ export async function readValueSeries(
   const priceProvider = getPriceProvider();
   const fxProvider = getFxProvider();
 
+  let error: string | null = null;
+  function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
+    return promise.catch((cause: unknown) => {
+      error ??= cause instanceof Error ? cause.message : String(cause);
+      return fallback;
+    });
+  }
+
   const [priceHistory, fxHistory, bondUnitValues, priceCoverage, fxCoverage] = await Promise.all([
-    quotedIds.length > 0
-      ? prices.historyFor(quotedIds, window.from, window.to, grain)
-      : Promise.resolve(new Map()),
-    currencies.length > 0
-      ? fx.historyFor(currencies, window.from, window.to, grain, fxProvider.name)
-      : Promise.resolve(new Map()),
-    bondUnitValuesFor(bondPositions, dates, { refresh: false }),
-    quotedIds.length > 0
-      ? prices.coverageFor(quotedIds, priceProvider.name)
-      : Promise.resolve(new Map()),
-    currencies.length > 0
-      ? fx.coverageFor(currencies, fxProvider.name)
-      : Promise.resolve(new Map()),
+    safe<ReadonlyMap<InstrumentId, readonly StoredBar[]>>(
+      quotedIds.length > 0
+        ? prices.historyFor(quotedIds, window.from, window.to, grain)
+        : Promise.resolve(new Map()),
+      new Map(),
+    ),
+    safe<ReadonlyMap<Currency, readonly StoredFxRate[]>>(
+      currencies.length > 0
+        ? fx.historyFor(currencies, window.from, window.to, grain, fxProvider.name)
+        : Promise.resolve(new Map()),
+      new Map(),
+    ),
+    safe<ReadonlyMap<InstrumentId, ReadonlyMap<string, Money>>>(
+      bondUnitValuesFor(bondPositions, dates, { refresh: false }),
+      new Map(),
+    ),
+    safe<ReadonlyMap<InstrumentId, Temporal.PlainDate>>(
+      quotedIds.length > 0
+        ? prices.coverageFor(quotedIds, priceProvider.name)
+        : Promise.resolve(new Map()),
+      new Map(),
+    ),
+    safe<ReadonlyMap<Currency, Temporal.PlainDate>>(
+      currencies.length > 0
+        ? fx.coverageFor(currencies, fxProvider.name)
+        : Promise.resolve(new Map()),
+      new Map(),
+    ),
   ]);
 
   const notYetCovered = (coveredFrom: Temporal.PlainDate | undefined): boolean =>
     coveredFrom === undefined || Temporal.PlainDate.compare(coveredFrom, window.from) > 0;
 
   const pending =
+    error !== null ||
     quotedIds.some((id) => notYetCovered(priceCoverage.get(id))) ||
     currencies.some((code) => notYetCovered(fxCoverage.get(code)));
 
@@ -149,7 +189,7 @@ export async function readValueSeries(
     presentIn: params.presentIn,
   });
 
-  return { points, grain, currency: params.presentIn, pending, error: null };
+  return { points, grain, currency: params.presentIn, pending, error };
 }
 
 /**

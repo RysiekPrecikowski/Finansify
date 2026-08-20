@@ -233,6 +233,16 @@ export function makeRefreshFxSeries(deps: {
  * once: `isFxSeriesDue` would keep saying yes for a range NBP has nothing to
  * publish in (a currency with sparse early history), and this must not
  * re-request it. Never called from the render path.
+ *
+ * One currency's failure does not cost every other currency its turn: this
+ * loop tolerates and continues past it, the same way `makeBackfillPriceHistory`
+ * tolerates one instrument's failure — a portfolio backfilling ten currencies
+ * must not have nine good ones held hostage by a tenth that keeps 404ing or
+ * hitting a broken constraint, since `readValueSeries`' `pending` (and the
+ * client's poll loop) key off *every* currency's own coverage row, not off
+ * this report. Only two consecutive failures break early, the same circuit
+ * breaker `makeBackfillPriceHistory` and `makeRefreshPrices` both use — a
+ * provider that is genuinely down should not be hammered once per currency.
  */
 export function makeBackfillFxHistory(deps: {
   readonly fx: FxRateRepository;
@@ -256,7 +266,12 @@ export function makeBackfillFxHistory(deps: {
     if (due.length === 0) return { refreshed: [], error: null };
 
     const refreshed: Currency[] = [];
+    let error: string | null = null;
+    let consecutiveFailures = 0;
+
     for (const code of due) {
+      if (consecutiveFailures >= 2) break;
+
       try {
         const rows = await provider.fetchSeriesTo(code, from, to);
         if (rows.length > 0) await fx.save(rows, provider.name);
@@ -265,14 +280,13 @@ export function makeBackfillFxHistory(deps: {
         // unwritten.
         await fx.markCovered([code], provider.name, from);
         refreshed.push(code);
+        consecutiveFailures = 0;
       } catch (cause) {
-        return {
-          refreshed,
-          error: cause instanceof Error ? cause.message : String(cause),
-        };
+        error = cause instanceof Error ? cause.message : String(cause);
+        consecutiveFailures += 1;
       }
     }
 
-    return { refreshed, error: null };
+    return { refreshed, error };
   };
 }

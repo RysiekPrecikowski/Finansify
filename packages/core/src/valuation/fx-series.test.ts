@@ -255,7 +255,7 @@ describe('makeBackfillFxHistory', () => {
     expect(second.refreshed).toEqual([]);
   });
 
-  it('stops the whole call on a thrown fetchSeriesTo, reporting the error and whatever succeeded first', async () => {
+  it('continues past a thrown fetchSeriesTo, reporting the error but still backfilling the rest', async () => {
     const clock = new FakeClock(NOW);
     const fx = new InMemoryFxRates(clock);
     const calledFor: Currency[] = [];
@@ -266,11 +266,33 @@ describe('makeBackfillFxHistory', () => {
     });
 
     const backfill = makeBackfillFxHistory({ fx, provider });
-    const report = await backfill([USD, GBP], FROM, TO);
+    const report = await backfill([USD, GBP, EUR], FROM, TO);
+
+    expect(calledFor).toEqual([USD, GBP, EUR]);
+    expect(report.refreshed).toEqual([USD, EUR]);
+    expect(report.error).toBe('boom');
+
+    const coverage = await fx.coverageFor([USD, GBP, EUR], 'nbp');
+    expect(coverage.get(USD)?.equals(FROM)).toBe(true);
+    expect(coverage.get(GBP)).toBeUndefined();
+    expect(coverage.get(EUR)?.equals(FROM)).toBe(true);
+  });
+
+  it('breaks after two consecutive failures rather than retrying every remaining currency', async () => {
+    const clock = new FakeClock(NOW);
+    const fx = new InMemoryFxRates(clock);
+    const calledFor: Currency[] = [];
+    const provider = fakeFxProvider((code) => {
+      calledFor.push(code);
+      return Promise.reject(new Error('down'));
+    });
+
+    const backfill = makeBackfillFxHistory({ fx, provider });
+    const report = await backfill([USD, GBP, EUR], FROM, TO);
 
     expect(calledFor).toEqual([USD, GBP]);
-    expect(report.refreshed).toEqual([USD]);
-    expect(report.error).toBe('boom');
+    expect(report.refreshed).toEqual([]);
+    expect(report.error).toBe('down');
   });
 
   it('skips a currency whose stored coverage already reaches from, without calling the provider', async () => {
