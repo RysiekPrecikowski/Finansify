@@ -248,4 +248,79 @@ describe('makeMatchImportInstruments', () => {
     expect(bySymbol.get('AAPL')!.resolvedInstrumentId).toBe(apple.id);
     expect(bySymbol.get('MSFT')!.suggested).toBeNull();
   });
+
+  it('matches on ISIN even when the symbol the broker used differs from ours', async () => {
+    const imports = new InMemoryImports();
+    const instruments = new InMemoryInstruments();
+    const instrument = await seedInstrument(instruments, {
+      symbol: 'AAPL',
+      isin: 'US0378331005',
+    });
+    const batch = await seedBatch(imports, [
+      parsedRow({
+        instrument: { symbol: 'APPLE-US', exchange: null, name: null, isin: 'US0378331005' },
+      }),
+    ]);
+    const matchImportInstruments = makeMatchImportInstruments({
+      imports: imports.forUser(USER),
+      instruments,
+    });
+
+    const result = await matchImportInstruments(batch.id);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value[0]!.suggested).toEqual(instrument);
+  });
+
+  it('falls back to the symbol/exchange match when the ISIN matches nothing locally', async () => {
+    const imports = new InMemoryImports();
+    const instruments = new InMemoryInstruments();
+    const instrument = await seedInstrument(instruments, { symbol: 'AAPL', isin: null });
+    const batch = await seedBatch(imports, [
+      parsedRow({
+        instrument: { symbol: 'AAPL', exchange: null, name: null, isin: 'US0378331005' },
+      }),
+    ]);
+    const matchImportInstruments = makeMatchImportInstruments({
+      imports: imports.forUser(USER),
+      instruments,
+    });
+
+    const result = await matchImportInstruments(batch.id);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value[0]!.suggested).toEqual(instrument);
+  });
+
+  it('falls back to the symbol/exchange match when the ISIN hits more than one local instrument', async () => {
+    const imports = new InMemoryImports();
+    const instruments = new InMemoryInstruments();
+    const instrument = await seedInstrument(instruments, {
+      symbol: 'AAPL',
+      exchange: null,
+      isin: 'US0378331005',
+    });
+    await seedInstrument(instruments, {
+      symbol: 'AAPL-DUP',
+      exchange: 'XETRA',
+      isin: 'US0378331005',
+    });
+    const batch = await seedBatch(imports, [
+      parsedRow({
+        instrument: { symbol: 'AAPL', exchange: null, name: null, isin: 'US0378331005' },
+      }),
+    ]);
+    const matchImportInstruments = makeMatchImportInstruments({
+      imports: imports.forUser(USER),
+      instruments,
+    });
+
+    const result = await matchImportInstruments(batch.id);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value[0]!.suggested).toEqual(instrument);
+  });
 });

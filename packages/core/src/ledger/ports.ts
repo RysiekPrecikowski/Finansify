@@ -146,6 +146,6 @@ export interface InstrumentRepository {
   findOrCreate(input: InstrumentInput): Promise<Instrument>;
   findById(id: InstrumentId): Promise<Instrument | null>;
   listAll(): Promise<readonly Instrument[]>;
-  /** Local-first match on symbol or name, case-insensitive. `searchInstruments` only calls this with a non-empty, trimmed query. */
+  /** Local-first match on symbol, name, or ISIN, case-insensitive. `searchInstruments` only calls this with a non-empty, trimmed query. */
   search(query: string): Promise<readonly Instrument[]>;
 }

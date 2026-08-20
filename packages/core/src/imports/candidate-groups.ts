@@ -14,6 +14,8 @@ export interface ImportInstrumentCandidateGroup {
   readonly exchange: string | null;
   /** The importer's own label for the ticker, if it had one — display only. */
   readonly name: string | null;
+  /** The broker's ISIN for this ticker, if it gave one — `match-import-instruments.ts`'s preferred auto-match key. */
+  readonly isin: string | null;
   readonly rowCount: number;
   /**
    * Set when every row in the group already carries the same
@@ -36,6 +38,7 @@ export function groupInstrumentCandidates(
       symbol: string;
       exchange: string | null;
       name: string | null;
+      isin: string | null;
       rowCount: number;
       resolvedInstrumentId: InstrumentId | null;
     }
@@ -52,6 +55,7 @@ export function groupInstrumentCandidates(
         symbol: candidate.symbol,
         exchange: candidate.exchange,
         name: candidate.name,
+        isin: candidate.isin ?? null,
         rowCount: 1,
         resolvedInstrumentId: row.resolvedInstrumentId,
       });

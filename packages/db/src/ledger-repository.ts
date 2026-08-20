@@ -503,7 +503,13 @@ export function instrumentRepository(db: Database): InstrumentRepository {
       const rows = await db
         .select()
         .from(instruments)
-        .where(or(ilike(instruments.symbol, needle), ilike(instruments.name, needle)))
+        .where(
+          or(
+            ilike(instruments.symbol, needle),
+            ilike(instruments.name, needle),
+            ilike(instruments.isin, needle),
+          ),
+        )
         .orderBy(asc(instruments.symbol))
         .limit(20);
       return rows.map(toInstrument);

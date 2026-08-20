@@ -30,7 +30,9 @@ export interface MapContext {
 const ZERO_SUM_TYPES = new Set(['Subaccount transfer', 'Transfer']);
 
 const instrumentOf = (ticker: string | null): ParsedInstrumentCandidate | null =>
-  ticker === null ? null : { symbol: normalizeXtbTicker(ticker), exchange: null, name: null };
+  ticker === null
+    ? null
+    : { symbol: normalizeXtbTicker(ticker), exchange: null, name: null, isin: null };
 
 function cashOnlyRow(
   row: CashOperationRow,
@@ -184,7 +186,7 @@ function mapTrade(row: CashOperationRow, ctx: MapContext): ParsedRow {
 export function mapOpenPositionLot(lot: OpenPositionLot, currency: Currency): ParsedRow {
   return {
     externalId: `xtb-position:${lot.positionId}`,
-    instrument: { symbol: lot.ticker, exchange: null, name: null },
+    instrument: { symbol: lot.ticker, exchange: null, name: null, isin: null },
     type: 'transfer_in',
     tradeDate: instantToWarsawDate(lot.openTime),
     settleDate: null,
