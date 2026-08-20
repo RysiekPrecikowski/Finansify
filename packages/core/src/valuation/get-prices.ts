@@ -126,6 +126,20 @@ export function makeRefreshPrices(deps: {
 export const BACKFILL_BATCH = 8;
 
 /**
+ * Fetched (not requested) a week before `from`, purely so `historyFor`'s
+ * left-edge anchor always has a bar to carry forward from. Without this, a
+ * `from` that lands on a session this instrument's own exchange had closed
+ * (a holiday the caller's calendar-only window arithmetic doesn't know
+ * about) leaves day one of the window permanently `partial`: `markCovered`
+ * still — correctly — claims `from` itself, `notYetCovered` turns `false`,
+ * and nothing ever asks again (CU-869ej7zk8, found live). The buffer costs
+ * nothing extra — `fetchDailyBars` already returns the whole tail in one
+ * request — and `coveredFrom` is still recorded at the real `from`, never at
+ * the buffered one, so a narrower later window's due-check is unaffected.
+ */
+const ANCHOR_BUFFER_DAYS = 7;
+
+/**
  * Backfills the daily history a chart needs, once per instrument for the
  * life of that instrument. Guarded by `MarketPriceRepository`'s coverage
  * table rather than by what rows already exist: `instrument_prices`'
@@ -180,7 +194,10 @@ export function makeBackfillPriceHistory(deps: {
       }
 
       try {
-        const bars = await deps.provider.fetchDailyBars(ref, from);
+        const bars = await deps.provider.fetchDailyBars(
+          ref,
+          from.subtract({ days: ANCHOR_BUFFER_DAYS }),
+        );
         const usable = bars.filter((bar) => isUsable(bar, now));
         if (usable.length > 0) await deps.prices.save(usable, deps.provider.name);
         // Widened even on an empty response: a delisted or recently-listed
