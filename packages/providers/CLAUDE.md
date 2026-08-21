@@ -1,16 +1,18 @@
 # packages/providers
 
-The external-data adapters: Yahoo Finance for prices and instrument
-resolution, NBP for FX. See `docs/data-sources.md` for what each source
-offers and ADR 0014 for why lazy, single-provider ingestion was chosen.
+The external-data adapters: Yahoo Finance and GPW's own `chart-json.php` for
+prices, Yahoo for instrument resolution, NBP for FX. See `docs/data-sources.md`
+for what each source offers, ADR 0014 for why lazy ingestion was chosen, and
+ADR 0022 for the provider chain and per-kind capabilities that let more than
+one price source coexist.
 
 ## Rules
 
 - Imports `@finansify/core` only, to implement its `valuation` ports; never
   imports `@finansify/db` or `apps/web` (adapters don't import each other —
   `docs/architecture.md`).
-- One module per provider (`src/yahoo/`, `src/nbp/`). Nothing in `src/yahoo/`
-  may be imported from `src/nbp/` or vice versa.
+- One module per provider (`src/yahoo/`, `src/gpw/`, `src/nbp/`). Nothing in
+  `src/yahoo/` may be imported from `src/gpw/` or `src/nbp/`, or vice versa.
 - `numeric` values become `Decimal`/`Money` at the edge of this package —
   never `Number()`, never `parseFloat` (rule 1). Yahoo's bar closes arrive as
   float32 artifacts (`155.67999267578125`); round through
@@ -41,3 +43,14 @@ offers and ADR 0014 for why lazy, single-provider ingestion was chosen.
   breaker (stop the whole refresh round after two consecutive failures) lives
   in `core`'s `makeRefreshPrices`, not here — this package only handles a
   single request's own retries.
+- `gpw/client.ts`'s WAF resets the TCP connection outright — no `429`, no
+  body — for a request that doesn't look like a browser tab navigating from
+  the instrument's own page; `Referer` and the `Sec-Fetch-*` triad are
+  required, not decorative. There is no status code to read on that failure,
+  so every failure (network-level or non-OK) gets the same backoff, unlike
+  Yahoo's `is429`. `chart-json.php` is keyed by **ISIN**, not a ticker — a
+  `gpw` row's `instrument_identifiers.symbol` is the instrument's ISIN
+  verbatim. `mode: 'ARCH'` returns an instrument's entire history in one
+  request (confirmed live back to 1999 for a real listing); the adapter uses
+  it only when `from` is older than the widest fixed window, so a routine
+  15-minute refresh stays a small request.

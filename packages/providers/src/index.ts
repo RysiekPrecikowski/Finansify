@@ -1,6 +1,7 @@
 export { yahooFxQuoteProvider } from './yahoo/fx-provider';
 export { yahooPriceProvider } from './yahoo/price-provider';
 export { yahooInstrumentSearch } from './yahoo/search-instruments';
+export { gpwPriceProvider } from './gpw/price-provider';
 export { nbpFxRateProvider } from './nbp/fx-provider';
 export { nbpReferenceRateProvider } from './nbp/reference-rate-provider';
 export { gusCpiProvider } from './gus/cpi-provider';
