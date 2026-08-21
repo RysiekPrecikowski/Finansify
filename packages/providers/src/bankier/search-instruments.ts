@@ -51,6 +51,24 @@ function candidateOf(symbol: string, name: string): InstrumentCandidate {
 }
 
 /**
+ * bankier's own `funds_tfi` array sometimes lists the same `kod` twice for
+ * one query (confirmed live: `?query=allianz` returns `ALL91`, `ALL69` and
+ * `ALL68` each twice) — an upstream data quirk, not a `search()` bug here,
+ * but returning it as-is duplicates rows in the combobox and gives React two
+ * elements with the same key.
+ */
+function dedupeBySymbol(
+  candidates: readonly InstrumentCandidate[],
+): readonly InstrumentCandidate[] {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.symbol)) return false;
+    seen.add(candidate.symbol);
+    return true;
+  });
+}
+
+/**
  * bankier.pl's own instrument search — the source for TFI fund and PPK
  * candidates, neither of which Yahoo indexes at all (verified live: it has
  * nothing for a Polish PPK subfund). `funds_tfi` and `ppk` are two separate
@@ -70,7 +88,7 @@ export const bankierInstrumentSearch: InstrumentSearchProvider = {
     const result = await fetchBankierSearch(query);
     const funds = (result.funds_tfi ?? []).map((hit) => candidateOf(hit.kod, hit.nazwa_skrocona));
     const ppk = (result.ppk ?? []).map((hit) => candidateOf(hit.code, hit.shortened_name));
-    return [...funds, ...ppk];
+    return dedupeBySymbol([...funds, ...ppk]);
   },
 
   /**

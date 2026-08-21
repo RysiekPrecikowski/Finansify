@@ -94,6 +94,29 @@ previously-inline fetch — so a search-triggered request and a terms-resolver
 request share one throttle queue against `gpwcatalyst.pl`, the same site,
 rather than two independent ones.
 
+**Search is delivered over one streaming Route Handler
+(`app/api/instruments/search`), not one Server Action per source.** The first
+version of this feature exposed `searchExistingAction`,
+`searchYahooAction`, `searchBankierAction`, and `searchCatalystBondsAction`
+as four separate Server Actions, called independently from
+`<InstrumentCombobox>` so a slow source could never block a fast one.
+Two problems surfaced testing it live: Next.js queues same-client Server
+Action calls rather than running them concurrently, so the four calls never
+actually ran in parallel — a slow one stalled every request behind it, with
+no way to cancel a stale one either; and naming each source as its own
+action put individual provider names (`yahoo`, `bankier`) directly in the
+client component, bypassing the encapsulation `makeAggregatingSearch` exists
+to provide. A plain `GET` returning a `ReadableStream` of NDJSON fixes both:
+`buildInstrumentSearchTasks` (`apps/web/src/lib/instrument-search.ts`) builds
+one task per source — generically, by iterating `getInstrumentSearchProviders()`
+rather than naming providers — runs them concurrently with `Promise.all`, and
+writes each one's `{ options: [...] }` line the moment it settles; the
+client never sees a source name, only a stream of batches until it closes.
+`fetch()` is ordinary HTTP, so the four sources genuinely run concurrently,
+and the client aborts the previous request's stream (`AbortController`) the
+instant a new query starts, instead of leaving it to finish and block the
+next one.
+
 **Corporate bonds only, for now.** Municipal, covered (`listy zastawne`),
 cooperative, and convertible bonds sit on their own listing pages on
 `gpwcatalyst.pl` and are not fetched — a deliberate scope cut matching what a
@@ -137,7 +160,16 @@ duplicate `selectInstrument`'s already-correct `confirm()` gate for no
 reason. Kept for Catalyst bonds, where the dual-identifier problem is real.
 
 **Fetch and cache the corporate-bond listing on a schedule**, rather than
-per search call. Rejected as premature: there is no scheduler in this
-codebase (ADR 0014's lazy-ingestion stance), and the throttled, on-demand
-fetch is a few hundred milliseconds — not yet a problem worth a cache
-invalidation story.
+per search call. Rejected as premature at the time — there is no scheduler
+in this codebase (ADR 0014's lazy-ingestion stance) — but the "per search
+call" half of that assumption was wrong: live testing put the page itself at
+~2s under good conditions, but the shared 8s-timeout/3-retry budget built for
+the small per-instrument pages could compound to nearly a minute on a single
+slow or failing attempt against gpwcatalyst.pl, which is what actually
+produced a user-visible ~50s search hang. The fix taken is narrower than a
+scheduler: `gpw/catalyst-bond-lookup.ts` caches the parsed listing for 12h
+(module-level TTL, same idiom as this module's own request throttle, lazily
+refetched on the next search once it expires — no scheduler, no `after()`
+warm-up), and `fetchGpwCorporateBondsList` uses one longer, unretried attempt
+instead of the shared retry policy, so a cold cache costs one bounded wait
+rather than the compounding one.

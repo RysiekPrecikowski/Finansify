@@ -91,4 +91,10 @@ ports.ts`), **not** an `InstrumentSearchProvider` — a Catalyst bond has two
   and issuer name (`Nazwa emitenta` row). Both this module's fetches and
   `catalyst-terms-provider.ts`'s go through `gpw/client.ts`'s shared
   `fetchGpwCatalystPage`, so they share one throttle queue against
-  `gpwcatalyst.pl` rather than two independent ones.
+  `gpwcatalyst.pl` rather than two independent ones. The parsed listing
+  (~640 rows, ~1.5 MB of source HTML) is cached module-level for 12h — a
+  fresh download on every keystroke was the actual cause of a 50+ second
+  search hang, since the shared 8s/3-retry budget on that page alone could
+  compound past a minute (ADR 0024). `fetchGpwCorporateBondsList` itself uses
+  one longer (20s), unretried attempt rather than that shared retry policy,
+  so a cold cache costs one bounded wait instead of a compounding one.

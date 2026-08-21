@@ -76,6 +76,11 @@ const CATALYST_HEADERS: Record<string, string> = {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
 };
 
+interface FetchCatalystPageOptions {
+  readonly timeoutMs?: number;
+  readonly retryDelaysMs?: readonly number[];
+}
+
 /**
  * `gpwcatalyst.pl` — a different GPW site from `chart-json.php`'s, with no
  * WAF of its own (verified live: the plain headers below are answered with
@@ -84,19 +89,25 @@ const CATALYST_HEADERS: Record<string, string> = {
  * combined rate limit rather than two independent ones hitting the same
  * origin family.
  */
-async function fetchGpwCatalystPage(url: URL): Promise<string> {
+async function fetchGpwCatalystPage(
+  url: URL,
+  {
+    timeoutMs = REQUEST_TIMEOUT_MS,
+    retryDelaysMs = RETRY_DELAYS_MS,
+  }: FetchCatalystPageOptions = {},
+): Promise<string> {
   for (let attempt = 0; ; attempt += 1) {
     await throttle();
     try {
       const response = await fetch(url, {
         headers: CATALYST_HEADERS,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) throw new Error(`gpwcatalyst.pl responded with ${response.status}`);
       return await response.text();
     } catch (error) {
-      if (attempt >= RETRY_DELAYS_MS.length) throw error;
-      await sleep(RETRY_DELAYS_MS[attempt]!);
+      if (attempt >= retryDelaysMs.length) throw error;
+      await sleep(retryDelaysMs[attempt]!);
     }
   }
 }
@@ -109,15 +120,29 @@ export async function fetchGpwCatalystInstrumentPage(ticker: string): Promise<st
 }
 
 /**
+ * The full page is heavy enough (~1.5 MB) that retrying it three times on
+ * the shared 8s budget — fine for the small per-instrument pages above — can
+ * run past a minute before giving up, which is exactly the search hang this
+ * was built to avoid. One longer, un-retried attempt instead: a transient
+ * failure means this search's Catalyst results are empty rather than the
+ * whole search waiting; `catalyst-bond-lookup.ts` only calls this at all
+ * once its own cache is cold, so paying for one long attempt is rare.
+ */
+const CORPORATE_BONDS_TIMEOUT_MS = 20_000;
+
+/**
  * The corporate-bonds segment's full listing — every issuer and ticker on
- * Catalyst's corporate-bond board, one page (~1.5 MB, confirmed live: ~640
- * rows). There is no lighter search-only endpoint on this site (checked);
- * `catalyst-bond-lookup.ts` filters this in memory. Municipal, covered,
- * cooperative and convertible bonds sit on their own listing pages and are
- * not fetched here — a deliberate scope cut (Stage 6), not an oversight.
+ * Catalyst's corporate-bond board, one page (confirmed live: ~640 rows).
+ * There is no lighter search-only endpoint on this site (checked);
+ * `catalyst-bond-lookup.ts` filters this in memory and caches the parsed
+ * result, so this is called once per cache window, not once per keystroke.
+ * Municipal, covered, cooperative and convertible bonds sit on their own
+ * listing pages and are not fetched here — a deliberate scope cut (Stage 6),
+ * not an oversight.
  */
 export async function fetchGpwCorporateBondsList(): Promise<string> {
   return fetchGpwCatalystPage(
     new URL('https://gpwcatalyst.pl/notowania-obligacji-obligacje-korporacyjne'),
+    { timeoutMs: CORPORATE_BONDS_TIMEOUT_MS, retryDelaysMs: [] },
   );
 }

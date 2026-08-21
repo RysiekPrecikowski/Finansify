@@ -3,42 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
-import {
-  searchBankierAction,
-  searchCatalystBondsAction,
-  searchExistingAction,
-  searchYahooAction,
-  type InstrumentOption,
-} from '@/app/(app)/transactions/actions';
 import { errorId, Field } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
 import { useI18n } from '@/lib/i18n/client';
+import { MIN_QUERY_LENGTH, type InstrumentOption } from '@/lib/instrument-search-shared';
 
 const DEBOUNCE_MS = 250;
-const MIN_QUERY_LENGTH = 2;
-
-/**
- * The independent sources a search fans out to, in display order. Order here
- * is purely cosmetic — each source is self-consistent on its own (see
- * `actions.ts`), so nothing about correctness depends on it.
- */
-const SOURCES = ['existing', 'catalyst_bond', 'yahoo', 'bankier'] as const;
-type Source = (typeof SOURCES)[number];
-
-const FETCHERS: Readonly<Record<Source, (query: string) => Promise<readonly InstrumentOption[]>>> =
-  {
-    existing: searchExistingAction,
-    catalyst_bond: searchCatalystBondsAction,
-    yahoo: searchYahooAction,
-    bankier: searchBankierAction,
-  };
-
-const EMPTY_RESULTS: Readonly<Record<Source, readonly InstrumentOption[]>> = {
-  existing: [],
-  catalyst_bond: [],
-  yahoo: [],
-  bankier: [],
-};
+const SEARCH_URL = '/api/instruments/search';
 
 /**
  * What the combobox already has a selection for — either an existing row
@@ -63,13 +34,19 @@ export type InstrumentComboboxInitial =
   | null;
 
 /**
- * Search-as-you-type instrument selection, fanned out to four independent
- * sources (`SOURCES`) that each answer on their own schedule — a slow one
- * (in practice `gpwcatalyst.pl`'s uncached listing page, but nothing here
- * hard-codes that) must never hold up results a fast one already has.
- * Results are merged into the list as each source answers; a trailing
- * spinner row shows while any source is still out, so "still searching" is
- * always visible rather than the list silently being incomplete.
+ * Search-as-you-type instrument selection. Everything the search fans out to
+ * — the local database, every registered `InstrumentSearchProvider`,
+ * Catalyst bonds — lives behind one endpoint (`app/api/instruments/search`),
+ * which streams a line of results the moment each source settles; this
+ * component never learns how many sources there are or what they're called,
+ * only that a batch of options arrived or the stream closed. A trailing
+ * spinner shows for as long as the stream stays open, so "still searching"
+ * is always visible rather than the list silently being incomplete.
+ *
+ * A new query aborts whatever request is still in flight rather than letting
+ * it keep writing into the list once a newer one has started — without this
+ * a slow response for an old keystroke can land after a fast response for
+ * the current one and stay on screen.
  *
  * The user never sees "add a new instrument" as a separate step — typing a
  * ticker or a name and picking a row from the list is the entire flow,
@@ -94,19 +71,16 @@ export function InstrumentCombobox({
   const [selection, setSelection] = useState<InstrumentOption | null>(
     initial?.kind === 'existing' ? { ...initial } : null,
   );
-  const [resultsBySource, setResultsBySource] =
-    useState<Readonly<Record<Source, readonly InstrumentOption[]>>>(EMPTY_RESULTS);
-  const [pendingSources, setPendingSources] = useState<ReadonlySet<Source>>(new Set());
+  const [options, setOptions] = useState<readonly InstrumentOption[]>([]);
+  const [streaming, setStreaming] = useState(false);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const searchTokenRef = useRef(0);
-  // Set only for the mount-time seeded search below; checked once every
-  // source for that run has answered, since "is this the only result" can't
-  // be known from any single source in isolation.
+  const abortRef = useRef<AbortController | null>(null);
+  // Set only for the mount-time seeded search below; checked once the stream
+  // for that run has closed, since "is this the only result" can't be known
+  // while more might still arrive.
   const autoSelectRef = useRef<{ readonly trimmed: string; done: boolean } | null>(null);
-
-  const options = SOURCES.flatMap((source) => resultsBySource[source]);
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
@@ -116,12 +90,18 @@ export function InstrumentCombobox({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  // Fires once all four sources for the current search have answered — the
-  // only point at which "exactly one result, matching the seeded query" can
-  // actually be known.
+  // Aborts whatever request is still running if the component goes away
+  // mid-search — otherwise its `setState` calls would fire after unmount.
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
+  // Fires once the current search's stream has closed — the only point at
+  // which "exactly one result, matching the seeded query" can actually be
+  // known.
   useEffect(() => {
     const pending = autoSelectRef.current;
-    if (pending === null || pending.done || pendingSources.size > 0) return;
+    if (pending === null || pending.done || streaming) return;
     pending.done = true;
 
     if (
@@ -130,34 +110,33 @@ export function InstrumentCombobox({
     ) {
       onPick(options[0]!);
     }
-    // `options`/`resultsBySource` deliberately excluded: this effect reacts to
-    // `pendingSources` reaching empty, not to every options update along the
-    // way, and reads the latest `options` via closure at that moment.
-  }, [pendingSources]);
+    // `options` deliberately excluded: this effect reacts to `streaming`
+    // reaching false, not to every options update along the way, and reads
+    // the latest `options` via closure at that moment.
+  }, [streaming]);
 
   function runSearch(trimmed: string, autoSelectIfSingle = false) {
-    const token = ++searchTokenRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     autoSelectRef.current = autoSelectIfSingle ? { trimmed, done: false } : null;
-    setResultsBySource(EMPTY_RESULTS);
-    setPendingSources(new Set(SOURCES));
+    setOptions([]);
+    setStreaming(true);
     setOpen(true);
 
-    for (const source of SOURCES) {
-      FETCHERS[source](trimmed)
-        .then((results) => {
-          if (searchTokenRef.current !== token) return;
-          setResultsBySource((prev) => ({ ...prev, [source]: results }));
-        })
-        .finally(() => {
-          if (searchTokenRef.current !== token) return;
-          setPendingSources((prev) => {
-            if (!prev.has(source)) return prev;
-            const next = new Set(prev);
-            next.delete(source);
-            return next;
-          });
-        });
-    }
+    // `AbortController.abort()` stops the network layer but does not
+    // guarantee an in-flight `reader.read()` rejects before it resolves with
+    // data the browser had already buffered — so a stale request's own
+    // batches can still arrive after a newer search has reset `options`.
+    // Both callbacks re-check which controller is current before touching
+    // state, which is what an aborted request's leftover writes actually
+    // need guarding against.
+    void readSearchStream(trimmed, controller.signal, (batch) => {
+      if (abortRef.current !== controller) return;
+      setOptions((prev) => [...prev, ...batch]);
+    }).finally(() => {
+      if (abortRef.current === controller) setStreaming(false);
+    });
   }
 
   // Runs once for a `kind: 'query'` initial — the import resolve screen's own
@@ -179,10 +158,10 @@ export function InstrumentCombobox({
 
     const trimmed = value.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
-      searchTokenRef.current += 1; // invalidate any in-flight search
+      abortRef.current?.abort();
       autoSelectRef.current = null;
-      setResultsBySource(EMPTY_RESULTS);
-      setPendingSources(new Set());
+      setOptions([]);
+      setStreaming(false);
       setOpen(false);
       return;
     }
@@ -197,7 +176,6 @@ export function InstrumentCombobox({
   }
 
   const fieldId = 'instrumentSearch';
-  const stillSearching = pendingSources.size > 0;
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-2">
@@ -225,13 +203,13 @@ export function InstrumentCombobox({
 
       {open && (
         <ul className="bg-popover border-border absolute top-full z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border py-1 shadow-md">
-          {options.length === 0 && stillSearching && (
+          {options.length === 0 && streaming && (
             <li className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm">
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
               {strings.searching}
             </li>
           )}
-          {options.length === 0 && !stillSearching && (
+          {options.length === 0 && !streaming && (
             <li className="text-muted-foreground px-3 py-2 text-sm">{strings.noResults}</li>
           )}
           {options.map((option) => (
@@ -245,10 +223,10 @@ export function InstrumentCombobox({
               </button>
             </li>
           ))}
-          {/* Some results already showing, but not every source has answered
-              yet — a trailing row rather than replacing the list, so what's
+          {/* Some results already showing, but the stream is still open —
+              a trailing row rather than replacing the list, so what's
               already found stays visible while the rest keeps loading. */}
-          {options.length > 0 && stillSearching && (
+          {options.length > 0 && streaming && (
             <li className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-xs">
               <Loader2 className="size-3 animate-spin" aria-hidden />
               {strings.searchingMore}
@@ -292,6 +270,44 @@ export function InstrumentCombobox({
       )}
     </div>
   );
+}
+
+/**
+ * Reads the search endpoint's NDJSON stream, calling `onBatch` for each
+ * line as it arrives. Resolves once the stream closes; an aborted request
+ * (a newer search started, or the component unmounted) resolves quietly
+ * rather than throwing, since that is the expected way for this to end.
+ */
+async function readSearchStream(
+  query: string,
+  signal: AbortSignal,
+  onBatch: (options: readonly InstrumentOption[]) => void,
+): Promise<void> {
+  try {
+    const response = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(query)}`, { signal });
+    const body = response.body;
+    if (!response.ok || body === null) return;
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        if (line === '') continue;
+        const batch = JSON.parse(line) as { readonly options: readonly InstrumentOption[] };
+        onBatch(batch.options);
+      }
+    }
+  } catch (error) {
+    if ((error as { name?: string }).name !== 'AbortError') {
+      console.error('Instrument search failed', error);
+    }
+  }
 }
 
 function optionKey(option: InstrumentOption): string {

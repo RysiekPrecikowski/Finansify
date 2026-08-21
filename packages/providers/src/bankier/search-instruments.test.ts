@@ -33,6 +33,25 @@ describe('bankierInstrumentSearch.search', () => {
     expect(await bankierInstrumentSearch.search('nope')).toEqual([]);
     vi.unstubAllGlobals();
   });
+
+  it('dedupes a kod that funds_tfi itself lists twice (confirmed live for ?query=allianz)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          funds_tfi: [
+            { kod: 'ALL91', nazwa_skrocona: 'Allianz Akcji Rynku Złota (Allianz FIO)' },
+            { kod: 'ALL91', nazwa_skrocona: 'Allianz Akcji Rynku Złota (Allianz FIO)' },
+          ],
+        }),
+      ),
+    );
+
+    const candidates = await bankierInstrumentSearch.search('allianz');
+
+    expect(candidates).toHaveLength(1);
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('bankierInstrumentSearch.confirm', () => {

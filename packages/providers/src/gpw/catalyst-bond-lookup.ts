@@ -57,10 +57,41 @@ function parseListing(ticker: string, html: string): CatalystBondListing | null 
 }
 
 /**
+ * The board changes at most once a day; re-downloading ~1.5 MB on every
+ * keystroke was the actual cause of a 50+ second search hang (the parsed
+ * candidates cost nothing to keep, so this caches those, not the raw HTML).
+ * A module-level TTL, same idiom as this module's own `throttle` — no
+ * framework caching (`use cache`) reaches into `packages/providers`, which
+ * knows nothing about Next.js (`AGENTS.md`, rule 2).
+ */
+const LISTING_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+let cachedListing:
+  { readonly candidates: readonly CatalystBondCandidate[]; readonly expiresAt: number } | undefined;
+let listingInFlight: Promise<readonly CatalystBondCandidate[]> | undefined;
+
+/** Concurrent searches while the cache is cold share one fetch instead of one each. Only a success populates the cache — a failure is retried on the next call rather than remembered. */
+async function corporateBondsListing(): Promise<readonly CatalystBondCandidate[]> {
+  if (cachedListing !== undefined && cachedListing.expiresAt > Date.now()) {
+    return cachedListing.candidates;
+  }
+  listingInFlight ??= (async () => {
+    const html = await fetchGpwCorporateBondsList();
+    const candidates = parseCorporateBondsListing(html);
+    cachedListing = { candidates, expiresAt: Date.now() + LISTING_CACHE_TTL_MS };
+    return candidates;
+  })().finally(() => {
+    listingInFlight = undefined;
+  });
+  return listingInFlight;
+}
+
+/**
  * Search and confirmation for Catalyst-listed corporate bonds (Stage 6),
  * scraped off `gpwcatalyst.pl` — the site has no search API of its own
  * (checked: only full per-segment listing pages), so `search()` fetches the
- * whole corporate-bond board (~640 rows, one request) and filters in memory.
+ * whole corporate-bond board (~640 rows) and filters in memory, through the
+ * cache above.
  * Municipal, covered, cooperative and convertible bonds sit on separate
  * listing pages and are a deliberate scope cut, not fetched here.
  */
@@ -68,11 +99,11 @@ export const gpwCatalystBondLookup: CatalystBondLookup = {
   name: 'gpw',
 
   async search(query: string): Promise<readonly CatalystBondCandidate[]> {
-    const html = await fetchGpwCorporateBondsList();
     const needle = query.trim().toLowerCase();
     if (needle === '') return [];
 
-    return parseCorporateBondsListing(html).filter(
+    const candidates = await corporateBondsListing();
+    return candidates.filter(
       (candidate) =>
         candidate.ticker.toLowerCase().includes(needle) ||
         candidate.issuerName.toLowerCase().includes(needle),
