@@ -1,8 +1,15 @@
-import { makeSelectBond, makeSelectInstrument, type FieldIssue } from '@finansify/core';
+import {
+  makeSelectBond,
+  makeSelectCatalystBond,
+  makeSelectInstrument,
+  type FieldIssue,
+} from '@finansify/core';
 
 import { getDictionary } from '@/lib/i18n/server';
 import {
   getBondTermsResolver,
+  getCatalystBondLookup,
+  getCatalystBondTermsRepository,
   getInstrumentSearchProvider,
   getInstruments,
   getSymbols,
@@ -24,12 +31,18 @@ import {
  * the trade date has to travel with the selection. The import screen never
  * submits this kind — every group it renders a combobox for came from a
  * parsed row, and nothing there looks like a bond series code.
+ *
+ * A Catalyst bond also skips `selectInstrument`, for a different reason
+ * (Stage 6): it *is* quoted, but by two different identifiers — the ticker
+ * search and the terms resolver answer to, and the ISIN `gpw`'s price
+ * lookups need — which `confirm()`'s single `symbol` field cannot carry.
+ * `selectCatalystBond` looks the ticker up again and writes both explicitly.
  */
 export async function resolveInstrumentSelection(
   formData: FormData,
 ): Promise<{ ok: true; id: string | null } | { ok: false; issues: readonly FieldIssue[] }> {
   const kind = formData.get('instrumentSelectionKind');
-  if (kind !== 'existing' && kind !== 'candidate' && kind !== 'bond') {
+  if (kind !== 'existing' && kind !== 'candidate' && kind !== 'bond' && kind !== 'catalyst_bond') {
     // Nothing was picked — correct for a transaction type that has no
     // instrument leg at all.
     return { ok: true, id: null };
@@ -59,6 +72,26 @@ export async function resolveInstrumentSelection(
         issues: resolved.issues.map((issue) => ({
           ...issue,
           path: issue.path === 'seriesCode' ? 'instrumentSeriesCode' : issue.path,
+        })),
+      };
+    }
+    return { ok: true, id: resolved.value.id };
+  }
+
+  if (kind === 'catalyst_bond') {
+    const selectCatalystBond = makeSelectCatalystBond({
+      instruments: getInstruments(),
+      symbols: getSymbols(),
+      lookup: getCatalystBondLookup(),
+      catalystBondTerms: getCatalystBondTermsRepository(),
+    });
+    const resolved = await selectCatalystBond({ ticker: text('instrumentTicker') });
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        issues: resolved.issues.map((issue) => ({
+          ...issue,
+          path: issue.path === 'ticker' ? 'instrumentTicker' : issue.path,
         })),
       };
     }

@@ -4,7 +4,7 @@ import { type PgColumn } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { type Database } from './client';
-import { fxRateRepository, marketPriceRepository } from './price-repository';
+import { fxRateRepository, marketPriceRepository, symbolRepository } from './price-repository';
 import {
   fxRateCoverage,
   instrumentPriceCoverage,
@@ -478,5 +478,113 @@ describe('fxRateRepository — markCovered', () => {
     };
     expect(call.target).toEqual([fxRateCoverage.currency, fxRateCoverage.source]);
     expect(call.set.coveredFrom).toEqual(expectedLeastCoveredFrom(fxRateCoverage.coveredFrom));
+  });
+});
+
+/** `chainFor`'s shape: `select().from().innerJoin().where().orderBy()`, resolving directly. */
+function makeJoinedOrderedSelectChain<Row>(rows: Row[]) {
+  const orderBy = vi.fn().mockResolvedValue(rows);
+  const where = vi.fn().mockReturnValue({ orderBy });
+  const innerJoin = vi.fn().mockReturnValue({ where });
+  const from = vi.fn().mockReturnValue({ innerJoin });
+  const select = vi.fn().mockReturnValue({ from });
+  return { select, from, innerJoin, where, orderBy };
+}
+
+/** `setChain`'s delete half: `delete().where()`, resolving directly. */
+function makeDeleteChain() {
+  const where = vi.fn().mockResolvedValue(undefined);
+  const del = vi.fn().mockReturnValue({ where });
+  return { del, where };
+}
+
+describe('symbolRepository — chainFor', () => {
+  it('returns an empty map without querying for an empty id list', async () => {
+    const select = vi.fn();
+    const repo = symbolRepository({ select } as unknown as Database);
+
+    const result = await repo.chainFor([]);
+
+    expect(result.size).toBe(0);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('joins in currency/kind from instruments and carries the admin-visible fields chainFor alone used to drop', async () => {
+    const { select } = makeJoinedOrderedSelectChain([
+      {
+        instrumentId: INSTRUMENT_ID_1,
+        provider: 'gpw',
+        symbol: 'PLPKN0000018',
+        priority: 0,
+        fallbackCount: 2,
+        lastFallbackAt: FETCHED_AT,
+        verifiedAt: FETCHED_AT,
+        currency: 'PLN',
+        kind: 'equity',
+      },
+      {
+        instrumentId: INSTRUMENT_ID_1,
+        provider: 'yahoo',
+        symbol: 'PKN.WA',
+        priority: 1,
+        fallbackCount: 0,
+        lastFallbackAt: null,
+        verifiedAt: FETCHED_AT,
+        currency: 'PLN',
+        kind: 'equity',
+      },
+    ]);
+    const repo = symbolRepository({ select } as unknown as Database);
+
+    const result = await repo.chainFor([INSTRUMENT_ID_1]);
+
+    const chain = result.get(INSTRUMENT_ID_1);
+    expect(chain?.map((entry) => entry.provider)).toEqual(['gpw', 'yahoo']);
+    expect(chain?.map((entry) => entry.priority)).toEqual([0, 1]);
+    expect(chain?.[0]?.fallbackCount).toBe(2);
+    expect(chain?.[0]?.lastFallbackAt).not.toBeNull();
+    expect(chain?.[1]?.lastFallbackAt).toBeNull();
+    expect(chain?.[0]?.currency).toBe(currency('PLN'));
+  });
+});
+
+describe('symbolRepository — setChain', () => {
+  it('deletes providers no longer in the submitted list, then upserts the rest with fresh priorities', async () => {
+    const { del, where: whereDelete } = makeDeleteChain();
+    const { insert, values, onConflictDoUpdate } = makeInsertChain();
+    const repo = symbolRepository({ delete: del, insert } as unknown as Database);
+
+    await repo.setChain(INSTRUMENT_ID_1, [
+      { provider: 'gpw', symbol: 'PLPKN0000018' },
+      { provider: 'yahoo', symbol: 'PKN.WA' },
+    ]);
+
+    expect(whereDelete).toHaveBeenCalled();
+    expect(values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        instrumentId: INSTRUMENT_ID_1,
+        provider: 'gpw',
+        symbol: 'PLPKN0000018',
+        priority: 0,
+      }),
+      expect.objectContaining({
+        instrumentId: INSTRUMENT_ID_1,
+        provider: 'yahoo',
+        symbol: 'PKN.WA',
+        priority: 1,
+      }),
+    ]);
+    expect(onConflictDoUpdate).toHaveBeenCalled();
+  });
+
+  it('deletes everything and skips the insert entirely when entries is empty', async () => {
+    const { del, where: whereDelete } = makeDeleteChain();
+    const insert = vi.fn();
+    const repo = symbolRepository({ delete: del, insert } as unknown as Database);
+
+    await repo.setChain(INSTRUMENT_ID_1, []);
+
+    expect(whereDelete).toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
   });
 });

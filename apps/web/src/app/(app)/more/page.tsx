@@ -1,4 +1,4 @@
-import { ChevronRight, Download, Landmark, LineChart, Upload } from 'lucide-react';
+import { ChevronRight, Download, Landmark, LineChart, Upload, Waypoints } from 'lucide-react';
 import Link from 'next/link';
 
 import { FxSourceSettings } from '@/components/fx-source-settings';
@@ -48,6 +48,14 @@ export default async function MorePage() {
         >
           <LineChart className="text-muted-foreground size-4 shrink-0" aria-hidden />
           <span className="flex-1">{dictionary.indicators.title}</span>
+          <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        </Link>
+        <Link
+          href="/more/providers"
+          className="hover:bg-muted/50 flex items-center gap-3 px-1 py-3 text-sm"
+        >
+          <Waypoints className="text-muted-foreground size-4 shrink-0" aria-hidden />
+          <span className="flex-1">{dictionary.providers.title}</span>
           <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
         </Link>
       </nav>

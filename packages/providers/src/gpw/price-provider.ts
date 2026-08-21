@@ -57,7 +57,7 @@ export const gpwPriceProvider: PriceProvider = {
   /**
    * Equities, ETFs, and `catalyst_bond` — the retail-treasury `bond` kind is
    * never quoted here (it accrues, ADR 0011). `fund` (TFI/PPK units) is not
-   * exchange-traded — that is `bankier`'s history to serve (Stage 4).
+   * exchange-traded — that is `bankier`'s history to serve.
    *
    * A Catalyst bar arrives exactly like an equity bar: money, in the bond's
    * own currency. It just means "per 100 nominal" rather than "per share" —

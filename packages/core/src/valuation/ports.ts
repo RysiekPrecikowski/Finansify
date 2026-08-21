@@ -12,6 +12,7 @@ import {
   type SeriesGrain,
   type StoredBar,
   type StoredFxRate,
+  type SymbolMapping,
 } from './types';
 import { type ProviderName } from './vocabulary';
 
@@ -128,7 +129,7 @@ export interface SymbolRepository {
    */
   chainFor(
     ids: readonly InstrumentId[],
-  ): Promise<ReadonlyMap<InstrumentId, readonly ResolvedSymbol[]>>;
+  ): Promise<ReadonlyMap<InstrumentId, readonly SymbolMapping[]>>;
 
   save(ref: ResolvedSymbol): Promise<void>;
 
@@ -139,6 +140,20 @@ export interface SymbolRepository {
    * itself.
    */
   recordFallback(instrumentId: InstrumentId, provider: ProviderName): Promise<void>;
+
+  /**
+   * Replaces an instrument's whole provider chain in one call — an admin's
+   * edit (Stage 5) is "here is the ordered list from now on," not a sequence
+   * of individual inserts/deletes/reorders. `entries[0]` becomes priority 0,
+   * tried first; `entries: []` leaves the instrument unmapped, the same
+   * state as one nothing has ever resolved. A `(provider, symbol)` pair
+   * another instrument already claims is refused by the same unique
+   * constraint `save` relies on.
+   */
+  setChain(
+    instrumentId: InstrumentId,
+    entries: readonly { readonly provider: ProviderName; readonly symbol: string }[],
+  ): Promise<void>;
 }
 
 /** Rates to PLN; cross rates are computed by `core` (`convertViaPln`), never stored. */

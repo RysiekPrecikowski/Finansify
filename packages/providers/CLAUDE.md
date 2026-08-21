@@ -1,18 +1,19 @@
 # packages/providers
 
-The external-data adapters: Yahoo Finance and GPW's own `chart-json.php` for
-prices, Yahoo for instrument resolution, NBP for FX. See `docs/data-sources.md`
-for what each source offers, ADR 0014 for why lazy ingestion was chosen, and
-ADR 0022 for the provider chain and per-kind capabilities that let more than
-one price source coexist.
+The external-data adapters: Yahoo Finance, GPW's own `chart-json.php`, and
+bankier.pl's public chart API for prices, Yahoo for instrument resolution, NBP
+for FX. See `docs/data-sources.md` for what each source offers, ADR 0014 for
+why lazy ingestion was chosen, and ADR 0022 for the provider chain and
+per-kind capabilities that let more than one price source coexist.
 
 ## Rules
 
 - Imports `@finansify/core` only, to implement its `valuation` ports; never
   imports `@finansify/db` or `apps/web` (adapters don't import each other —
   `docs/architecture.md`).
-- One module per provider (`src/yahoo/`, `src/gpw/`, `src/nbp/`). Nothing in
-  `src/yahoo/` may be imported from `src/gpw/` or `src/nbp/`, or vice versa.
+- One module per provider (`src/yahoo/`, `src/gpw/`, `src/bankier/`,
+  `src/nbp/`). Nothing in `src/yahoo/` may be imported from `src/gpw/` or
+  `src/nbp/`, or vice versa.
 - `numeric` values become `Decimal`/`Money` at the edge of this package —
   never `Number()`, never `parseFloat` (rule 1). Yahoo's bar closes arrive as
   float32 artifacts (`155.67999267578125`); round through
@@ -58,4 +59,42 @@ one price source coexist.
   `gpwcatalyst.pl`'s instrument page, keyed by **ticker** (`GHE0128`), not
   ISIN (ADR 0023). Regexed against the raw markup, not flattened text
   (`mf/bond-issue-provider.ts`'s approach): the `</td><td>` boundary is what
-  keeps the label pinned to its own value.
+  keeps the label pinned to its own value. `parseNominal` is exported so
+  `gpw/catalyst-bond-lookup.ts` (below) can read the same page without a
+  second regex for the same field.
+- `bankier/client.ts` hits `api.bankier.pl` with no headers at all — verified
+  live, there is no WAF here unlike `gpw`'s. `bankier/price-provider.ts`
+  serves only `fund` (TFI/PPK units, keyed by bankier's own fund symbol, a
+  third identifier alongside ISIN and the Catalyst ticker); it checks the
+  response's own `profile_data.currency` against the instrument's stored
+  currency and refuses on a mismatch, something `gpw`'s endpoint gives no
+  data to do. A fund's valuation cadence is whatever bankier published — some
+  value weekly, not daily — so bars are passed through exactly as returned,
+  never resampled to fill a day the fund itself didn't quote.
+- `bankier/search-instruments.ts` implements `InstrumentSearchProvider`
+  against bankier's `instrument-search` API (Stage 6, ADR 0024) — a fund has
+  one identifier used both to find and to price it, so this is a normal
+  implementation, unlike the Catalyst case below. `confirm()` re-searches by
+  the exact symbol (never trusts the candidate's own `name`, same ADR 0014
+  gate as Yahoo's) and fetches `bankier-fund-chart-data` for the currency,
+  since the search response never carries one.
+- `gpw/catalyst-bond-lookup.ts` is a `CatalystBondLookup` (`core/bonds/
+ports.ts`), **not** an `InstrumentSearchProvider` — a Catalyst bond has two
+  identifiers (ticker, ISIN) for two different roles, which `confirm()`'s
+  one-`symbol` contract can't carry (ADR 0024). `search()` scrapes the
+  corporate-bond listing page (no search API exists on this site) and walks
+  issuer/ticker links in document order, since the issuer cell is
+  `rowspan`-grouped over every bond from that issuer; the page repeats this
+  table 2-3 times (a hidden "export to Excel" variant), so results are
+  deduped by ticker. `fetchListing()` reads the same instrument page
+  `catalyst-terms-provider.ts` does, plus the ISIN (`id="isin"` hidden input)
+  and issuer name (`Nazwa emitenta` row). Both this module's fetches and
+  `catalyst-terms-provider.ts`'s go through `gpw/client.ts`'s shared
+  `fetchGpwCatalystPage`, so they share one throttle queue against
+  `gpwcatalyst.pl` rather than two independent ones. The parsed listing
+  (~640 rows, ~1.5 MB of source HTML) is cached module-level for 12h — a
+  fresh download on every keystroke was the actual cause of a 50+ second
+  search hang, since the shared 8s/3-retry budget on that page alone could
+  compound past a minute (ADR 0024). `fetchGpwCorporateBondsList` itself uses
+  one longer (20s), unretried attempt rather than that shared retry policy,
+  so a cold cache costs one bounded wait instead of a compounding one.
