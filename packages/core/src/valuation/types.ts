@@ -62,6 +62,8 @@ export interface ResolvedSymbol {
   readonly symbol: string;
   /** Expected currency — the adapter compares its response against this and refuses on mismatch. */
   readonly currency: Currency;
+  /** The instrument's kind — routing needs it to ask a provider what it supports for this instrument (ADR 0022). */
+  readonly kind: InstrumentKind;
 }
 
 /**

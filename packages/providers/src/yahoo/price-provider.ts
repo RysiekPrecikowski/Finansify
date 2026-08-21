@@ -21,6 +21,16 @@ export const yahooPriceProvider: PriceProvider = {
   name: 'yahoo',
 
   /**
+   * Yahoo quotes equities, ETFs and funds globally, GPW included via the
+   * `.WA` suffix (`docs/data-sources.md`) — never bonds, which it doesn't
+   * quote at all (retail bonds are accrued, ADR 0011; Catalyst-listed bonds
+   * are `gpw`'s to serve, ADR 0022).
+   */
+  capabilitiesFor(kind) {
+    return kind === 'bond' ? { history: false, spot: false } : { history: true, spot: false };
+  },
+
+  /**
    * `from` is already a several-day-wide window (`core`'s `refreshPrices`
    * picks it) rather than a single target day — the same request costs the
    * same either way, and the width absorbs weekends and holidays for free

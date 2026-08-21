@@ -1,6 +1,8 @@
 import { providerNames } from '@finansify/core/vocabulary';
 import {
   date,
+  index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
@@ -25,9 +27,16 @@ const decimalPrice = <TName extends string>(name: TName) =>
   numeric(name, { precision: 20, scale: 8, mode: 'string' });
 
 /**
- * One instrument tied to one provider's symbol. `(provider, symbol)` is
- * unique so two instruments can never both claim the same ticker — the
- * scenario section 06 of the ingestion plan calls out as the real risk.
+ * One instrument tied to one provider's symbol — one row of the provider
+ * chain ADR 0022 adds. `(provider, symbol)` is unique so two instruments can
+ * never both claim the same ticker — the scenario section 06 of the
+ * ingestion plan calls out as the real risk.
+ *
+ * `priority` orders the chain per instrument — lower tried first — and is
+ * materialised at creation, not derived; an admin can reorder it by hand
+ * (Stage 5). `fallbackCount`/`lastFallbackAt` are an admin-visible counter,
+ * not a mechanism: fallback is deliberately non-sticky, so nothing here ever
+ * reorders the chain itself (`provider-chain.ts`).
  */
 export const instrumentIdentifiers = pgTable(
   'instrument_identifiers',
@@ -37,11 +46,15 @@ export const instrumentIdentifiers = pgTable(
       .references(() => instruments.id, { onDelete: 'cascade' }),
     provider: providerNameEnum('provider').notNull(),
     symbol: text('symbol').notNull(),
+    priority: integer('priority').notNull().default(0),
+    fallbackCount: integer('fallback_count').notNull().default(0),
+    lastFallbackAt: timestamp('last_fallback_at', { withTimezone: true }),
     verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.instrumentId, table.provider] }),
     unique('instrument_identifiers_provider_symbol_key').on(table.provider, table.symbol),
+    index('instrument_identifiers_instrument_priority_idx').on(table.instrumentId, table.priority),
   ],
 );
 
@@ -49,10 +62,14 @@ export type InstrumentIdentifierRow = typeof instrumentIdentifiers.$inferSelect;
 export type NewInstrumentIdentifierRow = typeof instrumentIdentifiers.$inferInsert;
 
 /**
- * One closing price per instrument per session day. `(instrument_id, date)`
- * is the primary key that makes naive concurrent upserts safe — two
- * simultaneous refreshes for the same instrument race harmlessly onto the
- * same row (ADR 0014, no fetch lock).
+ * One closing price per instrument per session day **per source**.
+ * `(instrument_id, date, source)` is the primary key — same shape as
+ * `fx_rates` below, and for the same reason (ADR 0022, Appendix B of the
+ * provider-chain plan): two providers can hold a price for the same
+ * instrument-day and disagree, so whichever refresh ran last must not
+ * silently overwrite the other. Naive concurrent upserts for the same
+ * instrument *and* source still race harmlessly onto the same row (ADR 0014,
+ * no fetch lock).
  */
 export const instrumentPrices = pgTable(
   'instrument_prices',
@@ -66,7 +83,7 @@ export const instrumentPrices = pgTable(
     source: providerNameEnum('source').notNull(),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.instrumentId, table.date] })],
+  (table) => [primaryKey({ columns: [table.instrumentId, table.date, table.source] })],
 );
 
 export type InstrumentPriceRow = typeof instrumentPrices.$inferSelect;

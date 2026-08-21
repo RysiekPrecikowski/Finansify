@@ -89,7 +89,7 @@ function bucketExpr(grain: 'week' | 'month', column: PgColumn) {
 
 export function marketPriceRepository(db: Database): MarketPriceRepository {
   return {
-    async latestFor(ids: readonly InstrumentId[]) {
+    async latestFor(ids: readonly InstrumentId[], source: ProviderName) {
       if (ids.length === 0) return new Map();
       // `DISTINCT ON` returns one row per instrument — its newest bar — rather
       // than the whole price history for a JS loop to discard. This runs on
@@ -99,7 +99,12 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
       const rows = await db
         .selectDistinctOn([instrumentPrices.instrumentId])
         .from(instrumentPrices)
-        .where(inArray(instrumentPrices.instrumentId, [...ids]))
+        .where(
+          and(
+            inArray(instrumentPrices.instrumentId, [...ids]),
+            eq(instrumentPrices.source, source),
+          ),
+        )
         .orderBy(instrumentPrices.instrumentId, desc(instrumentPrices.date));
 
       const result = new Map<InstrumentId, StoredBar>();
@@ -123,11 +128,13 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
           })),
         )
         .onConflictDoUpdate({
-          target: [instrumentPrices.instrumentId, instrumentPrices.date],
+          // Matches the primary key, `source` included: a Yahoo close and a
+          // GPW close for the same instrument-day are two rows, not one
+          // overwriting the other (ADR 0022).
+          target: [instrumentPrices.instrumentId, instrumentPrices.date, instrumentPrices.source],
           set: {
             close: sql`excluded.close`,
             currency: sql`excluded.currency`,
-            source: sql`excluded.source`,
             fetchedAt: sql`excluded.fetched_at`,
           },
         });
@@ -138,6 +145,7 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
       from: Temporal.PlainDate,
       to: Temporal.PlainDate,
       grain: SeriesGrain,
+      source: ProviderName,
     ) {
       if (ids.length === 0) return new Map();
       const idList = [...ids];
@@ -151,6 +159,7 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
         .where(
           and(
             inArray(instrumentPrices.instrumentId, idList),
+            eq(instrumentPrices.source, source),
             lt(instrumentPrices.date, from.toString()),
           ),
         )
@@ -158,6 +167,7 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
 
       const inRange = and(
         inArray(instrumentPrices.instrumentId, idList),
+        eq(instrumentPrices.source, source),
         gte(instrumentPrices.date, from.toString()),
         lte(instrumentPrices.date, to.toString()),
       );
@@ -256,46 +266,65 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
   };
 }
 
+async function chainFor(
+  db: Database,
+  ids: readonly InstrumentId[],
+): Promise<ReadonlyMap<InstrumentId, readonly ResolvedSymbol[]>> {
+  if (ids.length === 0) return new Map();
+  // `instrument_identifiers` carries no currency or kind of its own — the
+  // instrument's own row is the source of truth an adapter verifies its
+  // response against (ADR 0014), so both are joined in here rather than
+  // duplicated onto every mapping row.
+  const rows = await db
+    .select({
+      instrumentId: instrumentIdentifiers.instrumentId,
+      provider: instrumentIdentifiers.provider,
+      symbol: instrumentIdentifiers.symbol,
+      currency: instruments.currency,
+      kind: instruments.kind,
+    })
+    .from(instrumentIdentifiers)
+    .innerJoin(instruments, eq(instruments.id, instrumentIdentifiers.instrumentId))
+    .where(inArray(instrumentIdentifiers.instrumentId, [...ids]))
+    // Lowest `priority` first — the chain order `provider-chain.ts` routes
+    // over (ADR 0022). `provider` is only a tie-break for two rows sharing a
+    // priority (both still at the column default, say), so the order is
+    // deterministic rather than whatever order Postgres returns.
+    .orderBy(
+      instrumentIdentifiers.instrumentId,
+      instrumentIdentifiers.priority,
+      instrumentIdentifiers.provider,
+    );
+
+  const result = new Map<InstrumentId, ResolvedSymbol[]>();
+  for (const row of rows) {
+    const id = toInstrumentId(row.instrumentId);
+    const chain = result.get(id) ?? [];
+    chain.push({
+      instrumentId: id,
+      provider: row.provider,
+      symbol: row.symbol,
+      currency: toCurrency(row.currency),
+      kind: row.kind,
+    });
+    result.set(id, chain);
+  }
+  return result;
+}
+
 export function symbolRepository(db: Database): SymbolRepository {
   return {
     async resolvedFor(ids: readonly InstrumentId[]) {
-      if (ids.length === 0) return new Map();
-      // `instrument_identifiers` carries no currency of its own — the
-      // instrument's own row is the source of truth an adapter verifies its
-      // response against (ADR 0014), so it's joined in here rather than
-      // duplicated onto every mapping row.
-      const rows = await db
-        .select({
-          instrumentId: instrumentIdentifiers.instrumentId,
-          provider: instrumentIdentifiers.provider,
-          symbol: instrumentIdentifiers.symbol,
-          currency: instruments.currency,
-        })
-        .from(instrumentIdentifiers)
-        .innerJoin(instruments, eq(instruments.id, instrumentIdentifiers.instrumentId))
-        .where(inArray(instrumentIdentifiers.instrumentId, [...ids]))
-        // The primary key is `(instrument_id, provider)`, so the schema permits
-        // several provider rows per instrument while this port's return type
-        // admits exactly one. ADR 0014 commits to a single price provider, so
-        // that case is unreachable today — ordering by provider makes the
-        // choice deterministic rather than whatever order Postgres returns, if
-        // a second one is ever added. It is a tie-break, not a priority: a real
-        // second provider needs a stated preference here.
-        .orderBy(instrumentIdentifiers.provider);
-
+      const chains = await chainFor(db, ids);
       const result = new Map<InstrumentId, ResolvedSymbol>();
-      for (const row of rows) {
-        const id = toInstrumentId(row.instrumentId);
-        if (result.has(id)) continue;
-        result.set(id, {
-          instrumentId: id,
-          provider: row.provider,
-          symbol: row.symbol,
-          currency: toCurrency(row.currency),
-        });
+      for (const [id, chain] of chains) {
+        const first = chain[0];
+        if (first !== undefined) result.set(id, first);
       }
       return result;
     },
+
+    chainFor: (ids: readonly InstrumentId[]) => chainFor(db, ids),
 
     async save(ref: ResolvedSymbol) {
       await db
@@ -310,6 +339,21 @@ export function symbolRepository(db: Database): SymbolRepository {
           target: [instrumentIdentifiers.instrumentId, instrumentIdentifiers.provider],
           set: { symbol: ref.symbol, verifiedAt: new Date() },
         });
+    },
+
+    async recordFallback(instrumentId: InstrumentId, provider: ProviderName) {
+      await db
+        .update(instrumentIdentifiers)
+        .set({
+          fallbackCount: sql`${instrumentIdentifiers.fallbackCount} + 1`,
+          lastFallbackAt: new Date(),
+        })
+        .where(
+          and(
+            eq(instrumentIdentifiers.instrumentId, instrumentId),
+            eq(instrumentIdentifiers.provider, provider),
+          ),
+        );
     },
   };
 }
