@@ -3,6 +3,8 @@ import {
   makeBackfillFxHistory,
   makeBackfillPriceHistory,
   makeListPositions,
+  makeReadPriceCoverage,
+  makeReadPriceHistory,
   portfolioValueSeries,
   sampleDates,
   Temporal,
@@ -28,7 +30,7 @@ import {
   getFxRates,
   getInstruments,
   getMarketPrices,
-  getPriceProvider,
+  getPriceProviders,
   getSymbols,
   scopedLedgerFor,
 } from '@/server/container';
@@ -130,8 +132,11 @@ export async function readValueSeries(
 
   const prices = getMarketPrices();
   const fx = getFxRates();
-  const priceProvider = getPriceProvider();
+  const symbols = getSymbols();
+  const providers = getPriceProviders();
   const fxProvider = getFxProvider();
+  const readPriceHistory = makeReadPriceHistory({ prices, symbols, providers });
+  const readPriceCoverage = makeReadPriceCoverage({ prices, symbols, providers });
 
   let error: string | null = null;
   function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
@@ -144,7 +149,7 @@ export async function readValueSeries(
   const [priceHistory, fxHistory, bondUnitValues, priceCoverage, fxCoverage] = await Promise.all([
     safe<ReadonlyMap<InstrumentId, readonly StoredBar[]>>(
       quotedIds.length > 0
-        ? prices.historyFor(quotedIds, window.from, window.to, grain)
+        ? readPriceHistory(quotedIds, window.from, window.to, grain)
         : Promise.resolve(new Map()),
       new Map(),
     ),
@@ -159,9 +164,7 @@ export async function readValueSeries(
       new Map(),
     ),
     safe<ReadonlyMap<InstrumentId, Temporal.PlainDate>>(
-      quotedIds.length > 0
-        ? prices.coverageFor(quotedIds, priceProvider.name)
-        : Promise.resolve(new Map()),
+      quotedIds.length > 0 ? readPriceCoverage(quotedIds) : Promise.resolve(new Map()),
       new Map(),
     ),
     safe<ReadonlyMap<Currency, Temporal.PlainDate>>(
@@ -217,7 +220,7 @@ export async function refreshValueSeries(
     const backfillPrices = makeBackfillPriceHistory({
       prices: getMarketPrices(),
       symbols: getSymbols(),
-      provider: getPriceProvider(),
+      providers: getPriceProviders(),
       clock,
     });
     await backfillPrices(quotedIds, window.from);

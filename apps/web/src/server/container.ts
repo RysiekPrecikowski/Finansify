@@ -30,6 +30,7 @@ import {
   type InstrumentSearchProvider,
   type MarketPriceRepository,
   type PriceProvider,
+  type ProviderName,
   type ScopedImportRepository,
   type ScopedLedgerRepository,
   type StatementParser,
@@ -101,8 +102,14 @@ export function getFxRates(): FxRateRepository {
   return fxRateRepository(getDb());
 }
 
-export function getPriceProvider(): PriceProvider {
-  return yahooPriceProvider;
+/**
+ * The provider chain (ADR 0022) — only `yahoo` is registered so far; `gpw`
+ * and `bankier` join once their adapters land. Keying it by `name` rather
+ * than a positional array is what lets `provider-chain.ts` route by the
+ * `ProviderName` stored on each instrument's resolved chain.
+ */
+export function getPriceProviders(): ReadonlyMap<ProviderName, PriceProvider> {
+  return new Map([[yahooPriceProvider.name, yahooPriceProvider]]);
 }
 
 export function getInstrumentSearchProvider(): InstrumentSearchProvider {

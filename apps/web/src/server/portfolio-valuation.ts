@@ -16,7 +16,7 @@ import type Decimal from 'decimal.js';
 import { type DisplaySettings } from '@/lib/display/currencies';
 import { currenciesToRefresh, toDisplayCurrencies } from '@/lib/display/server';
 import { bondPriceLookups } from '@/server/bond-valuation';
-import { clock, getMarketPrices, getPriceProvider, getSymbols } from '@/server/container';
+import { clock, getMarketPrices, getPriceProviders, getSymbols } from '@/server/container';
 import { readValuationRates } from '@/server/fx-rates';
 
 export interface PortfolioValuation {
@@ -83,7 +83,7 @@ export async function valuePositionsFor(
     ...cash.map((line) => line.amount.currency),
   ]);
 
-  const readPrices = makeReadPrices({ prices: getMarketPrices(), clock });
+  const readPrices = makeReadPrices({ prices: getMarketPrices(), symbols: getSymbols(), clock });
 
   let priceLookups = await readPrices(instrumentIds);
   let fxLookups = await readValuationRates(currencies, fxPreference);
@@ -101,7 +101,7 @@ export async function valuePositionsFor(
     const refreshPrices = makeRefreshPrices({
       prices: getMarketPrices(),
       symbols: getSymbols(),
-      provider: getPriceProvider(),
+      providers: getPriceProviders(),
       clock,
     });
     const report = await refreshPrices(instrumentIds);

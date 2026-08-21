@@ -1,6 +1,6 @@
 # 0014. Lazy price ingestion, single provider, exchange as a mandatory coordinate
 
-**Status:** Accepted
+**Status:** Superseded in part by 0022
 **Date:** 2026-08-13
 
 ## Context

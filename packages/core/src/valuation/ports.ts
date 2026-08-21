@@ -1,4 +1,4 @@
-import { type InstrumentId } from '../ledger/types';
+import { type InstrumentId, type InstrumentKind } from '../ledger/types';
 import { type Currency } from '../money';
 import { type Temporal } from '../time';
 import { type FxQuotePair } from './fx-source';
@@ -15,15 +15,30 @@ import {
 } from './types';
 import { type ProviderName } from './vocabulary';
 
+/** What a provider can answer for one kind of instrument — never a global yes/no (ADR 0022). */
+export interface ProviderCapabilities {
+  readonly history: boolean;
+  readonly spot: boolean;
+}
+
 /**
  * Fetches bars for an instrument **already** resolved to this provider's
  * symbol. Section 06's ambiguity — one ISIN, several listings — is resolved
  * before this port is ever called; an adapter implementing this interface
  * cannot express "which listing did you mean", which is the point.
+ *
+ * `capabilitiesFor` is keyed by `InstrumentKind`, not global: bankier has full
+ * history for a PPK fund and only today's price for an equity, so "can this
+ * provider serve this instrument" is a per-kind question (ADR 0022). Routing
+ * must check `capabilitiesFor(kind).history` before ever calling
+ * `fetchDailyBars`, and `.spot` before `fetchSpot`.
  */
 export interface PriceProvider {
   readonly name: ProviderName;
+  readonly capabilitiesFor: (kind: InstrumentKind) => ProviderCapabilities;
   fetchDailyBars(ref: ResolvedSymbol, from: Temporal.PlainDate): Promise<readonly PriceBar[]>;
+  /** Only called when `capabilitiesFor(kind).spot` is true. Absent entirely for a provider with no separate spot fetch. */
+  fetchSpot?(ref: ResolvedSymbol): Promise<PriceBar | null>;
 }
 
 /**
@@ -46,8 +61,19 @@ export interface InstrumentSearchProvider {
   confirm(candidate: InstrumentCandidate): Promise<ConfirmedCandidate | null>;
 }
 
+/**
+ * Every read names its source — same reasoning as `FxRateRepository` (ADR
+ * 0018) and the same key shape (ADR 0022): two providers can hold a price for
+ * the same instrument-day and disagree, so a query that omits a source is a
+ * question with two correct answers. Callers that need "whichever source has
+ * it" batch ids by their chain's chosen source and call once per source; see
+ * `get-prices.ts`.
+ */
 export interface MarketPriceRepository {
-  latestFor(ids: readonly InstrumentId[]): Promise<ReadonlyMap<InstrumentId, StoredBar>>;
+  latestFor(
+    ids: readonly InstrumentId[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<InstrumentId, StoredBar>>;
   save(bars: readonly PriceBar[], source: ProviderName): Promise<void>;
 
   /**
@@ -63,6 +89,7 @@ export interface MarketPriceRepository {
     from: Temporal.PlainDate,
     to: Temporal.PlainDate,
     grain: SeriesGrain,
+    source: ProviderName,
   ): Promise<ReadonlyMap<InstrumentId, readonly StoredBar[]>>;
 
   /**
@@ -91,8 +118,27 @@ export interface MarketPriceRepository {
 }
 
 export interface SymbolRepository {
+  /** The first (lowest-priority) entry of `chainFor` per instrument — kept for callers that only ever want one. */
   resolvedFor(ids: readonly InstrumentId[]): Promise<ReadonlyMap<InstrumentId, ResolvedSymbol>>;
+
+  /**
+   * Every provider mapping for an instrument, ordered lowest-`priority`
+   * first — the whole fallback chain `provider-chain.ts` routes over. An
+   * instrument absent from the result has no mapping at all.
+   */
+  chainFor(
+    ids: readonly InstrumentId[],
+  ): Promise<ReadonlyMap<InstrumentId, readonly ResolvedSymbol[]>>;
+
   save(ref: ResolvedSymbol): Promise<void>;
+
+  /**
+   * Records that `provider` was tried for `instrumentId` and failed this
+   * round — an admin-visible counter, not a mechanism: fallback is
+   * deliberately non-sticky (ADR 0022), so this never reorders the chain
+   * itself.
+   */
+  recordFallback(instrumentId: InstrumentId, provider: ProviderName): Promise<void>;
 }
 
 /** Rates to PLN; cross rates are computed by `core` (`convertViaPln`), never stored. */

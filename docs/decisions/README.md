@@ -32,7 +32,7 @@ constraint six months from now.
 | 0011 | Bond terms resolved on first use                          | Accepted                         |
 | 0012 | Repository language, branch protection, file minimalism   | Accepted                         |
 | 0013 | Application-level encryption at rest                      | Withdrawn, deferred to Phase 1.5 |
-| 0014 | Lazy price ingestion, single provider, exchange required  | Accepted                         |
+| 0014 | Lazy price ingestion, single provider, exchange required  | Superseded in part by 0022       |
 | 0015 | The import boundary: what a StatementParser owns          | Accepted                         |
 | 0016 | Where bond reference data actually comes from             | Proposed, corrected by 0019      |
 | 0017 | A pre-production database, rehearsed before production    | Accepted                         |
@@ -42,6 +42,7 @@ constraint six months from now.
 | 0019 | Bond values come from the published interest tables       | Accepted                         |
 | 0020 | Portfolio value history: derived on read, backfilled once | Accepted                         |
 | 0021 | Cost basis lives in the position's settlement currency    | Accepted                         |
+| 0022 | Provider chain, per-kind capabilities, non-sticky fallback | Accepted                        |
 
 ## Template
 

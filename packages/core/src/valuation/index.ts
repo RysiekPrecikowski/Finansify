@@ -13,10 +13,14 @@ export type { FxQuotePair, FxScope, FxSource, FxSourcePreference } from './fx-so
 export {
   BACKFILL_BATCH,
   makeBackfillPriceHistory,
+  makeReadPriceCoverage,
+  makeReadPriceHistory,
   makeReadPrices,
   makeRefreshPrices,
   PRICE_TTL_MINUTES,
 } from './get-prices';
+export { fetchWithFallback, selectProvider } from './provider-chain';
+export type { ChainOutcome } from './provider-chain';
 export { makeReadFxRates, makeRefreshFxRates } from './get-fx-rates';
 export { FX_QUOTE_TTL_MINUTES, isQuoteDue, makeRefreshFxQuotes } from './fx-quotes';
 export type { FxQuoteRefreshReport } from './fx-quotes';

@@ -20,6 +20,10 @@
  * daily interest tables a `BondAccrual` can be read from instead of computed
  * (ADR 0018). It is a provider like the others: a figure attributed to it is
  * one the Ministry published, not one we derived.
+ *
+ * `gpw` and `bankier` are the two Polish market-data sources ADR 0022 adds:
+ * GPW's own unofficial chart endpoint (equities, ETFs, Catalyst-listed bonds)
+ * and bankier.pl (TFI/PPK fund history, spot quotes elsewhere).
  */
-export const providerNames = ['yahoo', 'nbp', 'gus', 'mf', 'pekao'] as const;
+export const providerNames = ['yahoo', 'nbp', 'gus', 'mf', 'pekao', 'gpw', 'bankier'] as const;
 export type ProviderName = (typeof providerNames)[number];

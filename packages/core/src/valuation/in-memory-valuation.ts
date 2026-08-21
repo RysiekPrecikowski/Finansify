@@ -77,16 +77,22 @@ function widen(
 }
 
 export class InMemoryMarketPrices implements MarketPriceRepository {
-  /** Ascending per instrument — `save` keeps this sorted, deduped by date. */
+  /** Ascending per instrument — `save` keeps this sorted, deduped by date and source. */
   private readonly history = new Map<InstrumentId, StoredBar[]>();
   private readonly coverage = new Map<InstrumentId, Map<ProviderName, Temporal.PlainDate>>();
 
   constructor(private readonly clock: Clock) {}
 
-  latestFor(ids: readonly InstrumentId[]): Promise<ReadonlyMap<InstrumentId, StoredBar>> {
+  latestFor(
+    ids: readonly InstrumentId[],
+    source: ProviderName,
+  ): Promise<ReadonlyMap<InstrumentId, StoredBar>> {
     const result = new Map<InstrumentId, StoredBar>();
     for (const id of ids) {
-      const bar = this.history.get(id)?.at(-1);
+      const bar = this.history
+        .get(id)
+        ?.filter((row) => row.source === source)
+        .at(-1);
       if (bar !== undefined) result.set(id, bar);
     }
     return Promise.resolve(result);
@@ -96,8 +102,13 @@ export class InMemoryMarketPrices implements MarketPriceRepository {
     const fetchedAt = this.clock.now();
     for (const bar of bars) {
       const existing = this.history.get(bar.instrumentId) ?? [];
-      const withoutSameDate = existing.filter((row) => !row.date.equals(bar.date));
-      const merged = [...withoutSameDate, { ...bar, source, fetchedAt }].sort((a, b) =>
+      // Matches `instrument_prices`' key, `(instrument_id, date, source)`: two
+      // sources holding a bar for the same day are two rows, not one
+      // overwriting the other (ADR 0022).
+      const withoutSameRow = existing.filter(
+        (row) => !(row.date.equals(bar.date) && row.source === source),
+      );
+      const merged = [...withoutSameRow, { ...bar, source, fetchedAt }].sort((a, b) =>
         Temporal.PlainDate.compare(a.date, b.date),
       );
       this.history.set(bar.instrumentId, merged);
@@ -110,10 +121,12 @@ export class InMemoryMarketPrices implements MarketPriceRepository {
     from: Temporal.PlainDate,
     to: Temporal.PlainDate,
     grain: SeriesGrain,
+    source: ProviderName,
   ): Promise<ReadonlyMap<InstrumentId, readonly StoredBar[]>> {
     const result = new Map<InstrumentId, readonly StoredBar[]>();
     for (const id of ids) {
-      const slice = historySlice(this.history.get(id) ?? [], (row) => row.date, from, to, grain);
+      const bySource = (this.history.get(id) ?? []).filter((row) => row.source === source);
+      const slice = historySlice(bySource, (row) => row.date, from, to, grain);
       if (slice.length > 0) result.set(id, slice);
     }
     return Promise.resolve(result);
@@ -145,21 +158,52 @@ export class InMemoryMarketPrices implements MarketPriceRepository {
   }
 }
 
+/**
+ * Chain order is insertion order among `save` calls for an instrument — this
+ * fake has no `priority` column to sort by, so a test that cares about order
+ * controls it by the order it calls `save` in, same as `chainFor`'s
+ * lowest-`priority`-first contract in production.
+ */
 export class InMemorySymbols implements SymbolRepository {
-  private readonly rows = new Map<InstrumentId, ResolvedSymbol>();
+  private readonly rows = new Map<InstrumentId, ResolvedSymbol[]>();
+  private readonly fallbacks = new Map<InstrumentId, Map<ProviderName, number>>();
 
   resolvedFor(ids: readonly InstrumentId[]): Promise<ReadonlyMap<InstrumentId, ResolvedSymbol>> {
     const result = new Map<InstrumentId, ResolvedSymbol>();
     for (const id of ids) {
-      const row = this.rows.get(id);
-      if (row !== undefined) result.set(id, row);
+      const first = this.rows.get(id)?.[0];
+      if (first !== undefined) result.set(id, first);
+    }
+    return Promise.resolve(result);
+  }
+
+  chainFor(
+    ids: readonly InstrumentId[],
+  ): Promise<ReadonlyMap<InstrumentId, readonly ResolvedSymbol[]>> {
+    const result = new Map<InstrumentId, readonly ResolvedSymbol[]>();
+    for (const id of ids) {
+      const chain = this.rows.get(id);
+      if (chain !== undefined && chain.length > 0) result.set(id, chain);
     }
     return Promise.resolve(result);
   }
 
   save(ref: ResolvedSymbol): Promise<void> {
-    this.rows.set(ref.instrumentId, ref);
+    const existing = this.rows.get(ref.instrumentId) ?? [];
+    const withoutSameProvider = existing.filter((row) => row.provider !== ref.provider);
+    this.rows.set(ref.instrumentId, [...withoutSameProvider, ref]);
     return Promise.resolve();
+  }
+
+  recordFallback(instrumentId: InstrumentId, provider: ProviderName): Promise<void> {
+    const byProvider = this.fallbacks.get(instrumentId) ?? new Map<ProviderName, number>();
+    byProvider.set(provider, (byProvider.get(provider) ?? 0) + 1);
+    this.fallbacks.set(instrumentId, byProvider);
+    return Promise.resolve();
+  }
+
+  fallbackCount(instrumentId: InstrumentId, provider: ProviderName): number {
+    return this.fallbacks.get(instrumentId)?.get(provider) ?? 0;
   }
 }
 

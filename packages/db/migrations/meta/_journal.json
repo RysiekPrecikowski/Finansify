@@ -85,6 +85,13 @@
       "when": 1787167531956,
       "tag": "0011_striped_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787298350777,
+      "tag": "0012_gifted_giant_man",
+      "breakpoints": true
     }
   ]
 }

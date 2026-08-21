@@ -143,6 +143,7 @@ describe('marketPriceRepository — historyFor', () => {
       Temporal.PlainDate.from('2026-01-01'),
       Temporal.PlainDate.from('2026-01-10'),
       'day',
+      'yahoo',
     );
 
     const bars = result.get(INSTRUMENT_ID_1);
@@ -167,6 +168,7 @@ describe('marketPriceRepository — historyFor', () => {
       Temporal.PlainDate.from('2026-01-01'),
       Temporal.PlainDate.from('2026-01-10'),
       'day',
+      'yahoo',
     );
 
     expect(selectDistinctOn).toHaveBeenCalledTimes(1);
@@ -185,6 +187,7 @@ describe('marketPriceRepository — historyFor', () => {
       Temporal.PlainDate.from('2026-01-01'),
       Temporal.PlainDate.from('2026-01-10'),
       'week',
+      'yahoo',
     );
 
     expect(selectDistinctOn).toHaveBeenCalledTimes(2);
@@ -203,6 +206,7 @@ describe('marketPriceRepository — historyFor', () => {
       Temporal.PlainDate.from('2026-01-01'),
       Temporal.PlainDate.from('2026-01-10'),
       'day',
+      'yahoo',
     );
 
     expect(result.has(INSTRUMENT_ID_1)).toBe(true);
@@ -219,6 +223,7 @@ describe('marketPriceRepository — historyFor', () => {
       Temporal.PlainDate.from('2026-01-01'),
       Temporal.PlainDate.from('2026-01-10'),
       'day',
+      'yahoo',
     );
 
     expect(result.size).toBe(0);

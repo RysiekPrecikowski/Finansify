@@ -15,6 +15,7 @@ const ref = {
   provider: 'yahoo' as const,
   symbol: 'PKN.WA',
   currency: currency('PLN'),
+  kind: 'equity' as const,
 };
 
 describe('yahooPriceProvider', () => {

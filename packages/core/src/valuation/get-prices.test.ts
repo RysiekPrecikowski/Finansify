@@ -28,14 +28,23 @@ function bar(id: typeof AAPL, date: string, close: string): PriceBar {
 function fakeProvider(
   behaviour: (ref: ResolvedSymbol) => Promise<readonly PriceBar[]>,
 ): PriceProvider {
-  return { name: 'yahoo', fetchDailyBars: (ref) => behaviour(ref) };
+  return {
+    name: 'yahoo',
+    capabilitiesFor: () => ({ history: true, spot: true }),
+    fetchDailyBars: (ref) => behaviour(ref),
+  };
+}
+
+function registryOf(provider: PriceProvider): ReadonlyMap<PriceProvider['name'], PriceProvider> {
+  return new Map([[provider.name, provider]]);
 }
 
 describe('makeReadPrices', () => {
   it('reports unavailable/never-fetched for an instrument with no bar', async () => {
     const clock = new FakeClock(NOW);
     const prices = new InMemoryMarketPrices(clock);
-    const readPrices = makeReadPrices({ prices, clock });
+    const symbols = new InMemorySymbols();
+    const readPrices = makeReadPrices({ prices, symbols, clock });
 
     const result = await readPrices([AAPL]);
 
@@ -45,9 +54,17 @@ describe('makeReadPrices', () => {
   it('reports fresh within the TTL and stale past it, both carrying the close', async () => {
     const clock = new FakeClock(NOW);
     const prices = new InMemoryMarketPrices(clock);
+    const symbols = new InMemorySymbols();
+    await symbols.save({
+      instrumentId: AAPL,
+      provider: 'yahoo',
+      symbol: 'AAPL',
+      currency: currency('USD'),
+      kind: 'equity',
+    });
     await prices.save([bar(AAPL, '2026-08-13', '150')], 'yahoo');
 
-    const readPrices = makeReadPrices({ prices, clock });
+    const readPrices = makeReadPrices({ prices, symbols, clock });
     const fresh = await readPrices([AAPL]);
     expect(fresh.get(AAPL)?.status).toBe('fresh');
     expect(
@@ -69,6 +86,7 @@ describe('makeRefreshPrices', () => {
     provider: 'yahoo',
     symbol: 'AAPL',
     currency: currency('USD'),
+    kind: 'equity',
   };
 
   it('fetches and saves a due instrument, leaving a fresh one untouched', async () => {
@@ -83,12 +101,17 @@ describe('makeRefreshPrices', () => {
       return Promise.resolve([bar(r.instrumentId as typeof AAPL, '2026-08-13', '150')]);
     });
 
-    const refreshPrices = makeRefreshPrices({ prices, symbols, provider, clock });
+    const refreshPrices = makeRefreshPrices({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await refreshPrices([AAPL]);
 
     expect(calls).toBe(1);
     expect(report.refreshed).toEqual([AAPL]);
-    const stored = await prices.latestFor([AAPL]);
+    const stored = await prices.latestFor([AAPL], 'yahoo');
     expect(stored.get(AAPL)?.close.equals(Money.of('150', currency('USD')))).toBe(true);
 
     // Second call within the TTL should not refetch.
@@ -107,7 +130,12 @@ describe('makeRefreshPrices', () => {
       return Promise.resolve([]);
     });
 
-    const refreshPrices = makeRefreshPrices({ prices, symbols, provider, clock });
+    const refreshPrices = makeRefreshPrices({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await refreshPrices([AAPL]);
 
     expect(calls).toBe(0);
@@ -129,7 +157,12 @@ describe('makeRefreshPrices', () => {
       return Promise.reject(new Error('boom'));
     });
 
-    const refreshPrices = makeRefreshPrices({ prices, symbols, provider, clock });
+    const refreshPrices = makeRefreshPrices({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await refreshPrices([AAPL, VOO, third]);
 
     expect(calls).toBe(2);
@@ -145,12 +178,48 @@ describe('makeRefreshPrices', () => {
 
     const provider = fakeProvider(() => Promise.resolve([bar(AAPL, '2099-01-01', '150')]));
 
-    const refreshPrices = makeRefreshPrices({ prices, symbols, provider, clock });
+    const refreshPrices = makeRefreshPrices({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await refreshPrices([AAPL]);
 
     expect(report.failed).toEqual([AAPL]);
-    const stored = await prices.latestFor([AAPL]);
+    const stored = await prices.latestFor([AAPL], 'yahoo');
     expect(stored.get(AAPL)).toBeUndefined();
+  });
+
+  it('falls through to the next provider in the chain and records the fallback', async () => {
+    const clock = new FakeClock(NOW);
+    const prices = new InMemoryMarketPrices(clock);
+    const symbols = new InMemorySymbols();
+    await symbols.save({ ...ref, provider: 'gpw', symbol: 'PLAAPL0001' });
+    await symbols.save(ref);
+
+    const failing: PriceProvider = {
+      name: 'gpw',
+      capabilitiesFor: () => ({ history: true, spot: true }),
+      fetchDailyBars: () => Promise.reject(new Error('boom')),
+    };
+    const working = fakeProvider(() => Promise.resolve([bar(AAPL, '2026-08-13', '150')]));
+
+    const refreshPrices = makeRefreshPrices({
+      prices,
+      symbols,
+      providers: new Map([
+        ['gpw', failing],
+        ['yahoo', working],
+      ]),
+      clock,
+    });
+    const report = await refreshPrices([AAPL]);
+
+    expect(report.refreshed).toEqual([AAPL]);
+    const stored = await prices.latestFor([AAPL], 'yahoo');
+    expect(stored.get(AAPL)?.close.equals(Money.of('150', currency('USD')))).toBe(true);
+    expect(symbols.fallbackCount(AAPL, 'gpw')).toBe(1);
   });
 });
 
@@ -160,6 +229,7 @@ describe('makeBackfillPriceHistory', () => {
     provider: 'yahoo',
     symbol: 'AAPL',
     currency: currency('USD'),
+    kind: 'equity',
   };
   const FROM = Temporal.PlainDate.from('2020-01-01');
 
@@ -177,7 +247,12 @@ describe('makeBackfillPriceHistory', () => {
       return Promise.resolve([bar(AAPL, '2020-01-02', '100')]);
     });
 
-    const backfill = makeBackfillPriceHistory({ prices, symbols, provider, clock });
+    const backfill = makeBackfillPriceHistory({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await backfill([AAPL], FROM);
 
     expect(calls).toBe(1);
@@ -209,7 +284,12 @@ describe('makeBackfillPriceHistory', () => {
       return Promise.resolve([bar(r.instrumentId as typeof AAPL, '2020-01-02', '10')]);
     });
 
-    const backfill = makeBackfillPriceHistory({ prices, symbols, provider, clock });
+    const backfill = makeBackfillPriceHistory({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await backfill([narrow, wide], FROM);
 
     expect(calledFor).toEqual(['NARROW']);
@@ -228,7 +308,12 @@ describe('makeBackfillPriceHistory', () => {
       return Promise.resolve([]);
     });
 
-    const backfill = makeBackfillPriceHistory({ prices, symbols, provider, clock });
+    const backfill = makeBackfillPriceHistory({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await backfill([AAPL], FROM);
 
     expect(calls).toBe(1);
@@ -257,7 +342,12 @@ describe('makeBackfillPriceHistory', () => {
       return Promise.resolve([bar(r.instrumentId as typeof AAPL, '2020-01-02', '10')]);
     });
 
-    const backfill = makeBackfillPriceHistory({ prices, symbols, provider, clock });
+    const backfill = makeBackfillPriceHistory({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await backfill(ids, FROM, 2);
 
     expect(calledFor).toEqual(['SYM0', 'SYM1']);
@@ -282,7 +372,12 @@ describe('makeBackfillPriceHistory', () => {
       return Promise.reject(new Error('boom'));
     });
 
-    const backfill = makeBackfillPriceHistory({ prices, symbols, provider, clock });
+    const backfill = makeBackfillPriceHistory({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await backfill([first, second, third], FROM);
 
     expect(calledFor).toEqual(['SYM0', 'SYM1']);
@@ -312,7 +407,12 @@ describe('makeBackfillPriceHistory', () => {
       return Promise.reject(new Error('boom'));
     });
 
-    const backfill = makeBackfillPriceHistory({ prices, symbols, provider, clock });
+    const backfill = makeBackfillPriceHistory({
+      prices,
+      symbols,
+      providers: registryOf(provider),
+      clock,
+    });
     const report = await backfill([fail1, unmappedId, fail2, ok], FROM);
 
     // Both real failures were attempted (unmappedId in between did not

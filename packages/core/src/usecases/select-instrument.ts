@@ -104,6 +104,7 @@ export function makeSelectInstrument(deps: {
       provider: confirmed.provider,
       symbol: confirmed.symbol,
       currency: confirmed.currency,
+      kind: confirmed.kind,
     });
 
     return success(instrument);
