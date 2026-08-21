@@ -196,6 +196,12 @@ export function InstrumentCombobox({
           {selection.kind === 'bond' && (
             <input type="hidden" name="instrumentSeriesCode" value={selection.seriesCode} />
           )}
+          {/* A Catalyst bond submits only its ticker — `selectCatalystBond`
+              looks it up again server-side to get the ISIN, issuer and
+              nominal, same reasoning as a treasury bond's series code. */}
+          {selection.kind === 'catalyst_bond' && (
+            <input type="hidden" name="instrumentTicker" value={selection.ticker} />
+          )}
           {selection.kind === 'candidate' && (
             <>
               <input type="hidden" name="instrumentProvider" value={selection.provider} />
@@ -215,6 +221,8 @@ function optionKey(option: InstrumentOption): string {
       return `existing:${option.instrumentId}`;
     case 'bond':
       return `bond:${option.seriesCode}`;
+    case 'catalyst_bond':
+      return `catalyst_bond:${option.ticker}`;
     default:
       return `candidate:${option.provider}:${option.symbol}`;
   }

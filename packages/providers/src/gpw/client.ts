@@ -63,3 +63,53 @@ export async function fetchGpwChart(isin: string, mode: string): Promise<unknown
     }
   }
 }
+
+const CATALYST_HEADERS: Record<string, string> = {
+  Accept: 'text/html',
+  'Accept-Language': 'pl-PL,pl;q=0.9',
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
+};
+
+/**
+ * `gpwcatalyst.pl` — a different GPW site from `chart-json.php`'s, with no
+ * WAF of its own (verified live: the plain headers below are answered with
+ * no `Referer`/`Sec-Fetch-*` needed, unlike `chart-json.php`). Shares this
+ * module's throttle: both sites are GPW's own infrastructure, so one
+ * combined rate limit rather than two independent ones hitting the same
+ * origin family.
+ */
+async function fetchGpwCatalystPage(url: URL): Promise<string> {
+  for (let attempt = 0; ; attempt += 1) {
+    await throttle();
+    try {
+      const response = await fetch(url, { headers: CATALYST_HEADERS });
+      if (!response.ok) throw new Error(`gpwcatalyst.pl responded with ${response.status}`);
+      return await response.text();
+    } catch (error) {
+      if (attempt >= RETRY_DELAYS_MS.length) throw error;
+      await sleep(RETRY_DELAYS_MS[attempt]!);
+    }
+  }
+}
+
+/** `nazwa` is the Catalyst ticker (ADR 0023) — a different identifier from `chart-json.php`'s ISIN. */
+export async function fetchGpwCatalystInstrumentPage(ticker: string): Promise<string> {
+  const url = new URL('https://gpwcatalyst.pl/o-instrumentach-instrument');
+  url.searchParams.set('nazwa', ticker);
+  return fetchGpwCatalystPage(url);
+}
+
+/**
+ * The corporate-bonds segment's full listing — every issuer and ticker on
+ * Catalyst's corporate-bond board, one page (~1.5 MB, confirmed live: ~640
+ * rows). There is no lighter search-only endpoint on this site (checked);
+ * `catalyst-bond-lookup.ts` filters this in memory. Municipal, covered,
+ * cooperative and convertible bonds sit on their own listing pages and are
+ * not fetched here — a deliberate scope cut (Stage 6), not an oversight.
+ */
+export async function fetchGpwCorporateBondsList(): Promise<string> {
+  return fetchGpwCatalystPage(
+    new URL('https://gpwcatalyst.pl/notowania-obligacji-obligacje-korporacyjne'),
+  );
+}

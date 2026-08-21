@@ -15,12 +15,14 @@ import {
 } from '@finansify/db';
 import { bosStatementParser, xtbStatementParser } from '@finansify/importers';
 import {
+  makeAggregatingSearch,
   makeResolveBondTerms,
   makeResolveCatalystBondTerms,
   Temporal,
   type BondInterestTableProvider,
   type BondInterestTableRepository,
   type BondTermsResolver,
+  type CatalystBondLookup,
   type CatalystBondTermsResolver,
   type Clock,
   type FileStore,
@@ -41,7 +43,9 @@ import {
   type UserId,
 } from '@finansify/core';
 import {
+  bankierInstrumentSearch,
   bankierPriceProvider,
+  gpwCatalystBondLookup,
   gpwCatalystBondTermsProvider,
   gpwPriceProvider,
   gusCpiProvider,
@@ -121,8 +125,17 @@ export function getPriceProviders(): ReadonlyMap<ProviderName, PriceProvider> {
   ]);
 }
 
+/**
+ * Fans typeahead search out to every source that can name an instrument
+ * (Stage 6, CU-869en2unq) — Yahoo for everything global, `bankier` for TFI
+ * funds and PPK subfunds Yahoo does not index at all. Catalyst-listed bonds
+ * are deliberately not here: they have a dual-identifier problem (ticker for
+ * identity/terms, ISIN for `gpw` price lookups) the generic `confirm()`
+ * contract can't express, so they go through `makeSelectCatalystBond`
+ * instead — see `lib/instrument-selection.ts`.
+ */
 export function getInstrumentSearchProvider(): InstrumentSearchProvider {
-  return yahooInstrumentSearch;
+  return makeAggregatingSearch([yahooInstrumentSearch, bankierInstrumentSearch]);
 }
 
 export function getFxProvider(): FxRateProvider {
@@ -196,6 +209,15 @@ export function getCatalystBondTermsResolver(): CatalystBondTermsResolver {
     repository: catalystBondTermsRepository(getDb()),
     provider: gpwCatalystBondTermsProvider,
   });
+}
+
+/** Search and instrument-creation lookup for Catalyst-listed bonds (Stage 6) — see `makeSelectCatalystBond`. */
+export function getCatalystBondLookup(): CatalystBondLookup {
+  return gpwCatalystBondLookup;
+}
+
+export function getCatalystBondTermsRepository() {
+  return catalystBondTermsRepository(getDb());
 }
 
 export const clock: Clock = { now: () => Temporal.Now.instant() };

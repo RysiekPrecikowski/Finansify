@@ -16,7 +16,12 @@ import { byField, submittedValues, type FormState } from '@/lib/form-state';
 import { getDictionary } from '@/lib/i18n/server';
 import { resolveInstrumentSelection } from '@/lib/instrument-selection';
 import { transactionInputFrom } from '@/lib/transaction-form';
-import { getInstrumentSearchProvider, getInstruments, scopedLedgerFor } from '@/server/container';
+import {
+  getCatalystBondLookup,
+  getInstrumentSearchProvider,
+  getInstruments,
+  scopedLedgerFor,
+} from '@/server/container';
 
 /**
  * The identity is read from the session inside every action, on every submit —
@@ -67,7 +72,16 @@ export type InstrumentOption =
    * whether the family exists is decided server-side, where a rejection can
    * explain itself.
    */
-  | { readonly kind: 'bond'; readonly seriesCode: string; readonly label: string };
+  | { readonly kind: 'bond'; readonly seriesCode: string; readonly label: string }
+  /**
+   * A Catalyst-listed corporate bond. Also bypasses `selectInstrument`, for a
+   * different reason than a treasury bond: it *is* quoted, but `gpw`'s price
+   * lookups are keyed by ISIN while the ticker is what search and the terms
+   * resolver answer to — two identifiers `confirm()`'s one-`symbol` contract
+   * cannot carry (ADR 0023, Stage 6). `makeSelectCatalystBond` looks the
+   * ticker up again server-side and writes both.
+   */
+  | { readonly kind: 'catalyst_bond'; readonly ticker: string; readonly label: string };
 
 function labelOf(symbol: string, name: string, exchange: string | null): string {
   return exchange === null ? `${symbol} · ${name}` : `${symbol} · ${name} (${exchange})`;
@@ -89,7 +103,14 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
       instruments: getInstruments(),
       provider: getInstrumentSearchProvider(),
     });
-    const result = await searchInstruments(query);
+    // Catalyst bonds never reach `makeSearchInstruments` (they bypass
+    // `InstrumentSearchProvider` entirely — see `InstrumentOption`'s
+    // `catalyst_bond` variant) so this runs alongside it rather than through
+    // it, same as the series-code check below.
+    const [result, catalystBonds] = await Promise.all([
+      searchInstruments(query),
+      query.trim().length >= 2 ? getCatalystBondLookup().search(query) : Promise.resolve([]),
+    ]);
 
     const existing = result.existing.map<InstrumentOption>((instrument) => ({
       kind: 'existing',
@@ -116,7 +137,20 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
           ]
         : [];
 
-    if (existing.length > 0 || bond.length > 0) return [...bond, ...existing];
+    // Same reasoning as `bond` above: offered alongside whatever else matched,
+    // suppressed only for a ticker already held (the `existing` row is the
+    // better answer for that one).
+    const catalystBondOptions: readonly InstrumentOption[] = catalystBonds
+      .filter((candidate) => !result.existing.some((i) => i.symbol === candidate.ticker))
+      .map((candidate) => ({
+        kind: 'catalyst_bond',
+        ticker: candidate.ticker,
+        label: `${candidate.ticker} · ${candidate.issuerName}`,
+      }));
+
+    if (existing.length > 0 || bond.length > 0 || catalystBondOptions.length > 0) {
+      return [...bond, ...catalystBondOptions, ...existing];
+    }
 
     return result.candidates.map<InstrumentOption>((candidate) => ({
       kind: 'candidate',

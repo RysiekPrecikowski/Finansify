@@ -21,6 +21,7 @@ export {
 } from './get-prices';
 export { fetchWithFallback, selectProvider } from './provider-chain';
 export type { ChainOutcome } from './provider-chain';
+export { makeAggregatingSearch } from './aggregate-search';
 export { makeReadFxRates, makeRefreshFxRates } from './get-fx-rates';
 export { FX_QUOTE_TTL_MINUTES, isQuoteDue, makeRefreshFxQuotes } from './fx-quotes';
 export type { FxQuoteRefreshReport } from './fx-quotes';
