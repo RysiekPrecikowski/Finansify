@@ -109,6 +109,7 @@ export const pl = {
       label: 'Instrument',
       placeholder: 'Szukaj po tickerze lub nazwie…',
       searching: 'Szukam…',
+      searchingMore: 'Nadal szukam w pozostałych źródłach…',
       noResults: 'Brak wyników',
     },
     type: 'Typ',

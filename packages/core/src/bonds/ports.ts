@@ -6,6 +6,8 @@ import { type BondInterestTable, type PurchaseDayKey } from './interest-table';
 import {
   type BondSeriesCode,
   type BondTerms,
+  type CatalystBondCandidate,
+  type CatalystBondListing,
   type CatalystBondTerms,
   type IndexId,
   type IndexObservation,
@@ -152,4 +154,21 @@ export interface CatalystBondTermsRepository {
 /** ADR 0011's cache-on-first-use pattern, applied to Catalyst nominal values. */
 export interface CatalystBondTermsResolver {
   resolve(symbol: string): Promise<CatalystBondTerms | null>;
+}
+
+/**
+ * Search and instrument-creation lookup for Catalyst-listed bonds (Stage 6).
+ * Deliberately not an `InstrumentSearchProvider` (`valuation/ports.ts`):
+ * that port's `confirm()` returns exactly one `symbol`, used both as the
+ * instrument's own identity and as the provider-mapping identifier — for a
+ * Catalyst bond those are two different values (ticker vs. ISIN), which
+ * `confirm()`'s contract has no way to express. `makeSelectCatalystBond`
+ * calls this directly instead of going through `selectInstrument`.
+ */
+export interface CatalystBondLookup {
+  readonly name: ProviderName;
+  /** Corporate-bond segment only (Stage 6's scope cut) — matches issuer name or ticker, case-insensitively. */
+  search(query: string): Promise<readonly CatalystBondCandidate[]>;
+  /** `null` when the ticker does not resolve — same contract as `CatalystBondTermsProvider.fetchTerms`. */
+  fetchListing(ticker: string): Promise<CatalystBondListing | null>;
 }

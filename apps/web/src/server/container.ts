@@ -15,12 +15,14 @@ import {
 } from '@finansify/db';
 import { bosStatementParser, xtbStatementParser } from '@finansify/importers';
 import {
+  makeAggregatingSearch,
   makeResolveBondTerms,
   makeResolveCatalystBondTerms,
   Temporal,
   type BondInterestTableProvider,
   type BondInterestTableRepository,
   type BondTermsResolver,
+  type CatalystBondLookup,
   type CatalystBondTermsResolver,
   type Clock,
   type FileStore,
@@ -41,7 +43,9 @@ import {
   type UserId,
 } from '@finansify/core';
 import {
+  bankierInstrumentSearch,
   bankierPriceProvider,
+  gpwCatalystBondLookup,
   gpwCatalystBondTermsProvider,
   gpwPriceProvider,
   gusCpiProvider,
@@ -121,8 +125,27 @@ export function getPriceProviders(): ReadonlyMap<ProviderName, PriceProvider> {
   ]);
 }
 
+/**
+ * Every source that can name an instrument by search (Stage 6, CU-869en2unq)
+ * — Yahoo for everything global, `bankier` for TFI funds and PPK subfunds
+ * Yahoo does not index at all. Catalyst-listed bonds are deliberately not
+ * here: they have a dual-identifier problem (ticker for identity/terms, ISIN
+ * for `gpw` price lookups) the generic `confirm()` contract can't express, so
+ * they go through `makeSelectCatalystBond` instead — see
+ * `lib/instrument-selection.ts`.
+ *
+ * Exposed as a list, not just the aggregate below, so the web layer can also
+ * query each one on its own — one provider being slow to answer should never
+ * hold up a faster one's results (`transactions/actions.ts`'s per-source
+ * search actions).
+ */
+export function getInstrumentSearchProviders(): readonly InstrumentSearchProvider[] {
+  return [yahooInstrumentSearch, bankierInstrumentSearch];
+}
+
+/** `confirm()` dispatch needs exactly one provider regardless of how many searched — `selectInstrument` still takes a single `InstrumentSearchProvider`. */
 export function getInstrumentSearchProvider(): InstrumentSearchProvider {
-  return yahooInstrumentSearch;
+  return makeAggregatingSearch(getInstrumentSearchProviders());
 }
 
 export function getFxProvider(): FxRateProvider {
@@ -196,6 +219,15 @@ export function getCatalystBondTermsResolver(): CatalystBondTermsResolver {
     repository: catalystBondTermsRepository(getDb()),
     provider: gpwCatalystBondTermsProvider,
   });
+}
+
+/** Search and instrument-creation lookup for Catalyst-listed bonds (Stage 6) — see `makeSelectCatalystBond`. */
+export function getCatalystBondLookup(): CatalystBondLookup {
+  return gpwCatalystBondLookup;
+}
+
+export function getCatalystBondTermsRepository() {
+  return catalystBondTermsRepository(getDb());
 }
 
 export const clock: Clock = { now: () => Temporal.Now.instant() };
