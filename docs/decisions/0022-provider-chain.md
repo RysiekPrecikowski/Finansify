@@ -18,7 +18,7 @@ subset of `InstrumentKind`, and even within one provider the answer differs
 by kind: bankier has full history for a PPK fund and only today's spot price
 for an equity or a Catalyst bond. A design that asks "which provider do we
 use" as a single, global choice cannot express that — the question is really
-"which provider can answer *this* for *this kind of instrument*," asked per
+"which provider can answer _this_ for _this kind of instrument_," asked per
 instrument, per need (`history` or `spot`).
 
 Two consequences follow directly, and they drive the whole design: a
@@ -53,7 +53,7 @@ success wins, and reports which providers it fell back from.
 **Failing over is deliberately not sticky.** Nothing reorders the chain or
 remembers a failure across calls — the next refresh always starts from
 `priority` order again. `fallback_count`/`last_fallback_at` exist so an
-admin can *see* a provider failing repeatedly and reorder by hand (Stage 5);
+admin can _see_ a provider failing repeatedly and reorder by hand (Stage 5);
 they are a counter, not a mechanism. The circuit breaker in `makeRefreshPrices`
 still counts consecutive failures per instrument (the whole chain exhausted),
 matching the per-instrument breaker ADR 0014 already had — not a new,
@@ -69,7 +69,7 @@ other. Every read of `MarketPriceRepository` now names a source, mirroring
 
 **Two read policies, not one, because "latest price" and "a chart" are
 different problems.** The latest-price render path (`makeReadPrices`,
-and `makeRefreshPrices`'s own due-check) walks an instrument's *whole* chain
+and `makeRefreshPrices`'s own due-check) walks an instrument's _whole_ chain
 looking for whatever is actually stored, because non-sticky fallback means
 the bar that landed after the last refresh could be sitting under any entry
 — showing nothing when a usable value exists would be worse than "mixing."

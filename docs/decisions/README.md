@@ -17,32 +17,32 @@ constraint six months from now.
 
 ## Index
 
-| #    | Title                                                     | Status                           |
-| ---- | --------------------------------------------------------- | -------------------------------- |
-| 0001 | Hexagonal architecture with four packages                 | Accepted                         |
-| 0002 | Boundaries enforced by convention, not tooling            | Accepted                         |
-| 0003 | Ledger-first, everything derived on read                  | Accepted                         |
-| 0004 | Mutable ledger with soft delete, not event sourcing       | Accepted                         |
-| 0005 | Exact-decimal money                                       | Accepted                         |
-| 0006 | Four currencies, and the executed FX rate is stored       | Accepted                         |
-| 0007 | Temporal for internal time handling                       | Accepted                         |
-| 0008 | Database engine                                           | Accepted                         |
-| 0009 | Auth behind a port, with our own user identity            | Accepted                         |
-| 0010 | Market data shared globally, portfolio data isolated      | Accepted                         |
-| 0011 | Bond terms resolved on first use                          | Accepted                         |
-| 0012 | Repository language, branch protection, file minimalism   | Accepted                         |
-| 0013 | Application-level encryption at rest                      | Withdrawn, deferred to Phase 1.5 |
-| 0014 | Lazy price ingestion, single provider, exchange required  | Superseded in part by 0022       |
-| 0015 | The import boundary: what a StatementParser owns          | Accepted                         |
-| 0016 | Where bond reference data actually comes from             | Proposed, corrected by 0019      |
-| 0017 | A pre-production database, rehearsed before production    | Accepted                         |
-| 0017 | NBP, not a market feed, for FX history                    | Superseded in part by 0018       |
-| 0018 | The FX source is the reader's choice, scoped              | Accepted                         |
-| 0018 | Self-merge permitted after green CI                       | Accepted                         |
-| 0019 | Bond values come from the published interest tables       | Accepted                         |
-| 0020 | Portfolio value history: derived on read, backfilled once | Accepted                         |
-| 0021 | Cost basis lives in the position's settlement currency    | Accepted                         |
-| 0022 | Provider chain, per-kind capabilities, non-sticky fallback | Accepted                        |
+| #    | Title                                                      | Status                           |
+| ---- | ---------------------------------------------------------- | -------------------------------- |
+| 0001 | Hexagonal architecture with four packages                  | Accepted                         |
+| 0002 | Boundaries enforced by convention, not tooling             | Accepted                         |
+| 0003 | Ledger-first, everything derived on read                   | Accepted                         |
+| 0004 | Mutable ledger with soft delete, not event sourcing        | Accepted                         |
+| 0005 | Exact-decimal money                                        | Accepted                         |
+| 0006 | Four currencies, and the executed FX rate is stored        | Accepted                         |
+| 0007 | Temporal for internal time handling                        | Accepted                         |
+| 0008 | Database engine                                            | Accepted                         |
+| 0009 | Auth behind a port, with our own user identity             | Accepted                         |
+| 0010 | Market data shared globally, portfolio data isolated       | Accepted                         |
+| 0011 | Bond terms resolved on first use                           | Accepted                         |
+| 0012 | Repository language, branch protection, file minimalism    | Accepted                         |
+| 0013 | Application-level encryption at rest                       | Withdrawn, deferred to Phase 1.5 |
+| 0014 | Lazy price ingestion, single provider, exchange required   | Superseded in part by 0022       |
+| 0015 | The import boundary: what a StatementParser owns           | Accepted                         |
+| 0016 | Where bond reference data actually comes from              | Proposed, corrected by 0019      |
+| 0017 | A pre-production database, rehearsed before production     | Accepted                         |
+| 0017 | NBP, not a market feed, for FX history                     | Superseded in part by 0018       |
+| 0018 | The FX source is the reader's choice, scoped               | Accepted                         |
+| 0018 | Self-merge permitted after green CI                        | Accepted                         |
+| 0019 | Bond values come from the published interest tables        | Accepted                         |
+| 0020 | Portfolio value history: derived on read, backfilled once  | Accepted                         |
+| 0021 | Cost basis lives in the position's settlement currency     | Accepted                         |
+| 0022 | Provider chain, per-kind capabilities, non-sticky fallback | Accepted                         |
 
 ## Template
 
