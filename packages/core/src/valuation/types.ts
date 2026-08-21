@@ -67,6 +67,21 @@ export interface ResolvedSymbol {
 }
 
 /**
+ * A `chainFor` entry, with the admin-visible bookkeeping `ResolvedSymbol`
+ * alone doesn't carry. Routing never needs `priority` itself — chain order
+ * already encodes it — or the fallback counters; the admin mapping screen
+ * (Stage 5) is built around exactly these fields, same reasoning as
+ * `StoredBar` adding provenance `PriceBar` doesn't need.
+ */
+export interface SymbolMapping extends ResolvedSymbol {
+  readonly priority: number;
+  /** How many times routing has fallen through past this entry (ADR 0022) — a counter, not a mechanism. */
+  readonly fallbackCount: number;
+  readonly lastFallbackAt: Temporal.Instant | null;
+  readonly verifiedAt: Temporal.Instant;
+}
+
+/**
  * One provider's listing, offered to the user as something to select — from a
  * typeahead search, never typed in by hand. Nothing here is persisted until
  * it's confirmed (`InstrumentSearchProvider.confirm`) and turned into an

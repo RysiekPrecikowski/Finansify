@@ -14,10 +14,11 @@ import {
   type SeriesGrain,
   type StoredBar,
   type StoredFxRate,
+  type SymbolMapping,
   type SymbolRepository,
 } from '@finansify/core';
 import Decimal from 'decimal.js';
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, notInArray, sql } from 'drizzle-orm';
 import { type PgColumn } from 'drizzle-orm/pg-core';
 
 import { type Database } from './client';
@@ -269,17 +270,24 @@ export function marketPriceRepository(db: Database): MarketPriceRepository {
 async function chainFor(
   db: Database,
   ids: readonly InstrumentId[],
-): Promise<ReadonlyMap<InstrumentId, readonly ResolvedSymbol[]>> {
+): Promise<ReadonlyMap<InstrumentId, readonly SymbolMapping[]>> {
   if (ids.length === 0) return new Map();
   // `instrument_identifiers` carries no currency or kind of its own — the
   // instrument's own row is the source of truth an adapter verifies its
   // response against (ADR 0014), so both are joined in here rather than
-  // duplicated onto every mapping row.
+  // duplicated onto every mapping row. `priority`, `fallbackCount` and
+  // `lastFallbackAt`/`verifiedAt` ride along too — routing itself never reads
+  // them (chain order already encodes priority), but the admin mapping
+  // screen (Stage 5) is built around exactly these fields.
   const rows = await db
     .select({
       instrumentId: instrumentIdentifiers.instrumentId,
       provider: instrumentIdentifiers.provider,
       symbol: instrumentIdentifiers.symbol,
+      priority: instrumentIdentifiers.priority,
+      fallbackCount: instrumentIdentifiers.fallbackCount,
+      lastFallbackAt: instrumentIdentifiers.lastFallbackAt,
+      verifiedAt: instrumentIdentifiers.verifiedAt,
       currency: instruments.currency,
       kind: instruments.kind,
     })
@@ -296,7 +304,7 @@ async function chainFor(
       instrumentIdentifiers.provider,
     );
 
-  const result = new Map<InstrumentId, ResolvedSymbol[]>();
+  const result = new Map<InstrumentId, SymbolMapping[]>();
   for (const row of rows) {
     const id = toInstrumentId(row.instrumentId);
     const chain = result.get(id) ?? [];
@@ -306,6 +314,10 @@ async function chainFor(
       symbol: row.symbol,
       currency: toCurrency(row.currency),
       kind: row.kind,
+      priority: row.priority,
+      fallbackCount: row.fallbackCount,
+      lastFallbackAt: row.lastFallbackAt === null ? null : toInstant(row.lastFallbackAt),
+      verifiedAt: toInstant(row.verifiedAt),
     });
     result.set(id, chain);
   }
@@ -354,6 +366,58 @@ export function symbolRepository(db: Database): SymbolRepository {
             eq(instrumentIdentifiers.provider, provider),
           ),
         );
+    },
+
+    /**
+     * Two statements, not a transaction — `neon-http` cannot run one
+     * (`docs/deployment.md`'s migration driver note applies here too, it is
+     * not migration-specific). Delete first, then upsert: a provider dropped
+     * from `entries` is gone even if the process dies before the upsert
+     * runs, which is the safer half to lose — an admin re-submitting the
+     * same edit is a much smaller cost than a stale mapping routing survives
+     * to the next refresh unnoticed.
+     *
+     * The upsert only touches `symbol`, `priority` and `verifiedAt` on
+     * conflict — `fallbackCount`/`lastFallbackAt` carry over untouched for a
+     * `(instrumentId, provider)` pair that already existed, same as `save`.
+     */
+    async setChain(
+      instrumentId: InstrumentId,
+      entries: readonly { readonly provider: ProviderName; readonly symbol: string }[],
+    ) {
+      const keep = entries.map((entry) => entry.provider);
+      await db
+        .delete(instrumentIdentifiers)
+        .where(
+          keep.length > 0
+            ? and(
+                eq(instrumentIdentifiers.instrumentId, instrumentId),
+                notInArray(instrumentIdentifiers.provider, keep),
+              )
+            : eq(instrumentIdentifiers.instrumentId, instrumentId),
+        );
+
+      if (entries.length === 0) return;
+
+      await db
+        .insert(instrumentIdentifiers)
+        .values(
+          entries.map((entry, priority) => ({
+            instrumentId,
+            provider: entry.provider,
+            symbol: entry.symbol,
+            priority,
+            verifiedAt: new Date(),
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [instrumentIdentifiers.instrumentId, instrumentIdentifiers.provider],
+          set: {
+            symbol: sql`excluded.symbol`,
+            priority: sql`excluded.priority`,
+            verifiedAt: sql`excluded.verified_at`,
+          },
+        });
     },
   };
 }
