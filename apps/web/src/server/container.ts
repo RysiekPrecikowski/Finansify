@@ -1,6 +1,7 @@
 import {
   bondInterestTableRepository,
   bondIssueParameterRepository,
+  catalystBondTermsRepository,
   createDbClient,
   createFileStore,
   fxRateRepository,
@@ -15,10 +16,12 @@ import {
 import { bosStatementParser, xtbStatementParser } from '@finansify/importers';
 import {
   makeResolveBondTerms,
+  makeResolveCatalystBondTerms,
   Temporal,
   type BondInterestTableProvider,
   type BondInterestTableRepository,
   type BondTermsResolver,
+  type CatalystBondTermsResolver,
   type Clock,
   type FileStore,
   type FxQuoteProvider,
@@ -38,6 +41,7 @@ import {
   type UserId,
 } from '@finansify/core';
 import {
+  gpwCatalystBondTermsProvider,
   gpwPriceProvider,
   gusCpiProvider,
   mfBondIssueProvider,
@@ -179,6 +183,18 @@ export function getBondInterestTables(): BondInterestTableRepository {
 
 export function getInterestTableProvider(): BondInterestTableProvider {
   return pekaoInterestTableProvider;
+}
+
+/**
+ * ADR 0023's cache-on-first-use resolver for a Catalyst bond's nominal value —
+ * the same pattern as `getBondTermsResolver`, simpler because there is no
+ * purchase-date composition step.
+ */
+export function getCatalystBondTermsResolver(): CatalystBondTermsResolver {
+  return makeResolveCatalystBondTerms({
+    repository: catalystBondTermsRepository(getDb()),
+    provider: gpwCatalystBondTermsProvider,
+  });
 }
 
 export const clock: Clock = { now: () => Temporal.Now.instant() };

@@ -8,6 +8,8 @@ import {
   type BondIssueParameterRepository,
   type BondIssueParameters,
   type BondSeriesCode,
+  type CatalystBondTerms,
+  type CatalystBondTermsRepository,
   type IndexId,
   type IndexObservation,
   type IndexObservationRepository,
@@ -21,9 +23,11 @@ import { type Database } from './client';
 import {
   bondInterestTables,
   bondSeriesTerms,
+  catalystBondTerms,
   indexObservations,
   type BondInterestTableRow,
   type BondSeriesTermsRow,
+  type CatalystBondTermsRow,
   type IndexObservationRow,
 } from './schema/bonds';
 
@@ -227,6 +231,49 @@ export function bondInterestTableRepository(db: Database): BondInterestTableRepo
             source: sql`excluded.source`,
             fetchedAt: sql`excluded.fetched_at`,
           },
+        });
+    },
+  };
+}
+
+function toCatalystBondTerms(row: CatalystBondTermsRow): CatalystBondTerms {
+  return {
+    symbol: row.symbol,
+    nominal: Money.of(row.nominal, currency(row.currency)),
+  };
+}
+
+export function catalystBondTermsRepository(db: Database): CatalystBondTermsRepository {
+  return {
+    async find(symbols: readonly string[]) {
+      if (symbols.length === 0) return new Map();
+      const rows = await db
+        .select()
+        .from(catalystBondTerms)
+        .where(inArray(catalystBondTerms.symbol, [...symbols]));
+
+      const result = new Map<string, CatalystBondTerms>();
+      for (const row of rows) result.set(row.symbol, toCatalystBondTerms(row));
+      return result;
+    },
+
+    async save(terms: CatalystBondTerms, source: ProviderName) {
+      await db
+        .insert(catalystBondTerms)
+        .values({
+          symbol: terms.symbol,
+          nominal: terms.nominal.amount.toFixed(8),
+          currency: terms.nominal.currency,
+          source,
+          resolvedAt: new Date(),
+        })
+        // Same stance as `bond_series_terms`: a Catalyst issue's nominal is
+        // fixed for its life, so a changed value means the parser broke, not
+        // that the issue was revised. First resolution wins; only the
+        // freshness stamp moves.
+        .onConflictDoUpdate({
+          target: catalystBondTerms.symbol,
+          set: { resolvedAt: sql`excluded.resolved_at` },
         });
     },
   };

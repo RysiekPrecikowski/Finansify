@@ -17,7 +17,18 @@
 export const wrappers = ['brokerage', 'ike', 'ikze', 'ppk'] as const;
 export type Wrapper = (typeof wrappers)[number];
 
-export const instrumentKinds = ['equity', 'etf', 'fund', 'bond'] as const;
+/**
+ * `bond` is retail treasury only — subscribed and redeemed through the
+ * Ministry, never traded, valued by `accrueBond`'s accrual engine (ADR 0011).
+ * `catalyst_bond` is a different product wearing a similar name: a
+ * corporate/municipal bond continuously traded on GPW's Catalyst market, with
+ * a real market price (quoted as a percentage of nominal) instead of a
+ * published rate table. Splitting the kind, rather than branching on the
+ * symbol's shape inside one `bond` kind, is what lets `buildPositions` and
+ * `valuePositions` route each to its own valuation path without either
+ * accidentally falling through to the other's (ADR 0023).
+ */
+export const instrumentKinds = ['equity', 'etf', 'fund', 'bond', 'catalyst_bond'] as const;
 export type InstrumentKind = (typeof instrumentKinds)[number];
 
 /**

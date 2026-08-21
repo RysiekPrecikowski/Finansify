@@ -54,3 +54,8 @@ one price source coexist.
   request (confirmed live back to 1999 for a real listing); the adapter uses
   it only when `from` is older than the widest fixed window, so a routine
   15-minute refresh stays a small request.
+- `gpw/catalyst-terms-provider.ts` is a second, unrelated `gpw` endpoint —
+  `gpwcatalyst.pl`'s instrument page, keyed by **ticker** (`GHE0128`), not
+  ISIN (ADR 0023). Regexed against the raw markup, not flattened text
+  (`mf/bond-issue-provider.ts`'s approach): the `</td><td>` boundary is what
+  keeps the label pinned to its own value.

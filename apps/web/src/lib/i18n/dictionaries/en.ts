@@ -48,6 +48,7 @@ export const en: Dictionary = {
       etf: 'ETFs',
       fund: 'Funds',
       bond: 'Bonds',
+      catalyst_bond: 'Catalyst bonds',
     },
     accounts: {
       title: 'Accounts',
