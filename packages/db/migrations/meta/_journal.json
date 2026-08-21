@@ -92,6 +92,13 @@
       "when": 1787298350777,
       "tag": "0012_gifted_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787305289004,
+      "tag": "0013_dry_thena",
+      "breakpoints": true
     }
   ]
 }

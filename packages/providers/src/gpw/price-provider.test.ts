@@ -22,12 +22,16 @@ const ref = {
 };
 
 describe('gpwPriceProvider.capabilitiesFor', () => {
-  it('serves history for equities and ETFs', () => {
+  it('serves history for equities, ETFs, and Catalyst-listed bonds', () => {
     expect(gpwPriceProvider.capabilitiesFor('equity')).toEqual({ history: true, spot: false });
     expect(gpwPriceProvider.capabilitiesFor('etf')).toEqual({ history: true, spot: false });
+    expect(gpwPriceProvider.capabilitiesFor('catalyst_bond')).toEqual({
+      history: true,
+      spot: false,
+    });
   });
 
-  it('refuses fund and bond — TFI/PPK belongs to bankier, Catalyst valuation is ADR 0023', () => {
+  it('refuses fund and (retail treasury) bond — TFI/PPK belongs to bankier, treasury bonds accrue', () => {
     expect(gpwPriceProvider.capabilitiesFor('fund')).toEqual({ history: false, spot: false });
     expect(gpwPriceProvider.capabilitiesFor('bond')).toEqual({ history: false, spot: false });
   });

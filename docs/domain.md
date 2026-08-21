@@ -127,7 +127,7 @@ positions (lot-level)
    │  matchLots(strategy)    FIFO | LIFO | average | specific
    ▼
 realized + open lots
-   │  valuePositions()       × price(asOf) × fx(asOf); bonds accrue, they don't quote
+   │  valuePositions()       × price(asOf) × fx(asOf); retail bonds accrue instead
    ▼
 valuation
    │  ├── allocate()         weights by class / currency / account / wrapper / geography
@@ -148,7 +148,16 @@ stateful.
 
 ### Bond accrual
 
-The most bespoke code in the project, because no data provider prices these.
+Retail treasury bonds only — the `bond` `InstrumentKind`. The most bespoke code
+in the project, because no data provider prices these; they are subscribed
+and redeemed through the Ministry, never traded on any market.
+
+A Catalyst-listed corporate/municipal bond is a different `InstrumentKind`,
+`catalyst_bond` — continuously traded on GPW's Catalyst market, priced by
+`gpw` exactly like an equity, and valued by one multiplication
+(`valueCatalystBondQuote`, ADR 0023) rather than by this engine. The two are
+deliberately not the same kind: one is subscribed and redeemed, the other is
+bought and sold.
 
 ```
 accrueBond(terms, purchase, asOf, indexObservations)

@@ -55,15 +55,18 @@ export const gpwPriceProvider: PriceProvider = {
   name: 'gpw',
 
   /**
-   * Equities and ETFs only. `fund` (TFI/PPK units) is not exchange-traded —
-   * that is `bankier`'s history to serve (Stage 4). `bond` is deferred on
-   * purpose: Catalyst quotes are a percentage of nominal, not money, and
-   * `PriceBar.close: Money` has nowhere to put that yet — ADR 0023 (Stage 3)
-   * is where that representation gets decided, and fetching now would mean
-   * inventing one it will likely replace.
+   * Equities, ETFs, and `catalyst_bond` — the retail-treasury `bond` kind is
+   * never quoted here (it accrues, ADR 0011). `fund` (TFI/PPK units) is not
+   * exchange-traded — that is `bankier`'s history to serve (Stage 4).
+   *
+   * A Catalyst bar arrives exactly like an equity bar: money, in the bond's
+   * own currency. It just means "per 100 nominal" rather than "per share" —
+   * a bond price convention, not a new `PriceBar` shape. `valueCatalystBondQuote`
+   * (ADR 0023) does the one multiplication that turns it into a market value
+   * per bond; nothing here needed to change to serve it.
    */
   capabilitiesFor(kind) {
-    return kind === 'equity' || kind === 'etf'
+    return kind === 'equity' || kind === 'etf' || kind === 'catalyst_bond'
       ? { history: true, spot: false }
       : { history: false, spot: false };
   },

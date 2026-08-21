@@ -16,6 +16,7 @@ import type Decimal from 'decimal.js';
 import { type DisplaySettings } from '@/lib/display/currencies';
 import { currenciesToRefresh, toDisplayCurrencies } from '@/lib/display/server';
 import { bondPriceLookups } from '@/server/bond-valuation';
+import { catalystBondPriceLookups } from '@/server/catalyst-bond-valuation';
 import { clock, getMarketPrices, getPriceProviders, getSymbols } from '@/server/container';
 import { readValuationRates } from '@/server/fx-rates';
 
@@ -132,10 +133,16 @@ export async function valuePositionsFor(
 
   // All the Money arithmetic — market value, unrealized P&L, the portfolio total —
   // lives in `core`'s `valuePositions`, tested against fakes there.
-  // Bond values are accrued, not fetched, and arrive as `PriceLookup`s so the
-  // one valuation pipeline serves both kinds — see `server/bond-valuation.ts`.
+  // Retail bond values are accrued, not fetched, and arrive as `PriceLookup`s
+  // so the one valuation pipeline serves every kind — see
+  // `server/bond-valuation.ts`. Catalyst bonds *are* fetched (`gpw` is already
+  // in `priceLookups` above) — `catalystBondPriceLookups` only rescales the
+  // quote already there by the instrument's nominal (ADR 0023).
   const withBonds = new Map(priceLookups);
   for (const [id, lookup] of await bondPriceLookups(positions)) withBonds.set(id, lookup);
+  for (const [id, lookup] of await catalystBondPriceLookups(positions, priceLookups)) {
+    withBonds.set(id, lookup);
+  }
 
   const valuation = valuePositions(positions, withBonds, ratesToPln, displayCurrencies);
 

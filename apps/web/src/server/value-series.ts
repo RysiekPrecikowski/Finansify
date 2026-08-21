@@ -85,7 +85,18 @@ async function resolveContext(userId: UserId, params: { range: Range; grain: Ser
   // was held in. `listPositions` already derives both lists from the whole
   // ledger, so this is the union rather than a second query.
   const allPositions: readonly InstrumentPosition[] = [...view.open, ...view.closed];
-  const quotedPositions = allPositions.filter((position) => position.instrument.kind !== 'bond');
+  // `catalyst_bond` is excluded here too, alongside retail `bond` — not
+  // because it lacks history (`gpw`'s `chart-json.php` has it, same as any
+  // equity) but because `readPriceHistory` hands back the raw quote
+  // unscaled by nominal, and `catalystBondPriceLookups`'s rescale only runs
+  // for `/portfolio`'s single `asOf` today, not a whole date range. Showing
+  // the raw quote on a chart would be a plausible-looking wrong number
+  // (rule 7) rather than a gap — a real gap is the honest choice until a
+  // history-range equivalent of `valueCatalystBondQuote` exists (ADR 0023).
+  const quotedPositions = allPositions.filter(
+    (position) =>
+      position.instrument.kind !== 'bond' && position.instrument.kind !== 'catalyst_bond',
+  );
   const bondPositions = allPositions.filter((position) => position.instrument.kind === 'bond');
   const quotedIds = quotedPositions.map((position) => position.instrument.id);
   const instrumentCurrency = new Map(

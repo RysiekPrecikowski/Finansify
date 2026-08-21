@@ -3,7 +3,13 @@ import type Decimal from 'decimal.js';
 import { type Temporal } from '../time';
 import { type ProviderName } from '../valuation/vocabulary';
 import { type BondInterestTable, type PurchaseDayKey } from './interest-table';
-import { type BondSeriesCode, type BondTerms, type IndexId, type IndexObservation } from './types';
+import {
+  type BondSeriesCode,
+  type BondTerms,
+  type CatalystBondTerms,
+  type IndexId,
+  type IndexObservation,
+} from './types';
 
 /**
  * The per-issue half of a bond's terms — the two numbers the Ministry publishes
@@ -118,4 +124,32 @@ export interface BondInterestTableRepository {
     purchaseDayKey: PurchaseDayKey,
   ): Promise<ReadonlyMap<number, BondInterestTable>>;
   save(tables: readonly BondInterestTable[]): Promise<void>;
+}
+
+/**
+ * A Catalyst bond's nominal value, fetched by its ticker (ADR 0023). `null`
+ * when the instrument cannot be resolved — same "ask the next tier, not a
+ * guess" contract as `BondIssueParameterProvider`, though today there is only
+ * one tier.
+ */
+export interface CatalystBondTermsProvider {
+  readonly name: ProviderName;
+  fetchTerms(symbol: string): Promise<CatalystBondTerms | null>;
+}
+
+/**
+ * The global `catalyst_bond_terms` cache — no user scoping, same reasoning as
+ * `BondIssueParameterRepository`. Simpler than that one: a Catalyst issue's
+ * nominal is fixed for its life and carries no purchase-date-dependent
+ * composition, so this stores the resolved `CatalystBondTerms` directly
+ * rather than raw parameters a resolver later composes.
+ */
+export interface CatalystBondTermsRepository {
+  find(symbols: readonly string[]): Promise<ReadonlyMap<string, CatalystBondTerms>>;
+  save(terms: CatalystBondTerms, source: ProviderName): Promise<void>;
+}
+
+/** ADR 0011's cache-on-first-use pattern, applied to Catalyst nominal values. */
+export interface CatalystBondTermsResolver {
+  resolve(symbol: string): Promise<CatalystBondTerms | null>;
 }
