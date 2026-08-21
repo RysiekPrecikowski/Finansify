@@ -205,3 +205,25 @@ export interface CatalystBondTerms {
   readonly symbol: string;
   readonly nominal: Money;
 }
+
+/** One row of the Catalyst corporate-bond listing (Stage 6) — enough to offer as a search hit before anything else about the issue has been fetched. */
+export interface CatalystBondCandidate {
+  readonly ticker: string;
+  readonly issuerName: string;
+}
+
+/**
+ * A Catalyst bond's full identity, read off its own instrument page in one
+ * fetch (Stage 6) — the ISIN `gpw`'s price quotes are keyed by (`chart-
+ * json.php`), on top of everything `CatalystBondTerms` already carries.
+ * Deliberately a separate type rather than widening `CatalystBondTerms`:
+ * valuation only ever needs `nominal`, resolved repeatedly from the shared
+ * `catalyst_bond_terms` cache, while `isin`/`issuerName` matter exactly once
+ * — at instrument creation — and are never re-read afterward.
+ */
+export interface CatalystBondListing {
+  readonly ticker: string;
+  readonly isin: string;
+  readonly issuerName: string;
+  readonly nominal: Money;
+}

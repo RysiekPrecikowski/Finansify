@@ -9,6 +9,7 @@ import {
   type SeriesGrain,
   type StoredBar,
   type StoredFxRate,
+  type SymbolMapping,
 } from './types';
 import { type FxRateRepository, type MarketPriceRepository, type SymbolRepository } from './ports';
 import { type ProviderName } from './vocabulary';
@@ -177,13 +178,26 @@ export class InMemorySymbols implements SymbolRepository {
     return Promise.resolve(result);
   }
 
+  /** No clock here — nothing in this domain reads `verifiedAt`'s actual value, only that it exists. */
+  private static readonly EPOCH = Temporal.Instant.fromEpochMilliseconds(0);
+
   chainFor(
     ids: readonly InstrumentId[],
-  ): Promise<ReadonlyMap<InstrumentId, readonly ResolvedSymbol[]>> {
-    const result = new Map<InstrumentId, readonly ResolvedSymbol[]>();
+  ): Promise<ReadonlyMap<InstrumentId, readonly SymbolMapping[]>> {
+    const result = new Map<InstrumentId, readonly SymbolMapping[]>();
     for (const id of ids) {
       const chain = this.rows.get(id);
-      if (chain !== undefined && chain.length > 0) result.set(id, chain);
+      if (chain === undefined || chain.length === 0) continue;
+      result.set(
+        id,
+        chain.map((ref, priority) => ({
+          ...ref,
+          priority,
+          fallbackCount: this.fallbacks.get(id)?.get(ref.provider) ?? 0,
+          lastFallbackAt: null,
+          verifiedAt: InMemorySymbols.EPOCH,
+        })),
+      );
     }
     return Promise.resolve(result);
   }
@@ -204,6 +218,42 @@ export class InMemorySymbols implements SymbolRepository {
 
   fallbackCount(instrumentId: InstrumentId, provider: ProviderName): number {
     return this.fallbacks.get(instrumentId)?.get(provider) ?? 0;
+  }
+
+  /**
+   * Unlike production (`currency`/`kind` live on `instruments`, joined in at
+   * read time), this fake stores them per row — so replacing the chain for an
+   * instrument this fake has never seen via `save()` has nothing to carry
+   * them over from. Call `save()` once first to establish the instrument
+   * (exactly what `select-instrument.ts` already does for a real one) before
+   * exercising `setChain` on it.
+   */
+  setChain(
+    instrumentId: InstrumentId,
+    entries: readonly { readonly provider: ProviderName; readonly symbol: string }[],
+  ): Promise<void> {
+    const existing = this.rows.get(instrumentId) ?? [];
+    const byProvider = new Map(existing.map((row) => [row.provider, row]));
+    const known = existing[0];
+
+    const next = entries.map((entry): ResolvedSymbol => {
+      const prior = byProvider.get(entry.provider) ?? known;
+      if (prior === undefined) {
+        throw new Error(
+          `InMemorySymbols.setChain: instrument ${instrumentId} has no known currency/kind — call save() once first`,
+        );
+      }
+      return {
+        instrumentId,
+        provider: entry.provider,
+        symbol: entry.symbol,
+        currency: prior.currency,
+        kind: prior.kind,
+      };
+    });
+
+    this.rows.set(instrumentId, next);
+    return Promise.resolve();
   }
 }
 

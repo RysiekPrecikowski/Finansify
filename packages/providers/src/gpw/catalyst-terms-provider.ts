@@ -6,7 +6,7 @@ import {
 } from '@finansify/core';
 import Decimal from 'decimal.js';
 
-const INSTRUMENT_PAGE = 'https://gpwcatalyst.pl/o-instrumentach-instrument';
+import { fetchGpwCatalystInstrumentPage } from './client';
 
 /**
  * "Wartość nominalna (PLN)</td><td>100,00</td>" — the currency rides along in
@@ -19,7 +19,8 @@ const INSTRUMENT_PAGE = 'https://gpwcatalyst.pl/o-instrumentach-instrument';
 const NOMINAL =
   /Warto[śs][ćc]\s+nominalna\s*\(([A-Za-z]{3})\)\s*<\/td>\s*<td[^>]*>([\d\s.,]+)\s*<\/td>/i;
 
-function parseNominal(html: string): { amount: Decimal; currencyCode: string } | null {
+/** Exported for `catalyst-bond-lookup.ts` (Stage 6), which needs the same nominal off the same page it also reads ISIN and issuer name from. */
+export function parseNominal(html: string): { amount: Decimal; currencyCode: string } | null {
   const match = NOMINAL.exec(html);
   if (!match) return null;
 
@@ -49,20 +50,7 @@ export const gpwCatalystBondTermsProvider: CatalystBondTermsProvider = {
   name: 'gpw',
 
   async fetchTerms(symbol: string): Promise<CatalystBondTerms | null> {
-    const url = new URL(INSTRUMENT_PAGE);
-    url.searchParams.set('nazwa', symbol);
-
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'text/html',
-        'Accept-Language': 'pl-PL,pl;q=0.9',
-        'User-Agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
-      },
-    });
-    if (!response.ok) throw new Error(`gpwcatalyst.pl responded with ${response.status}`);
-
-    const html = await response.text();
+    const html = await fetchGpwCatalystInstrumentPage(symbol);
     const parsed = parseNominal(html);
     if (parsed === null) return null;
 

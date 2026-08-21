@@ -12,5 +12,7 @@ export * from './open-account';
 export * from './record-transaction';
 export * from './search-instruments';
 export * from './select-instrument';
+export * from './select-catalyst-bond';
+export * from './set-instrument-chain';
 export * from './upload-statement';
 export * from './select-bond';
