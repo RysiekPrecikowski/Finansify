@@ -105,6 +105,7 @@ export const en: Dictionary = {
       label: 'Instrument',
       placeholder: 'Search by ticker or name…',
       searching: 'Searching…',
+      searchingMore: 'Still searching other sources…',
       noResults: 'No results',
     },
     type: 'Type',

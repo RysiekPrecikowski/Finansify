@@ -18,7 +18,7 @@ import { resolveInstrumentSelection } from '@/lib/instrument-selection';
 import { transactionInputFrom } from '@/lib/transaction-form';
 import {
   getCatalystBondLookup,
-  getInstrumentSearchProvider,
+  getInstrumentSearchProviders,
   getInstruments,
   scopedLedgerFor,
 } from '@/server/container';
@@ -87,45 +87,49 @@ function labelOf(symbol: string, name: string, exchange: string | null): string 
   return exchange === null ? `${symbol} · ${name}` : `${symbol} · ${name} (${exchange})`;
 }
 
+const MIN_QUERY_LENGTH = 2;
+
 /**
- * Local database first, Yahoo only as a fallback (`makeSearchInstruments`) —
- * behind `getCurrentUser()` because this can reach a third-party API on every
- * keystroke and an anonymous caller has no transaction to attach a result to
- * anyway. A provider failure degrades to "no results" rather than a thrown
- * error reaching the client typing in a text box.
+ * Every instrument search is one of four independent sources, each queried
+ * and rendered on its own timer — nothing here assumes which one answers
+ * first. A slow one (in practice, `gpwcatalyst.pl`'s uncached listing page —
+ * but nothing below hard-codes that) must never hold up a fast one's
+ * results, so the client fires all four in parallel and merges whichever
+ * has answered so far; each is independently correct in isolation (a local
+ * DB hit already answers the question on its own, and `searchYahooAction`/
+ * `searchBankierAction` each redo that same cheap local check themselves
+ * before asking their provider — see below), so there is nothing to
+ * coordinate between them and no ordering to get wrong.
  */
-export async function searchInstrumentsAction(query: string): Promise<readonly InstrumentOption[]> {
+
+/**
+ * The local database — always the fastest possible answer, but not treated
+ * specially for that reason; it is simply one of the four sources. A hit
+ * here is also *the* answer: `searchYahooAction`/`searchBankierAction` each
+ * redo this same check before asking their provider, so their own results
+ * come back empty whenever this one is non-empty — no shared "suppress the
+ * others" flag needed, each source is self-consistent.
+ */
+export async function searchExistingAction(query: string): Promise<readonly InstrumentOption[]> {
   const user = await getCurrentUser();
   if (user === null) return [];
+  if (query.trim().length < MIN_QUERY_LENGTH) return [];
 
   try {
-    const searchInstruments = makeSearchInstruments({
-      instruments: getInstruments(),
-      provider: getInstrumentSearchProvider(),
-    });
-    // Catalyst bonds never reach `makeSearchInstruments` (they bypass
-    // `InstrumentSearchProvider` entirely — see `InstrumentOption`'s
-    // `catalyst_bond` variant) so this runs alongside it rather than through
-    // it, same as the series-code check below.
-    const [result, catalystBonds] = await Promise.all([
-      searchInstruments(query),
-      query.trim().length >= 2 ? getCatalystBondLookup().search(query) : Promise.resolve([]),
-    ]);
-
-    const existing = result.existing.map<InstrumentOption>((instrument) => ({
+    const found = await getInstruments().search(query);
+    const existing = found.map<InstrumentOption>((instrument) => ({
       kind: 'existing',
       instrumentId: instrument.id,
       label: labelOf(instrument.symbol, instrument.name, instrument.exchange),
     }));
 
-    // A series code is offered *alongside* whatever the provider found rather
-    // than instead of it: a user typing `EDO0836` has no other way to reach a
-    // bond, and Yahoo will happily return nothing for it. Suppressed once the
-    // series is already an instrument, since the `existing` row for it is the
-    // better answer — same id, and no resolver call on selection.
+    // A series code is offered *alongside* an existing hit rather than
+    // instead of it: a user typing `EDO0836` has no other way to reach a
+    // bond. Suppressed once the series is already an instrument, since the
+    // `existing` row for it is the better answer — same id, no resolver call.
     const seriesCode = query.trim().toUpperCase();
     const dictionary = await getDictionary();
-    const alreadyHeld = result.existing.some((instrument) => instrument.symbol === seriesCode);
+    const alreadyHeld = found.some((instrument) => instrument.symbol === seriesCode);
     const bond: readonly InstrumentOption[] =
       looksLikeSeriesCode(query) && !alreadyHeld
         ? [
@@ -137,21 +141,31 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
           ]
         : [];
 
-    // Same reasoning as `bond` above: offered alongside whatever else matched,
-    // suppressed only for a ticker already held (the `existing` row is the
-    // better answer for that one).
-    const catalystBondOptions: readonly InstrumentOption[] = catalystBonds
-      .filter((candidate) => !result.existing.some((i) => i.symbol === candidate.ticker))
-      .map((candidate) => ({
-        kind: 'catalyst_bond',
-        ticker: candidate.ticker,
-        label: `${candidate.ticker} · ${candidate.issuerName}`,
-      }));
+    return [...bond, ...existing];
+  } catch (error) {
+    console.error('Instrument search failed', error);
+    return [];
+  }
+}
 
-    if (existing.length > 0 || bond.length > 0 || catalystBondOptions.length > 0) {
-      return [...bond, ...catalystBondOptions, ...existing];
-    }
+async function searchViaProvider(
+  query: string,
+  providerName: string,
+): Promise<readonly InstrumentOption[]> {
+  const user = await getCurrentUser();
+  if (user === null) return [];
 
+  const provider = getInstrumentSearchProviders().find((p) => p.name === providerName);
+  if (provider === undefined) return [];
+
+  try {
+    const searchInstruments = makeSearchInstruments({ instruments: getInstruments(), provider });
+    const result = await searchInstruments(query);
+    // `result.existing` is discarded here — `searchExistingAction` owns that
+    // answer. This call's own local check exists only to decide whether
+    // asking `provider` was worth doing at all (`makeSearchInstruments`'s own
+    // "local first" rule), which is also what makes this source self-
+    // consistent without coordinating with the others.
     return result.candidates.map<InstrumentOption>((candidate) => ({
       kind: 'candidate',
       provider: candidate.provider,
@@ -160,7 +174,49 @@ export async function searchInstrumentsAction(query: string): Promise<readonly I
       label: labelOf(candidate.symbol, candidate.name, candidate.exchange),
     }));
   } catch (error) {
-    console.error('Instrument search failed', error);
+    console.error(`Instrument search via ${providerName} failed`, error);
+    return [];
+  }
+}
+
+export async function searchYahooAction(query: string): Promise<readonly InstrumentOption[]> {
+  return searchViaProvider(query, 'yahoo');
+}
+
+export async function searchBankierAction(query: string): Promise<readonly InstrumentOption[]> {
+  return searchViaProvider(query, 'bankier');
+}
+
+/**
+ * Catalyst bonds — the fourth independent source. Checks "already held"
+ * itself, with its own (local, cheap) DB query, rather than depending on
+ * `searchExistingAction`'s result: the two calls race, and this one must
+ * stay correct regardless of which finishes first.
+ */
+export async function searchCatalystBondsAction(
+  query: string,
+): Promise<readonly InstrumentOption[]> {
+  const user = await getCurrentUser();
+  if (user === null) return [];
+
+  const trimmed = query.trim();
+  if (trimmed.length < MIN_QUERY_LENGTH) return [];
+
+  try {
+    const [existing, catalystBonds] = await Promise.all([
+      getInstruments().search(trimmed),
+      getCatalystBondLookup().search(trimmed),
+    ]);
+
+    return catalystBonds
+      .filter((candidate) => !existing.some((instrument) => instrument.symbol === candidate.ticker))
+      .map<InstrumentOption>((candidate) => ({
+        kind: 'catalyst_bond',
+        ticker: candidate.ticker,
+        label: `${candidate.ticker} · ${candidate.issuerName}`,
+      }));
+  } catch (error) {
+    console.error('Catalyst bond search failed', error);
     return [];
   }
 }

@@ -126,16 +126,26 @@ export function getPriceProviders(): ReadonlyMap<ProviderName, PriceProvider> {
 }
 
 /**
- * Fans typeahead search out to every source that can name an instrument
- * (Stage 6, CU-869en2unq) — Yahoo for everything global, `bankier` for TFI
- * funds and PPK subfunds Yahoo does not index at all. Catalyst-listed bonds
- * are deliberately not here: they have a dual-identifier problem (ticker for
- * identity/terms, ISIN for `gpw` price lookups) the generic `confirm()`
- * contract can't express, so they go through `makeSelectCatalystBond`
- * instead — see `lib/instrument-selection.ts`.
+ * Every source that can name an instrument by search (Stage 6, CU-869en2unq)
+ * — Yahoo for everything global, `bankier` for TFI funds and PPK subfunds
+ * Yahoo does not index at all. Catalyst-listed bonds are deliberately not
+ * here: they have a dual-identifier problem (ticker for identity/terms, ISIN
+ * for `gpw` price lookups) the generic `confirm()` contract can't express, so
+ * they go through `makeSelectCatalystBond` instead — see
+ * `lib/instrument-selection.ts`.
+ *
+ * Exposed as a list, not just the aggregate below, so the web layer can also
+ * query each one on its own — one provider being slow to answer should never
+ * hold up a faster one's results (`transactions/actions.ts`'s per-source
+ * search actions).
  */
+export function getInstrumentSearchProviders(): readonly InstrumentSearchProvider[] {
+  return [yahooInstrumentSearch, bankierInstrumentSearch];
+}
+
+/** `confirm()` dispatch needs exactly one provider regardless of how many searched — `selectInstrument` still takes a single `InstrumentSearchProvider`. */
 export function getInstrumentSearchProvider(): InstrumentSearchProvider {
-  return makeAggregatingSearch([yahooInstrumentSearch, bankierInstrumentSearch]);
+  return makeAggregatingSearch(getInstrumentSearchProviders());
 }
 
 export function getFxProvider(): FxRateProvider {

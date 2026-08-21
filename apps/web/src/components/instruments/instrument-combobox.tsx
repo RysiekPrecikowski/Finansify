@@ -1,14 +1,44 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
-import { searchInstrumentsAction, type InstrumentOption } from '@/app/(app)/transactions/actions';
+import {
+  searchBankierAction,
+  searchCatalystBondsAction,
+  searchExistingAction,
+  searchYahooAction,
+  type InstrumentOption,
+} from '@/app/(app)/transactions/actions';
 import { errorId, Field } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
 import { useI18n } from '@/lib/i18n/client';
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
+
+/**
+ * The independent sources a search fans out to, in display order. Order here
+ * is purely cosmetic — each source is self-consistent on its own (see
+ * `actions.ts`), so nothing about correctness depends on it.
+ */
+const SOURCES = ['existing', 'catalyst_bond', 'yahoo', 'bankier'] as const;
+type Source = (typeof SOURCES)[number];
+
+const FETCHERS: Readonly<Record<Source, (query: string) => Promise<readonly InstrumentOption[]>>> =
+  {
+    existing: searchExistingAction,
+    catalyst_bond: searchCatalystBondsAction,
+    yahoo: searchYahooAction,
+    bankier: searchBankierAction,
+  };
+
+const EMPTY_RESULTS: Readonly<Record<Source, readonly InstrumentOption[]>> = {
+  existing: [],
+  catalyst_bond: [],
+  yahoo: [],
+  bankier: [],
+};
 
 /**
  * What the combobox already has a selection for — either an existing row
@@ -33,12 +63,20 @@ export type InstrumentComboboxInitial =
   | null;
 
 /**
- * Search-as-you-type instrument selection. The user never sees "add a new
- * instrument" as a separate step — typing a ticker or a name and picking a
- * row from the list is the entire flow, whether that row already exists in
- * our database or comes from the provider. What gets submitted is always one
- * of `<InstrumentOption>`'s two shapes as hidden fields, never free text
- * (`actions.ts`'s `resolveInstrumentSelection` accepts nothing else).
+ * Search-as-you-type instrument selection, fanned out to four independent
+ * sources (`SOURCES`) that each answer on their own schedule — a slow one
+ * (in practice `gpwcatalyst.pl`'s uncached listing page, but nothing here
+ * hard-codes that) must never hold up results a fast one already has.
+ * Results are merged into the list as each source answers; a trailing
+ * spinner row shows while any source is still out, so "still searching" is
+ * always visible rather than the list silently being incomplete.
+ *
+ * The user never sees "add a new instrument" as a separate step — typing a
+ * ticker or a name and picking a row from the list is the entire flow,
+ * whether that row already exists in our database or comes from a provider.
+ * What gets submitted is always one of `<InstrumentOption>`'s shapes as
+ * hidden fields, never free text (`actions.ts`'s `resolveInstrumentSelection`
+ * accepts nothing else).
  */
 export function InstrumentCombobox({
   initial,
@@ -56,11 +94,19 @@ export function InstrumentCombobox({
   const [selection, setSelection] = useState<InstrumentOption | null>(
     initial?.kind === 'existing' ? { ...initial } : null,
   );
-  const [options, setOptions] = useState<readonly InstrumentOption[]>([]);
+  const [resultsBySource, setResultsBySource] =
+    useState<Readonly<Record<Source, readonly InstrumentOption[]>>>(EMPTY_RESULTS);
+  const [pendingSources, setPendingSources] = useState<ReadonlySet<Source>>(new Set());
   const [open, setOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const searchTokenRef = useRef(0);
+  // Set only for the mount-time seeded search below; checked once every
+  // source for that run has answered, since "is this the only result" can't
+  // be known from any single source in isolation.
+  const autoSelectRef = useRef<{ readonly trimmed: string; done: boolean } | null>(null);
+
+  const options = SOURCES.flatMap((source) => resultsBySource[source]);
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
@@ -70,30 +116,48 @@ export function InstrumentCombobox({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  /**
-   * `autoSelectIfSingle` only ever fires from the seeded-query mount effect
-   * below, never from a keystroke — auto-picking while the user is still
-   * typing would select out from under them before they finished. The seeded
-   * query is the parser's own normalized ticker (`XTB.PL` → `XTB.WA`), so a
-   * single hit whose own symbol matches that query exactly is as trustworthy
-   * as the bulk auto-match screen's pre-checked exact hits; anything looser
-   * (multiple results, or a fuzzy single result for a different symbol) still
-   * waits for a click, same as before.
-   */
+  // Fires once all four sources for the current search have answered — the
+  // only point at which "exactly one result, matching the seeded query" can
+  // actually be known.
+  useEffect(() => {
+    const pending = autoSelectRef.current;
+    if (pending === null || pending.done || pendingSources.size > 0) return;
+    pending.done = true;
+
+    if (
+      options.length === 1 &&
+      leadingSymbol(options[0]!.label).toUpperCase() === pending.trimmed.toUpperCase()
+    ) {
+      onPick(options[0]!);
+    }
+    // `options`/`resultsBySource` deliberately excluded: this effect reacts to
+    // `pendingSources` reaching empty, not to every options update along the
+    // way, and reads the latest `options` via closure at that moment.
+  }, [pendingSources]);
+
   function runSearch(trimmed: string, autoSelectIfSingle = false) {
-    startTransition(async () => {
-      const results = await searchInstrumentsAction(trimmed);
-      if (
-        autoSelectIfSingle &&
-        results.length === 1 &&
-        leadingSymbol(results[0]!.label).toUpperCase() === trimmed.toUpperCase()
-      ) {
-        onPick(results[0]!);
-        return;
-      }
-      setOptions(results);
-      setOpen(true);
-    });
+    const token = ++searchTokenRef.current;
+    autoSelectRef.current = autoSelectIfSingle ? { trimmed, done: false } : null;
+    setResultsBySource(EMPTY_RESULTS);
+    setPendingSources(new Set(SOURCES));
+    setOpen(true);
+
+    for (const source of SOURCES) {
+      FETCHERS[source](trimmed)
+        .then((results) => {
+          if (searchTokenRef.current !== token) return;
+          setResultsBySource((prev) => ({ ...prev, [source]: results }));
+        })
+        .finally(() => {
+          if (searchTokenRef.current !== token) return;
+          setPendingSources((prev) => {
+            if (!prev.has(source)) return prev;
+            const next = new Set(prev);
+            next.delete(source);
+            return next;
+          });
+        });
+    }
   }
 
   // Runs once for a `kind: 'query'` initial — the import resolve screen's own
@@ -115,7 +179,10 @@ export function InstrumentCombobox({
 
     const trimmed = value.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
-      setOptions([]);
+      searchTokenRef.current += 1; // invalidate any in-flight search
+      autoSelectRef.current = null;
+      setResultsBySource(EMPTY_RESULTS);
+      setPendingSources(new Set());
       setOpen(false);
       return;
     }
@@ -130,6 +197,7 @@ export function InstrumentCombobox({
   }
 
   const fieldId = 'instrumentSearch';
+  const stillSearching = pendingSources.size > 0;
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-2">
@@ -157,24 +225,35 @@ export function InstrumentCombobox({
 
       {open && (
         <ul className="bg-popover border-border absolute top-full z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border py-1 shadow-md">
-          {isPending && (
-            <li className="text-muted-foreground px-3 py-2 text-sm">{strings.searching}</li>
+          {options.length === 0 && stillSearching && (
+            <li className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm">
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              {strings.searching}
+            </li>
           )}
-          {!isPending && options.length === 0 && (
+          {options.length === 0 && !stillSearching && (
             <li className="text-muted-foreground px-3 py-2 text-sm">{strings.noResults}</li>
           )}
-          {!isPending &&
-            options.map((option) => (
-              <li key={optionKey(option)}>
-                <button
-                  type="button"
-                  className="hover:bg-accent hover:text-accent-foreground w-full px-3 py-2 text-left text-sm"
-                  onClick={() => onPick(option)}
-                >
-                  {option.label}
-                </button>
-              </li>
-            ))}
+          {options.map((option) => (
+            <li key={optionKey(option)}>
+              <button
+                type="button"
+                className="hover:bg-accent hover:text-accent-foreground w-full px-3 py-2 text-left text-sm"
+                onClick={() => onPick(option)}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+          {/* Some results already showing, but not every source has answered
+              yet — a trailing row rather than replacing the list, so what's
+              already found stays visible while the rest keeps loading. */}
+          {options.length > 0 && stillSearching && (
+            <li className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-xs">
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+              {strings.searchingMore}
+            </li>
+          )}
         </ul>
       )}
 

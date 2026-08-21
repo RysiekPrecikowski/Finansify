@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { fetchBankierFundChart } from './client';
 
 const SEARCH_URL = 'https://api.bankier.pl/quotes/public/instrument-search/';
+/** No default request timeout exists in `fetch` — without this a hung connection stalls the whole search instead of failing fast. */
+const REQUEST_TIMEOUT_MS = 8000;
 
 const hitSchema = z.object({ kod: z.string(), nazwa_skrocona: z.string() });
 const ppkHitSchema = z.object({ code: z.string(), shortened_name: z.string() });
@@ -29,7 +31,7 @@ async function fetchBankierSearch(query: string): Promise<z.infer<typeof searchR
   url.searchParams.set('bankier', 'true');
   url.searchParams.set('query', query);
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`bankier.pl instrument search responded with ${response.status}`);
   }

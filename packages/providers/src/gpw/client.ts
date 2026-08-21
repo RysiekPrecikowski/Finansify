@@ -2,6 +2,8 @@ const CHART_URL = 'https://www.gpw.pl/chart-json.php';
 
 const MIN_INTERVAL_MS = 1000;
 const RETRY_DELAYS_MS = [1000, 4000, 16000];
+/** No default request timeout exists in `fetch` — without this, a connection that hangs rather than failing outright stalls a whole retry attempt for however long the runtime's own socket timeout is, which is minutes, not seconds. */
+const REQUEST_TIMEOUT_MS = 8000;
 
 let nextSlotAt = 0;
 
@@ -54,7 +56,10 @@ export async function fetchGpwChart(isin: string, mode: string): Promise<unknown
   for (let attempt = 0; ; attempt += 1) {
     await throttle();
     try {
-      const response = await fetch(url, { headers: headersFor(isin) });
+      const response = await fetch(url, {
+        headers: headersFor(isin),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
       if (!response.ok) throw new Error(`GPW responded with ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -83,7 +88,10 @@ async function fetchGpwCatalystPage(url: URL): Promise<string> {
   for (let attempt = 0; ; attempt += 1) {
     await throttle();
     try {
-      const response = await fetch(url, { headers: CATALYST_HEADERS });
+      const response = await fetch(url, {
+        headers: CATALYST_HEADERS,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
       if (!response.ok) throw new Error(`gpwcatalyst.pl responded with ${response.status}`);
       return await response.text();
     } catch (error) {

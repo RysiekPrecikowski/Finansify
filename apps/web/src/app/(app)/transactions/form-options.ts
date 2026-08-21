@@ -28,7 +28,8 @@ export interface TransactionFormOptions {
  * imports directly.
  *
  * No instrument list here anymore: `<InstrumentCombobox>` searches on demand
- * (`searchInstrumentsAction`) instead of the form preloading every instrument
+ * (`searchExistingAction` and its sibling per-source actions in
+ * `transactions/actions.ts`) instead of the form preloading every instrument
  * in the database to build a dropdown. `loadSelectedInstrument` below is the
  * only instrument lookup this route makes, and only for editing a transaction
  * that already has one.
