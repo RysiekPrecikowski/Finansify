@@ -73,6 +73,43 @@ export const pl = {
       gainPercentDesc: 'Zysk w procentach (od największego)',
       nameAsc: 'Nazwa (A–Z)',
     },
+    marketSnapshot: {
+      title: 'Kursy i wskaźniki',
+      referenceRate: 'Stopa NBP',
+      cpi: 'Inflacja r/r',
+    },
+    topMovers: {
+      title: 'Ruch dnia',
+    },
+    sectors: {
+      title: 'Podział sektorowy',
+      labels: {
+        technology: 'Technologia',
+        financials: 'Finanse',
+        healthcare: 'Ochrona zdrowia',
+        industrials: 'Przemysł',
+        consumer: 'Dobra konsumpcyjne',
+        energy: 'Energia',
+        diversified: 'Fundusze i ETF-y',
+        bonds: 'Obligacje',
+      },
+    },
+    news: {
+      title: 'Na bieżąco',
+      disclaimer:
+        'Przykładowe nagłówki — połączenie z prawdziwym źródłem wiadomości jeszcze nie istnieje.',
+      templates: {
+        results: '{symbol}: wyniki kwartalne powyżej oczekiwań analityków',
+        upgrade: '{symbol}: dom maklerski podniósł rekomendację',
+        target: '{symbol}: nowa cena docelowa po ostatniej sesji',
+        launch: '{symbol}: zapowiedź nowego produktu w tym kwartale',
+        regulatory: '{symbol}: zmiana regulacyjna może wpłynąć na branżę',
+      },
+      times: {
+        hoursAgo: '{hours} godz. temu',
+        daysAgo: '{days} dni temu',
+      },
+    },
   },
   accounts: {
     title: 'Konta',

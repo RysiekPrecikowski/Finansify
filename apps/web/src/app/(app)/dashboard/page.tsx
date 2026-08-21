@@ -16,9 +16,12 @@ import { AccountTiles } from '@/components/dashboard/account-tiles';
 import { AssetClassChips } from '@/components/dashboard/asset-class-chips';
 import { ChartCard } from '@/components/dashboard/chart-card';
 import { HoldingsList } from '@/components/dashboard/holdings-list';
+import { MarketSnapshot } from '@/components/dashboard/market-snapshot';
+import { NewsList } from '@/components/dashboard/news-list';
 import { PortfolioHeadline } from '@/components/dashboard/portfolio-headline';
+import { SectorBreakdown } from '@/components/dashboard/sector-breakdown';
 import { SortMenu, type SortOption } from '@/components/dashboard/sort-menu';
-import { IndicatorStrip } from '@/components/indicators/indicator-strip';
+import { TopMovers } from '@/components/dashboard/top-movers';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth';
 import {
@@ -47,6 +50,19 @@ function DashboardSectionsFallback() {
     <div className="flex flex-col gap-6">
       <div className="border-border bg-muted/30 h-32 animate-pulse rounded-md border" />
       <div className="border-border bg-muted/30 h-48 animate-pulse rounded-md border" />
+    </div>
+  );
+}
+
+/** Same footprint as `<MarketSnapshot>`'s "brick" grid, so it doesn't jump into place once the FX/GUS reads resolve. */
+function MarketSnapshotFallback() {
+  return (
+    <div className="grid grid-cols-6 gap-3" aria-hidden="true">
+      <div className="bg-muted/30 col-span-2 h-[4.5rem] animate-pulse rounded-xl" />
+      <div className="bg-muted/30 col-span-2 h-[4.5rem] animate-pulse rounded-xl" />
+      <div className="bg-muted/30 col-span-2 h-[4.5rem] animate-pulse rounded-xl" />
+      <div className="bg-muted/30 col-span-3 h-[4.5rem] animate-pulse rounded-xl" />
+      <div className="bg-muted/30 col-span-3 h-[4.5rem] animate-pulse rounded-xl" />
     </div>
   );
 }
@@ -127,6 +143,21 @@ async function DashboardSections({
 
       <AccountTiles accounts={accountTiles} locale={locale} dictionary={dictionary} />
 
+      {/* Own `<Suspense>` boundary: a slow FX or GUS upstream should delay
+          only this card, never the already-resolved valuation below it. */}
+      <Suspense fallback={<MarketSnapshotFallback />}>
+        <MarketSnapshot locale={locale} dictionary={dictionary} />
+      </Suspense>
+
+      <TopMovers holdings={allHoldings} locale={locale} dictionary={dictionary} />
+
+      <SectorBreakdown
+        holdings={allHoldings}
+        total={totals.totalValue}
+        locale={locale}
+        dictionary={dictionary}
+      />
+
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -142,6 +173,8 @@ async function DashboardSections({
           dictionary={dictionary}
         />
       </section>
+
+      <NewsList holdings={allHoldings} dictionary={dictionary} />
     </>
   );
 }
@@ -193,13 +226,6 @@ export default async function DashboardPage({
       <div className="flex flex-col gap-1">
         <h1 className="text-lg font-semibold tracking-tight">{dictionary.dashboard.title}</h1>
       </div>
-
-      {/* The one part of the page above the fold that touches the network
-          before the priced section does, so it streams in on its own rather
-          than delaying anything behind it. */}
-      <Suspense fallback={null}>
-        <IndicatorStrip locale={locale} dictionary={dictionary} />
-      </Suspense>
 
       {view.open.length === 0 && accounts.length === 0 ? (
         <p className="text-muted-foreground px-1 py-8 text-sm">{empty}</p>

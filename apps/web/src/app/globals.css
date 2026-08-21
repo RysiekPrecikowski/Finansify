@@ -41,6 +41,8 @@
   --color-card: var(--card);
   --color-gain: var(--gain);
   --color-loss: var(--loss);
+  --color-brand: var(--brand);
+  --color-surface-3: var(--surface-3);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -51,76 +53,93 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Neutral surface stack — card (surface-1) is the lightest, raised tier;
+     background sits one step under it as the page canvas; muted/secondary
+     (surface-2) and surface-3 recede further still, each a step darker, for
+     wells and grouped-control backgrounds (e.g. the header's currency/
+     locale/theme pill). Depth comes from this layering, not from shadows
+     (docs/ui.md: "borders over shadows"; the dashboard redesign goes one
+     step further and drops the border too, see `--radius` usage in the
+     dashboard components). */
+  --background: oklch(0.965 0.002 247);
+  --foreground: oklch(0.205 0.006 247);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.205 0.006 247);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.205 0.006 247);
+  --primary: oklch(0.205 0.006 247);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.93 0.003 247);
+  --secondary-foreground: oklch(0.205 0.006 247);
+  --muted: oklch(0.93 0.003 247);
+  --muted-foreground: oklch(0.43 0.006 247);
+  --accent: oklch(0.93 0.003 247);
+  --accent-foreground: oklch(0.205 0.006 247);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0 0 0 / 8%);
+  --input: oklch(0 0 0 / 10%);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Neutral categorical ramp for sector breakdown — descending lightness,
+     never a per-sector hue (the canvas's "no rainbow" note). */
+  --chart-1: oklch(0.9 0 0);
+  --chart-2: oklch(0.78 0 0);
+  --chart-3: oklch(0.64 0 0);
+  --chart-4: oklch(0.48 0 0);
+  --chart-5: oklch(0.32 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.205 0.006 247);
+  --sidebar-primary: oklch(0.205 0.006 247);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-accent: oklch(0.93 0.003 247);
+  --sidebar-accent-foreground: oklch(0.205 0.006 247);
+  --sidebar-border: oklch(0 0 0 / 8%);
   --sidebar-ring: oklch(0.708 0 0);
   --gain: oklch(0.52 0.14 152);
   --loss: oklch(0.53 0.19 27);
+  /* The one second accent, reserved for the benchmark chart line and the
+     IKE/IKZE contribution-limit warning state — never decorative (docs/ui.md
+     extends the "green/red are reserved" rule to this one). */
+  --brand: oklch(0.47 0.15 265);
+  --surface-3: oklch(0.87 0.003 247);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.15 0.003 247);
+  --foreground: oklch(0.97 0.002 247);
+  --card: oklch(0.2 0.003 247);
+  --card-foreground: oklch(0.97 0.002 247);
+  --popover: oklch(0.2 0.003 247);
+  --popover-foreground: oklch(0.97 0.002 247);
+  --primary: oklch(0.97 0.002 247);
+  --primary-foreground: oklch(0.205 0.006 247);
+  --secondary: oklch(0.27 0.003 247);
+  --secondary-foreground: oklch(0.97 0.002 247);
+  --muted: oklch(0.27 0.003 247);
+  --muted-foreground: oklch(0.68 0.005 247);
+  --accent: oklch(0.27 0.003 247);
+  --accent-foreground: oklch(0.97 0.002 247);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --chart-1: oklch(0.85 0 0);
+  --chart-2: oklch(0.7 0 0);
+  --chart-3: oklch(0.55 0 0);
+  --chart-4: oklch(0.4 0 0);
+  --chart-5: oklch(0.28 0 0);
+  --sidebar: oklch(0.2 0.003 247);
+  --sidebar-foreground: oklch(0.97 0.002 247);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-accent: oklch(0.27 0.003 247);
+  --sidebar-accent-foreground: oklch(0.97 0.002 247);
+  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.556 0 0);
   --gain: oklch(0.76 0.19 148);
   --loss: oklch(0.7 0.19 25);
+  --brand: oklch(0.75 0.13 265);
+  --surface-3: oklch(0.31 0.004 247);
 }
 
 @layer base {

@@ -72,6 +72,42 @@ export const en: Dictionary = {
       gainPercentDesc: 'Relative gains (high to low)',
       nameAsc: 'Name (A–Z)',
     },
+    marketSnapshot: {
+      title: 'Rates & indicators',
+      referenceRate: 'NBP rate',
+      cpi: 'Inflation y/y',
+    },
+    topMovers: {
+      title: "Today's movers",
+    },
+    sectors: {
+      title: 'Sector breakdown',
+      labels: {
+        technology: 'Technology',
+        financials: 'Financials',
+        healthcare: 'Healthcare',
+        industrials: 'Industrials',
+        consumer: 'Consumer goods',
+        energy: 'Energy',
+        diversified: 'Funds & ETFs',
+        bonds: 'Bonds',
+      },
+    },
+    news: {
+      title: 'Latest',
+      disclaimer: 'Sample headlines — a real news source is not wired up yet.',
+      templates: {
+        results: '{symbol}: quarterly results beat analyst expectations',
+        upgrade: '{symbol}: brokerage raises its rating',
+        target: '{symbol}: new price target after the latest session',
+        launch: '{symbol}: new product announced for this quarter',
+        regulatory: '{symbol}: a regulatory change could affect the sector',
+      },
+      times: {
+        hoursAgo: '{hours}h ago',
+        daysAgo: '{days}d ago',
+      },
+    },
   },
   accounts: {
     title: 'Accounts',
