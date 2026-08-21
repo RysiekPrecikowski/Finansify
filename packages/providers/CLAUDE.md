@@ -1,18 +1,19 @@
 # packages/providers
 
-The external-data adapters: Yahoo Finance and GPW's own `chart-json.php` for
-prices, Yahoo for instrument resolution, NBP for FX. See `docs/data-sources.md`
-for what each source offers, ADR 0014 for why lazy ingestion was chosen, and
-ADR 0022 for the provider chain and per-kind capabilities that let more than
-one price source coexist.
+The external-data adapters: Yahoo Finance, GPW's own `chart-json.php`, and
+bankier.pl's public chart API for prices, Yahoo for instrument resolution, NBP
+for FX. See `docs/data-sources.md` for what each source offers, ADR 0014 for
+why lazy ingestion was chosen, and ADR 0022 for the provider chain and
+per-kind capabilities that let more than one price source coexist.
 
 ## Rules
 
 - Imports `@finansify/core` only, to implement its `valuation` ports; never
   imports `@finansify/db` or `apps/web` (adapters don't import each other —
   `docs/architecture.md`).
-- One module per provider (`src/yahoo/`, `src/gpw/`, `src/nbp/`). Nothing in
-  `src/yahoo/` may be imported from `src/gpw/` or `src/nbp/`, or vice versa.
+- One module per provider (`src/yahoo/`, `src/gpw/`, `src/bankier/`,
+  `src/nbp/`). Nothing in `src/yahoo/` may be imported from `src/gpw/` or
+  `src/nbp/`, or vice versa.
 - `numeric` values become `Decimal`/`Money` at the edge of this package —
   never `Number()`, never `parseFloat` (rule 1). Yahoo's bar closes arrive as
   float32 artifacts (`155.67999267578125`); round through
@@ -59,3 +60,12 @@ one price source coexist.
   ISIN (ADR 0023). Regexed against the raw markup, not flattened text
   (`mf/bond-issue-provider.ts`'s approach): the `</td><td>` boundary is what
   keeps the label pinned to its own value.
+- `bankier/client.ts` hits `api.bankier.pl` with no headers at all — verified
+  live, there is no WAF here unlike `gpw`'s. `bankier/price-provider.ts`
+  serves only `fund` (TFI/PPK units, keyed by bankier's own fund symbol, a
+  third identifier alongside ISIN and the Catalyst ticker); it checks the
+  response's own `profile_data.currency` against the instrument's stored
+  currency and refuses on a mismatch, something `gpw`'s endpoint gives no
+  data to do. A fund's valuation cadence is whatever bankier published — some
+  value weekly, not daily — so bars are passed through exactly as returned,
+  never resampled to fill a day the fund itself didn't quote.

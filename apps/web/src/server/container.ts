@@ -41,6 +41,7 @@ import {
   type UserId,
 } from '@finansify/core';
 import {
+  bankierPriceProvider,
   gpwCatalystBondTermsProvider,
   gpwPriceProvider,
   gusCpiProvider,
@@ -108,15 +109,15 @@ export function getFxRates(): FxRateRepository {
 }
 
 /**
- * The provider chain (ADR 0022) — `bankier` joins once its adapter lands.
- * Keying it by `name` rather than a positional array is what lets
- * `provider-chain.ts` route by the `ProviderName` stored on each
- * instrument's resolved chain.
+ * The provider chain (ADR 0022). Keying it by `name` rather than a
+ * positional array is what lets `provider-chain.ts` route by the
+ * `ProviderName` stored on each instrument's resolved chain.
  */
 export function getPriceProviders(): ReadonlyMap<ProviderName, PriceProvider> {
   return new Map([
     [yahooPriceProvider.name, yahooPriceProvider],
     [gpwPriceProvider.name, gpwPriceProvider],
+    [bankierPriceProvider.name, bankierPriceProvider],
   ]);
 }
 
