@@ -190,3 +190,18 @@ export interface WithheldAmount {
 
 export const isBondFamily = (value: string): value is BondFamily =>
   (bondFamilies as readonly string[]).includes(value);
+
+/**
+ * A Catalyst-listed bond's face value — the one number that turns a market
+ * quote (money per 100 nominal, ADR 0023) into a market value per bond. Keyed
+ * by `symbol` (the Catalyst ticker, e.g. `GHE0128`) rather than ISIN: that is
+ * the identifier `gpwcatalyst.pl`'s own instrument page answers to, and it is
+ * already `instruments.symbol` for a `catalyst_bond` — no second identifier
+ * table needed. Fixed for the life of the issue, unlike a treasury series'
+ * rate and margin, so there is no purchase-date composition step here the way
+ * `BondTermsResolver` has for `BondIssueParameters`.
+ */
+export interface CatalystBondTerms {
+  readonly symbol: string;
+  readonly nominal: Money;
+}

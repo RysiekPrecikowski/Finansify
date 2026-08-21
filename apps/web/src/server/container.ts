@@ -1,6 +1,7 @@
 import {
   bondInterestTableRepository,
   bondIssueParameterRepository,
+  catalystBondTermsRepository,
   createDbClient,
   createFileStore,
   fxRateRepository,
@@ -15,10 +16,12 @@ import {
 import { bosStatementParser, xtbStatementParser } from '@finansify/importers';
 import {
   makeResolveBondTerms,
+  makeResolveCatalystBondTerms,
   Temporal,
   type BondInterestTableProvider,
   type BondInterestTableRepository,
   type BondTermsResolver,
+  type CatalystBondTermsResolver,
   type Clock,
   type FileStore,
   type FxQuoteProvider,
@@ -38,6 +41,8 @@ import {
   type UserId,
 } from '@finansify/core';
 import {
+  gpwCatalystBondTermsProvider,
+  gpwPriceProvider,
   gusCpiProvider,
   mfBondIssueProvider,
   pekaoInterestTableProvider,
@@ -103,13 +108,16 @@ export function getFxRates(): FxRateRepository {
 }
 
 /**
- * The provider chain (ADR 0022) — only `yahoo` is registered so far; `gpw`
- * and `bankier` join once their adapters land. Keying it by `name` rather
- * than a positional array is what lets `provider-chain.ts` route by the
- * `ProviderName` stored on each instrument's resolved chain.
+ * The provider chain (ADR 0022) — `bankier` joins once its adapter lands.
+ * Keying it by `name` rather than a positional array is what lets
+ * `provider-chain.ts` route by the `ProviderName` stored on each
+ * instrument's resolved chain.
  */
 export function getPriceProviders(): ReadonlyMap<ProviderName, PriceProvider> {
-  return new Map([[yahooPriceProvider.name, yahooPriceProvider]]);
+  return new Map([
+    [yahooPriceProvider.name, yahooPriceProvider],
+    [gpwPriceProvider.name, gpwPriceProvider],
+  ]);
 }
 
 export function getInstrumentSearchProvider(): InstrumentSearchProvider {
@@ -175,6 +183,18 @@ export function getBondInterestTables(): BondInterestTableRepository {
 
 export function getInterestTableProvider(): BondInterestTableProvider {
   return pekaoInterestTableProvider;
+}
+
+/**
+ * ADR 0023's cache-on-first-use resolver for a Catalyst bond's nominal value —
+ * the same pattern as `getBondTermsResolver`, simpler because there is no
+ * purchase-date composition step.
+ */
+export function getCatalystBondTermsResolver(): CatalystBondTermsResolver {
+  return makeResolveCatalystBondTerms({
+    repository: catalystBondTermsRepository(getDb()),
+    provider: gpwCatalystBondTermsProvider,
+  });
 }
 
 export const clock: Clock = { now: () => Temporal.Now.instant() };

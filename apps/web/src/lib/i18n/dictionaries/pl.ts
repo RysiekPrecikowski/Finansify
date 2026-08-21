@@ -49,6 +49,7 @@ export const pl = {
       etf: 'ETF-y',
       fund: 'Fundusze',
       bond: 'Obligacje',
+      catalyst_bond: 'Obligacje Catalyst',
     },
     accounts: {
       title: 'Konta',

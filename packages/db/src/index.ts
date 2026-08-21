@@ -10,6 +10,7 @@ export { instrumentRepository, ledgerRepository } from './ledger-repository';
 export {
   bondInterestTableRepository,
   bondIssueParameterRepository,
+  catalystBondTermsRepository,
   indexObservationRepository,
 } from './bond-repository';
 export { fxRateRepository, marketPriceRepository, symbolRepository } from './price-repository';

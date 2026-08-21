@@ -157,3 +157,31 @@ export const bondInterestTables = pgTable(
 
 export type BondInterestTableRow = typeof bondInterestTables.$inferSelect;
 export type NewBondInterestTableRow = typeof bondInterestTables.$inferInsert;
+
+/**
+ * ADR 0023's cache-on-first-use table for Catalyst bonds: the one number
+ * `gpwcatalyst.pl` publishes that `bond_series_terms` has no use for — nominal
+ * value. Global and unscoped like every other bond-reference table here.
+ *
+ * Keyed by `symbol` (the Catalyst ticker, e.g. `GHE0128`), not ISIN —
+ * `gpwcatalyst.pl`'s own instrument page answers to the ticker, and it is
+ * already `instruments.symbol` for a `catalyst_bond`. `chart-json.php`, which
+ * prices the bond, is keyed by ISIN instead (`instrument_identifiers.symbol`
+ * for provider `gpw`) — two different "symbol"s for two different GPW
+ * endpoints, not a typo.
+ *
+ * `currency` rides along because a Catalyst issue is not guaranteed PLN the
+ * way a retail bond is; `nominal` and `currency` are read back straight into a
+ * `Money`, not composed with anything else, so — unlike `bond_series_terms` —
+ * there is no separate resolver-side composition step.
+ */
+export const catalystBondTerms = pgTable('catalyst_bond_terms', {
+  symbol: text('symbol').primaryKey(),
+  nominal: numeric('nominal', { precision: 20, scale: 8, mode: 'string' }).notNull(),
+  currency: text('currency').notNull(),
+  source: providerNameEnum('source').notNull(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CatalystBondTermsRow = typeof catalystBondTerms.$inferSelect;
+export type NewCatalystBondTermsRow = typeof catalystBondTerms.$inferInsert;
