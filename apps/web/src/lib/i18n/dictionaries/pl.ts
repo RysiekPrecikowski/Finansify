@@ -192,6 +192,17 @@ export const pl = {
   transactions: {
     title: 'Transakcje',
     add: 'Dodaj transakcję',
+    // Linia licznika nad listą. Kolejność jest stała, więc mówimy ją wprost
+    // zamiast udawać, że da się ją zmienić.
+    transactionCount: {
+      one: '{count} transakcja',
+      few: '{count} transakcje',
+      many: '{count} transakcji',
+      other: '{count} transakcji',
+    },
+    newestFirst: 'od najnowszej',
+    grossNote:
+      'Kwota to wartość brutto operacji. Nic na tym ekranie nie jest zielone ani czerwone — transakcja to nie zysk ani strata.',
     edit: 'Edytuj transakcję',
     delete: 'Usuń transakcję',
     confirmDelete:

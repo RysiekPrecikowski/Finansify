@@ -1,12 +1,19 @@
 import { grossValueOf, type Instrument, type Transaction } from '@finansify/core';
+import { Plus } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { DataList, type DataListColumn } from '@/components/data-list';
+import {
+  instrumentLabel,
+  TransactionRow,
+  TypeBadge,
+} from '@/components/transactions/transaction-row';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser } from '@/lib/auth';
-import { formatMoney, formatPlainDate, formatQuantity } from '@/lib/format';
+import { formatMoney, formatPlainDate } from '@/lib/format';
+import { plural } from '@/lib/i18n/dictionaries';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { getInstruments, scopedLedgerFor } from '@/server/container';
 
@@ -57,10 +64,9 @@ export default async function TransactionsPage() {
       header: strings.type,
       mobile: 'subtitle',
       cell: (transaction) => (
-        <span className="truncate">
-          {strings.types[transaction.type]}
-          <span className="text-muted-foreground">
-            {' · '}
+        <span className="flex items-center gap-1.5 truncate">
+          <TypeBadge transaction={transaction} strings={strings} />
+          <span className="text-muted-foreground truncate">
             {accountName.get(transaction.accountId) ?? strings.unknownAccount}
           </span>
         </span>
@@ -79,11 +85,7 @@ export default async function TransactionsPage() {
       align: 'end',
       mobile: 'meta',
       cell: (transaction) => (
-        <span className="text-muted-foreground">
-          {transaction.instrumentId === null
-            ? formatQuantity(transaction.quantity.toFixed(), locale)
-            : (symbolOf.get(transaction.instrumentId) ?? '—')}
-        </span>
+        <span className="text-muted-foreground">{instrumentLabel(transaction, symbolOf)}</span>
       ),
     },
     {
@@ -142,11 +144,23 @@ export default async function TransactionsPage() {
     );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold">{strings.title}</h1>
+    // No page `<h1>`: the app bar carries the screen name
+    // (`components/header-title.tsx`), same as every other screen since the
+    // redesign.
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground text-[0.6875rem] font-medium">
+          {newestFirst.length > 0 &&
+            `${plural(strings.transactionCount, newestFirst.length, locale)} · ${strings.newestFirst}`}
+        </span>
         {accounts.length > 0 && (
-          <Button size="sm" nativeButton={false} render={<Link href="/transactions/new" />}>
+          <Button
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/transactions/new" />}
+            className="shrink-0 gap-1.5 rounded-full"
+          >
+            <Plus className="size-4" aria-hidden />
             {strings.add}
           </Button>
         )}
@@ -161,7 +175,20 @@ export default async function TransactionsPage() {
         // phone layout has no way to open a transaction at all.
         rowHref={(transaction) => `/transactions/${transaction.id}/edit` as Route}
         empty={empty}
+        mobileCard={(transaction) => (
+          <TransactionRow
+            transaction={transaction}
+            accountLabel={accountName.get(transaction.accountId) ?? strings.unknownAccount}
+            symbolOf={symbolOf}
+            locale={locale}
+            strings={strings}
+          />
+        )}
       />
+
+      {newestFirst.length > 0 && (
+        <p className="text-muted-foreground text-xs">{strings.grossNote}</p>
+      )}
     </div>
   );
 }

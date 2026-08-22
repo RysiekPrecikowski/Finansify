@@ -170,6 +170,15 @@ export const en: Dictionary = {
   transactions: {
     title: 'Transactions',
     add: 'Add transaction',
+    transactionCount: {
+      one: '{count} transaction',
+      few: '{count} transactions',
+      many: '{count} transactions',
+      other: '{count} transactions',
+    },
+    newestFirst: 'newest first',
+    grossNote:
+      'Amounts are the gross value of each operation. Nothing on this screen is green or red — a transaction is neither a gain nor a loss.',
     edit: 'Edit transaction',
     delete: 'Delete transaction',
     confirmDelete:
