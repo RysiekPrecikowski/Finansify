@@ -56,6 +56,18 @@ export interface DataListProps<TRow> {
    * desktop table keeps its own explicit action column.
    */
   readonly rowHref?: (row: TRow) => Route;
+  /**
+   * Replaces the four-slot phone card entirely, leaving the desktop `<table>`
+   * exactly as the columns describe it.
+   *
+   * The four slots cover a ledger row, which is what every caller needed until
+   * `/portfolio`'s position card — a stat grid and a hairline footer with its
+   * own link, which no arrangement of title/subtitle/value/meta expresses.
+   * The alternative was a second responsive-table implementation next to this
+   * one, which is the thing `docs/ui.md` forbids. A caller passing this still
+   * declares `columns`, because that is the desktop view.
+   */
+  readonly mobileCard?: (row: TRow) => ReactNode;
   readonly className?: string;
 }
 
@@ -77,6 +89,7 @@ export function DataList<TRow>({
   leading,
   empty,
   rowHref,
+  mobileCard,
   className,
 }: DataListProps<TRow>) {
   if (rows.length === 0 && empty !== undefined) {
@@ -90,9 +103,19 @@ export function DataList<TRow>({
 
   return (
     <div className={className}>
-      {/* Phone: stacked cards. */}
-      <ul className="divide-border divide-y md:hidden">
+      {/* Phone: stacked cards. A `mobileCard` caller owns its own separators
+          and padding, so the shared divider only applies to the default shape. */}
+      <ul
+        className={cn(
+          'md:hidden',
+          mobileCard === undefined ? 'divide-border divide-y' : 'flex flex-col gap-3',
+        )}
+      >
         {rows.map((row) => {
+          if (mobileCard !== undefined) {
+            return <li key={rowKey(row)}>{mobileCard(row)}</li>;
+          }
+
           const card = (
             <>
               {leading?.(row)}

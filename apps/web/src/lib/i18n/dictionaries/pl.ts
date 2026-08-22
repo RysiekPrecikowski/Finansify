@@ -314,6 +314,29 @@ export const pl = {
       'Część pozycji nie ma jeszcze ceny lub kursu wymiany — ta suma jest niepełna.',
     unavailableNeverFetched: 'cena się ładuje…',
     unavailableUnmapped: 'jeszcze niezmapowane do dostawcy',
+    openTitle: 'Otwarte pozycje',
+    filterByWrapper: 'Filtruj według rachunku',
+    allWrappers: 'Wszystkie',
+    // Licznik obok nagłówka sekcji. Druga część pojawia się tylko wtedy, gdy
+    // jakaś pozycja nie ma wyceny — ADR: niewyceniona pozycja musi być widoczna.
+    positionCount: {
+      one: '{count} pozycja',
+      few: '{count} pozycje',
+      many: '{count} pozycji',
+      other: '{count} pozycji',
+    },
+    withoutPrice: '{count} bez ceny',
+    balanceCount: {
+      one: '{count} saldo',
+      few: '{count} salda',
+      many: '{count} sald',
+      other: '{count} salda',
+    },
+    // Obligacje detaliczne nie mają notowania — nikt ich nie kwotuje (ADR 0011).
+    // Wartość liczy silnik naliczania z opublikowanych tabel odsetkowych, więc
+    // wiersz mówi to wprost zamiast pokazywać pustą albo zmyśloną cenę.
+    accrualNote: 'Wycena z tabel odsetkowych',
+    noResults: 'Brak pozycji dla tego filtra.',
     // ADR 0021: jedna pozycja nie może mieć lotów w dwóch walutach na tym
     // samym koncie — silnik odmawia zgadywania kursu. Do naprawy: usuń lub
     // popraw transakcję, która wprowadziła drugą walutę.

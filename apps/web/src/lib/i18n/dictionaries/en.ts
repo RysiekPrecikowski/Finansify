@@ -256,6 +256,24 @@ export const en: Dictionary = {
       'Some positions have no price or exchange rate yet — this total is partial.',
     unavailableNeverFetched: 'price loading…',
     unavailableUnmapped: 'not mapped to a provider yet',
+    openTitle: 'Open positions',
+    filterByWrapper: 'Filter by account type',
+    allWrappers: 'All',
+    positionCount: {
+      one: '{count} position',
+      few: '{count} positions',
+      many: '{count} positions',
+      other: '{count} positions',
+    },
+    withoutPrice: '{count} without a price',
+    balanceCount: {
+      one: '{count} balance',
+      few: '{count} balances',
+      many: '{count} balances',
+      other: '{count} balances',
+    },
+    accrualNote: 'Valued from published interest tables',
+    noResults: 'No positions match this filter.',
     // ADR 0021: one position can't hold lots in two currencies on the same
     // account — the engine refuses to guess a rate. Fix: edit or delete the
     // transaction that introduced the second currency.

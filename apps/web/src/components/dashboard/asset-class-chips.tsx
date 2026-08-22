@@ -1,26 +1,16 @@
 'use client';
 
-import Link from 'next/link';
-
+import { FilterChips, type FilterChip } from '@/components/filter-chips';
 import { dashboardHref } from '@/lib/dashboard-params';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
 import { assetClasses, type AssetClass } from '@/lib/dashboard/snapshot';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
-import { cn } from '@/lib/utils';
 
 /**
- * Selection is carried by border and foreground weight, not colour: green and red
- * mean profit and loss here and nothing else (docs/ui.md).
+ * The dashboard's asset-class filter. The chip look itself lives in
+ * `components/filter-chips.tsx`, shared with `/portfolio` — this component is
+ * only the dashboard's data and its href contract.
  */
-function chipClass(selected: boolean): string {
-  return cn(
-    'shrink-0 rounded-full border px-3.5 py-1.5 text-sm whitespace-nowrap transition-colors',
-    selected
-      ? 'border-foreground text-foreground font-medium'
-      : 'border-border text-muted-foreground hover:text-foreground',
-  );
-}
-
 export function AssetClassChips({
   present,
   dictionary,
@@ -33,33 +23,26 @@ export function AssetClassChips({
   // switched to on the client — see `useDashboardParams`.
   const params = useDashboardParams();
 
+  const chips: readonly FilterChip<AssetClass>[] = [
+    {
+      value: null,
+      label: dictionary.dashboard.assetClasses.all,
+      href: dashboardHref(params, { assetClass: null }),
+    },
+    ...assetClasses
+      .filter((assetClass) => present.includes(assetClass))
+      .map((assetClass) => ({
+        value: assetClass,
+        label: dictionary.dashboard.assetClasses[assetClass],
+        href: dashboardHref(params, { assetClass }),
+      })),
+  ];
+
   return (
-    <nav
-      aria-label={dictionary.dashboard.filterByAssetClass}
-      // The chips wrap rather than scroll sideways: a handful of short labels
-      // fits in two rows on a phone, and every filter stays visible instead of
-      // hiding past the right edge with nothing to say so.
-      className="flex flex-wrap gap-2 pb-1"
-    >
-      <Link
-        href={dashboardHref(params, { assetClass: null })}
-        aria-current={params.assetClass === null ? 'page' : undefined}
-        className={chipClass(params.assetClass === null)}
-      >
-        {dictionary.dashboard.assetClasses.all}
-      </Link>
-      {assetClasses
-        .filter((assetClass) => present.includes(assetClass))
-        .map((assetClass) => (
-          <Link
-            key={assetClass}
-            href={dashboardHref(params, { assetClass })}
-            aria-current={params.assetClass === assetClass ? 'page' : undefined}
-            className={chipClass(params.assetClass === assetClass)}
-          >
-            {dictionary.dashboard.assetClasses[assetClass]}
-          </Link>
-        ))}
-    </nav>
+    <FilterChips
+      label={dictionary.dashboard.filterByAssetClass}
+      chips={chips}
+      selected={params.assetClass}
+    />
   );
 }

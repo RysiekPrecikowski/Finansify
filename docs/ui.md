@@ -237,17 +237,52 @@ loss.
 — the read model that folds `buildPositions`/`buildCashBalances` and joins in
 the `Instrument` and `Account` rows, so the page itself does no aggregation.
 
-There is no price feed before Phase 2, so this screen never shows market value,
-unrealized P&L, or portfolio weight. What it shows instead, all derived from
-the ledger alone:
+Top to bottom: the portfolio total with its two caveats, an "add transaction"
+pill, the two filter rows, then open positions, closed positions and cash.
 
+- **Total** — market value in the presentation currency, with the scope note
+  (open positions only, NBP mid, cash not counted) and, when a position could
+  not be priced or converted, `totalValueIncomplete`. The second one is not
+  decoration: without it a partial sum reads as the whole figure (rule 7).
 - **Open positions** — one row per instrument, summing quantity and cost basis
-  across every account that holds it. Realized P&L is the one figure here that
-  is green or red; cost basis never is, because it is not a gain or a loss.
+  across every account that holds it. Realized P&L is green or red; cost basis
+  never is, because it is not a gain or a loss.
 - **Closed positions** — an instrument whose summed quantity across accounts has
   returned to exactly zero, with only its realized P&L still worth showing.
 - **Cash** — per `(account, currency)`, exactly what `buildCashBalances`
-  produces, with a note explaining why there is no combined total yet.
+  produces, with a note explaining why there is no combined total yet. One
+  account holding two currencies is two rows, never one summed at an invented
+  rate.
+
+**Two filters, both URL parameters** (`?class=`, `?wrapper=`), server-rendered
+the way the dashboard's already are — no client-only filter state. They reuse
+structure the ledger already has rather than introducing a "custom portfolio"
+concept: `class` is the instrument's own kind, `wrapper` is the tax wrapper of
+the account a position sits in, which is the axis this product is actually
+about (`docs/product.md`). A dimension with only one value held renders no
+chips at all — a filter whose every option is the same option is noise. The
+chip look is `components/filter-chips.tsx`, shared with the dashboard so the
+two screens cannot drift.
+
+**The total is not filtered.** A filter narrows the list you are reading; it
+does not redefine what you own, and a headline that moved with every chip would
+disagree with the dashboard's for no stated reason.
+
+**A retail bond is a different row, not a styled variant.** Nothing quotes it
+(ADR 0011) — it is subscribed from and redeemed by the Ministry, and its value
+comes from the accrual engine running against published interest tables. So a
+`bond` row never shows a price, a stale-quote timestamp, or "not mapped to a
+provider": all three describe a market feed that will never exist for it, and
+the last reads as a defect rather than as the instrument working normally. It
+carries `portfolio.accrualNote` in that slot instead. `catalyst_bond` is
+deliberately excluded from that branch — it trades on GPW and is priced exactly
+like an equity (ADR 0023).
+
+On a phone the open-position rows render as the canvas's position card
+(identity and value, a three-up cost row, a hairline footer with accounts and
+the way into the lots) through `<DataList mobileCard>`; the desktop `<table>`
+still comes from the same column definitions. That prop exists so this screen
+did not need a second responsive-table implementation beside `<DataList>`.
 
 **Cross-currency is refused, not converted.** When the same instrument is held
 in accounts of different currencies, quantity still sums (same units), but cost
