@@ -67,5 +67,13 @@ export const drawerScreens: DrawerScreen[] = [
     headerLabelKey: 'allocationShort',
     icon: PieChart,
   },
-  { href: null, labelKey: 'cash', icon: Banknote },
+  {
+    href: '/cash',
+    labelKey: 'cash',
+    // "Gotówka i waluty" wraps to two lines in the bar even at the shorter
+    // heading size, same as "Skład i rebalans" — the drawer keeps the full
+    // descriptive name, the bar takes the noun the page is actually about.
+    headerLabelKey: 'cashShort',
+    icon: Banknote,
+  },
 ];

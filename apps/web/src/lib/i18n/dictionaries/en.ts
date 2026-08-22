@@ -36,6 +36,8 @@ export const en: Dictionary = {
       // Header-bar form of `allocation` — see `NavItem.headerLabelKey`.
       allocationShort: 'Rebalancing',
       cash: 'Cash & currencies',
+      // Header-bar form of `cash` — see `NavItem.headerLabelKey`.
+      cashShort: 'Cash',
     },
   },
   allocation: {
@@ -108,6 +110,25 @@ export const en: Dictionary = {
       techGaming: 'Tech & gaming',
       energy: 'Energy',
       retail: 'Retail',
+    },
+  },
+  cash: {
+    title: 'Cash & currencies',
+    totalLabel: 'Cash total',
+    shareLabel: 'Share of portfolio',
+    currenciesLabel: 'Currencies',
+    balances: {
+      title: 'Balances',
+      rate: 'rate',
+      noRate: '—',
+      empty: 'No cash balances.',
+      note: 'Converted to the presentation currency at the NBP mid rate for the valuation date. Cost basis stays at the transaction\u2019s own rate — the book does not change.',
+      incomplete: 'Some balances have no exchange rate — this total is partial.',
+    },
+    exposure: {
+      title: 'Currency exposure',
+      subtitle: 'whole portfolio',
+      note: 'Exposure counts the whole portfolio value in each currency, not just cash — an instrument bought in dollars stays dollar exposure.',
     },
   },
   dashboard: {
@@ -319,6 +340,12 @@ export const en: Dictionary = {
     errors: {
       invalid: 'Could not save the transaction — check the values you entered.',
     },
+  },
+  wrappersShort: {
+    brokerage: 'Brokerage',
+    ike: 'IKE',
+    ikze: 'IKZE',
+    ppk: 'PPK',
   },
   portfolio: {
     title: 'Portfolio',

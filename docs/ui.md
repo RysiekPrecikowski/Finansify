@@ -346,6 +346,42 @@ The ring's ramp runs **lightest first**, the opposite of
 darkest-first paints the largest slice at 0.28 lightness on a 0.2 card in dark
 mode — the biggest number on the ring and the hardest to see.
 
+## The cash screen
+
+`/cash` ("Gotówka i waluty"), drawer-only like `/allocation`. Three metrics
+(cash total, share of portfolio, distinct currencies), one card per
+`(account, currency)` balance, and currency exposure over the whole portfolio.
+
+**Real data, not a demo layer.** `buildCashBalances` already produces the
+balances and `/portfolio` already renders them, so this screen reuses that read
+model rather than adding a second source of cash. `lib/cash/summary.ts` holds
+the derivations. The one new computation is **currency exposure**, which lives
+in `apps/web` because it regroups numbers the caller already holds rather than
+adding business logic — it needs positions valued with `lines: 'native'`, since
+an instrument bought in dollars is dollar exposure however the reader chooses
+to read the total.
+
+Every figure comes from one pass, so the screen cannot disagree with itself:
+the total is the sum of the rows listed under it, and the share uses the
+valuation's own total rather than a figure copied from another screen.
+
+**Two things it refuses to state.** A balance already in the presentation
+currency shows an em-dash for its rate, never `1,0000` — no conversion
+happened, and a rate of one would claim otherwise. And the share of portfolio
+shows an em-dash whenever cash is negative or the total is non-positive: a
+settled buy with no matching deposit leaves the balance below zero, which on
+the real test ledger produced a headline reading "−3546,10%" — arithmetically
+correct and meaningless (rule 7 applied to a ratio).
+
+The exposure bar uses `rounded-xl`, **not** `rounded-full`: at 3% of the width
+a pill radius is wider than the segment, so the smallest currency is swallowed
+by its neighbour's rounding and vanishes. Segment colours are spread across the
+whole neutral ramp (`rampIndex`) rather than walking it from one end, so two
+categories separate as clearly as six would.
+
+The header bar shows "Gotówka" rather than the full name via
+`DrawerScreen.headerLabelKey`, the same mechanism "Skład i rebalans" uses.
+
 ## Mobile
 
 Reference devices: iPhone 13 mini (375 px, the narrowest realistic target) and

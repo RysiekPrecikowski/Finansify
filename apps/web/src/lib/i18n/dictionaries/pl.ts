@@ -45,6 +45,8 @@ export const pl = {
       // Header-bar form of `allocation` — see `NavItem.headerLabelKey`.
       allocationShort: 'Rebalans',
       cash: 'Gotówka i waluty',
+      // Header-bar form of `cash` — see `NavItem.headerLabelKey`.
+      cashShort: 'Gotówka',
     },
   },
   // Ekran „Skład i rebalans". Wszystkie liczby pod nim są jeszcze syntetyczne —
@@ -119,6 +121,31 @@ export const pl = {
       techGaming: 'Gry i technologia',
       energy: 'Paliwa i energia',
       retail: 'Handel detaliczny',
+    },
+  },
+  // Ekran „Gotówka i waluty". W przeciwieństwie do `/allocation` liczby są tu
+  // prawdziwe — pochodzą z `buildCashBalances` i z kursów, które i tak pobiera
+  // wycena portfela (`lib/cash/summary.ts`).
+  cash: {
+    title: 'Gotówka i waluty',
+    totalLabel: 'Gotówka razem',
+    shareLabel: 'Udział w portfelu',
+    currenciesLabel: 'Waluty',
+    balances: {
+      title: 'Salda',
+      rate: 'kurs',
+      noRate: '—',
+      empty: 'Brak sald gotówkowych.',
+      // Nie jest to tylko opis interfejsu: koszt nabycia zostaje po kursie
+      // z dnia transakcji (ADR 0006/0021), przeliczana jest wyłącznie
+      // prezentacja.
+      note: 'Przeliczenie na walutę prezentacji po kursie średnim NBP z dnia wyceny. Koszt nabycia zostaje po kursie z transakcji — księga się nie zmienia.',
+      incomplete: 'Dla części sald brakuje kursu — ta suma jest niepełna.',
+    },
+    exposure: {
+      title: 'Ekspozycja walutowa',
+      subtitle: 'cały portfel',
+      note: 'Ekspozycja liczy całą wartość portfela w danej walucie, nie tylko gotówkę — instrument kupiony za dolary zostaje ekspozycją na dolara.',
     },
   },
   dashboard: {
@@ -375,6 +402,14 @@ export const pl = {
   },
   wrappers: {
     brokerage: 'Rachunek maklerski',
+    ike: 'IKE',
+    ikze: 'IKZE',
+    ppk: 'PPK',
+  },
+  // Krótkie formy `wrappers`, na znaczniki w wąskich wierszach — pełna nazwa
+  // („Rachunek maklerski") nie mieści się obok kursu i kwoty przeliczonej.
+  wrappersShort: {
+    brokerage: 'Maklerski',
     ike: 'IKE',
     ikze: 'IKZE',
     ppk: 'PPK',
