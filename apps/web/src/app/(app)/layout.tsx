@@ -31,7 +31,13 @@ export default async function AppLayout({ children }: Readonly<{ children: React
             own `<h1>`; the redesign gives the bar a single identity block —
             portfolio name over screen name — and leaves "Finansify" to the
             sidebar/drawer, which is the only place it appears now. */}
-        <header className="flex h-14 items-center gap-2.5 px-4">
+        {/* gap-2/px-3.5 rather than the rounder gap-2.5/px-4: at 390px the
+            longest real screen name ("Transakcje") truncated by 4px against
+            the trigger + grouped pill + avatar. Shaving the header's own
+            spacing (not any control's size, and not the avatar the user
+            asked to keep) closes that without touching anything visible on
+            wider screens. */}
+        <header className="flex h-14 items-center gap-2 px-3.5">
           {/* Opens the same `Sidebar` the desktop rail renders — shadcn's
               primitive already swaps it for a `Sheet` under `md`, so this is
               the phone's path to Portfolio/Transactions/More rather than a
