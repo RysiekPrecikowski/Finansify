@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 
 import { useI18n } from '@/lib/i18n/client';
-import { navItems } from '@/lib/nav-items';
+import { drawerScreens, navItems } from '@/lib/nav-items';
 
 /**
  * The header's two stacked lines: which portfolio you are looking at, and
@@ -24,8 +24,19 @@ export function HeaderTitle() {
   const pathname = usePathname();
   const { dictionary } = useI18n();
 
-  const match = navItems.find((item) => pathname.startsWith(item.href));
-  const title = match === undefined ? dictionary.app.name : dictionary.nav[match.labelKey];
+  // Both lists, because not every screen is a tab: `/allocation` is reached
+  // from the drawer only, and falling through to the app name there would
+  // leave the bar reading "Finansify" on a screen that has a perfectly good
+  // name of its own. Tabs win when a path is in both.
+  const tab = navItems.find((item) => pathname.startsWith(item.href));
+  const screen = drawerScreens.find((item) => item.href !== null && pathname.startsWith(item.href));
+
+  const title =
+    tab !== undefined
+      ? dictionary.nav[tab.labelKey]
+      : screen !== undefined
+        ? dictionary.drawer.screens[screen.headerLabelKey ?? screen.labelKey]
+        : dictionary.app.name;
 
   return (
     <div className="flex min-w-0 flex-col leading-tight">

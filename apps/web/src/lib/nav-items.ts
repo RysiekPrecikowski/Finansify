@@ -37,6 +37,17 @@ export interface DrawerScreen {
    */
   href: Route | null;
   labelKey: keyof Dictionary['drawer']['screens'];
+  /**
+   * A shorter form of `labelKey`, shown in the header bar instead of it.
+   * Optional — most screen names fit the bar as-is. `allocation` is the one
+   * exception so far: "Skład i rebalans" needs 144px against the ~109px the
+   * header's fixed chrome (trigger, the theme/language/currency pill, the
+   * avatar) leaves at 390px, and neither shrinking that chrome further nor
+   * dropping the avatar is the fix — the drawer keeps the full descriptive
+   * name, the bar gets the shorter one the page's own "Rebalans" heading
+   * already uses.
+   */
+  headerLabelKey?: keyof Dictionary['drawer']['screens'];
   icon: LucideIcon;
 }
 
@@ -50,6 +61,11 @@ export const drawerScreens: DrawerScreen[] = [
   { href: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
   { href: '/portfolio', labelKey: 'portfolio', icon: Wallet },
   { href: '/transactions', labelKey: 'transactions', icon: ArrowLeftRight },
-  { href: null, labelKey: 'allocation', icon: PieChart },
+  {
+    href: '/allocation',
+    labelKey: 'allocation',
+    headerLabelKey: 'allocationShort',
+    icon: PieChart,
+  },
   { href: null, labelKey: 'cash', icon: Banknote },
 ];

@@ -298,6 +298,54 @@ remaining quantity, original and remaining cost) — the FIFO/LIFO/average/
 specific-lot detail `matchLots` actually produces, and the most interesting
 part of Phase 1 to have invisible.
 
+## The allocation screen
+
+`/allocation` ("Skład i rebalans"), reached from the **nav drawer only** — the
+bottom bar and the desktop rail stay at four items, because a fifth tab would
+narrow the three screens people open daily for one they open occasionally.
+
+Six sections: the composition ring over six dimensions, concentration of the
+five largest positions, a target model with per-class deviations, a
+contributions-only mode, the orders a plan implies, and per-instrument targets
+within the equity/ETF sleeve.
+
+**Every figure on it is synthetic.** `packages/core` has no `getAllocation` and
+no `getRebalancePlan`; both are `core` work and `core` is written test-first
+(rule 17), so a target model, a tolerance band and an order generator get
+specified before they are implemented rather than reverse-engineered from a
+screen. `lib/allocation/demo-allocation.ts` holds the fixtures and the pure
+derivations, in the same labelled-placeholder spirit as
+`lib/dashboard/benchmarks.ts`. Most dimensions are portfolio-shaped and would
+map onto the read model `/portfolio` already builds; **`currency` and `region`
+are outright invented** — the demo ledger is PLN-only and `Instrument` carries
+no geography. The page component consumes `RebalanceRow`/`Order`, never the
+fixtures directly, so replacing the module does not reshape the view.
+
+Three selectors are **client state, not URL parameters** — the one place this
+app departs from the dashboard's and `/portfolio`'s server-rendered filters.
+Everything they recompute is derived in the browser from constants already
+shipped there, so a navigation per press would be latency buying nothing.
+
+**No green or red on this screen.** A deviation is directional, not a realized
+result, and `apps/web/AGENTS.md` reserves those two colours for P&L. Direction
+is carried by which side of centre a bidirectional bar fills, and by `--brand`
+(over target) against the plain foreground (under target), with a muted fill
+inside the ±1 pp tolerance band — where the row reads "w tolerancji" instead of
+naming an amount, because rebalancing a rounding difference costs a commission
+and a tax event to fix.
+
+**All three chip rows go through `components/filter-chips.tsx`.** The canvas
+rendered the dimension and model rows as a horizontal strip that clipped at the
+right edge with no affordance saying more existed; the shared `ChipRow` wraps
+instead, so every option stays visible at 390 px. `<FilterChips>` renders links
+for the URL-driven screens and `<SelectChips>` buttons for this one — the point
+of sharing is that the two cannot disagree about overflow.
+
+The ring's ramp runs **lightest first**, the opposite of
+`sector-breakdown.tsx`. `--chart-5` is the darkest step in both themes, so
+darkest-first paints the largest slice at 0.28 lightness on a 0.2 card in dark
+mode — the biggest number on the ring and the hardest to see.
+
 ## Mobile
 
 Reference devices: iPhone 13 mini (375 px, the narrowest realistic target) and
