@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: Readonly<{ children: React
 
   return (
     <SidebarProvider style={{ '--sidebar-width': '17rem' } as CSSProperties}>
-      <AppSidebar />
+      <AppSidebar user={user} />
       <SidebarInset>
         {/* One row, not two. The wordmark used to sit here above each page's
             own `<h1>`; the redesign gives the bar a single identity block —

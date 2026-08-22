@@ -1,6 +1,5 @@
 'use client';
 
-import { useClerk } from '@clerk/nextjs';
 import { LogOut } from 'lucide-react';
 import type { AuthenticatedUser } from '@finansify/core';
 
@@ -16,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useI18n } from '@/lib/i18n/client';
+import { useSignOut } from './client';
 
 /**
  * Our own trigger over Clerk's `signOut()`, not Clerk's `<UserButton>` — ADR
@@ -24,7 +24,7 @@ import { useI18n } from '@/lib/i18n/client';
  * widget.
  */
 export function UserMenu({ user }: { user: AuthenticatedUser }) {
-  const { signOut } = useClerk();
+  const signOut = useSignOut();
   const { dictionary } = useI18n();
   const initial = user.email.charAt(0).toUpperCase();
 
@@ -51,7 +51,7 @@ export function UserMenu({ user }: { user: AuthenticatedUser }) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut({ redirectUrl: '/sign-in' })}>
+        <DropdownMenuItem onClick={signOut}>
           <LogOut />
           {dictionary.actions.signOut}
         </DropdownMenuItem>

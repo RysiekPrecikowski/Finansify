@@ -25,6 +25,26 @@ export const pl = {
     account: 'Konto',
     signOut: 'Wyloguj się',
   },
+  // Szuflada nawigacji na telefonie. Ma własne etykiety, bo pokazuje więcej
+  // niż wspólne `nav-items.ts`: dwa ekrany jeszcze nieistniejące oraz
+  // „Ustawienia”, które prowadzą do `/more` — ta strona obejmuje więcej niż
+  // same ustawienia, więc na pasku dolnym pozostaje „Więcej”.
+  drawer: {
+    title: 'Menu',
+    close: 'Zamknij menu',
+    sectionScreens: 'Ekrany',
+    settings: 'Ustawienia',
+    // Znacznik przy pozycji, której ekran jeszcze nie powstał — wiersz nie
+    // jest klikalny, więc nie prowadzi donikąd.
+    comingSoon: 'wkrótce',
+    screens: {
+      dashboard: 'Pulpit',
+      portfolio: 'Portfel',
+      transactions: 'Transakcje',
+      allocation: 'Skład i rebalans',
+      cash: 'Gotówka i waluty',
+    },
+  },
   dashboard: {
     title: 'Pulpit',
     totalValue: 'Wartość całkowita',

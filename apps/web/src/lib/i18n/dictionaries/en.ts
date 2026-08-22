@@ -22,6 +22,20 @@ export const en: Dictionary = {
     account: 'Account',
     signOut: 'Sign out',
   },
+  drawer: {
+    title: 'Menu',
+    close: 'Close menu',
+    sectionScreens: 'Screens',
+    settings: 'Settings',
+    comingSoon: 'soon',
+    screens: {
+      dashboard: 'Dashboard',
+      portfolio: 'Portfolio',
+      transactions: 'Transactions',
+      allocation: 'Allocation & rebalancing',
+      cash: 'Cash & currencies',
+    },
+  },
   dashboard: {
     title: 'Dashboard',
     totalValue: 'Total value',
