@@ -4,6 +4,7 @@ export const en: Dictionary = {
   app: {
     name: 'Finansify',
     tagline: 'Investment portfolio',
+    portfolioName: 'Main portfolio',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -25,6 +26,7 @@ export const en: Dictionary = {
     title: 'Dashboard',
     totalValue: 'Total value',
     totalChange: 'All time',
+    invested: 'Invested',
     asOf: 'As of',
     stale: 'stale',
     filterByAssetClass: 'Filter by asset class',
@@ -38,9 +40,26 @@ export const en: Dictionary = {
       MAX: 'MAX',
     },
     chart: {
+      title: 'Portfolio value',
       ariaLabel: 'Portfolio value over time',
       loadingHistory: 'Loading more history…',
       unsupportedRange: 'not available yet',
+      legendPortfolio: 'Portfolio',
+    },
+    benchmark: {
+      label: 'Index',
+      select: 'Choose benchmark index',
+      demo: 'The index line is illustrative — no index quote source is wired up yet.',
+      names: {
+        wig20tr: 'WIG20TR',
+        msciWorld: 'MSCI World',
+        sp500: 'S&P 500',
+      },
+    },
+    performance: {
+      portfolio: 'Portfolio (TWR)',
+      difference: 'Difference',
+      note: 'Return over the portfolio value series for the selected range — deposits and withdrawals are not neutralised yet.',
     },
     assetClasses: {
       all: 'All',
@@ -52,6 +71,15 @@ export const en: Dictionary = {
     },
     accounts: {
       title: 'Accounts',
+      count: {
+        one: '{count} account',
+        few: '{count} accounts',
+        many: '{count} accounts',
+        other: '{count} accounts',
+      },
+      limit: '{year} limit',
+      limitApproximate:
+        'Approximation: the account’s current value, not a verified total of {year} contributions.',
     },
     holdings: {
       title: 'Holdings',

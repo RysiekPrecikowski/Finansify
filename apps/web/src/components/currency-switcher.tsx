@@ -1,7 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
-import { Coins } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -36,15 +36,18 @@ export function CurrencySwitcher({ settings }: Readonly<{ settings: DisplaySetti
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
+          // Filled, not ghost: this is the only control in the header that
+          // changes every number on the page, and it reads as a value you
+          // picked ("PLN ⌄") rather than as an icon you might press.
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             disabled={pending}
             aria-label={strings.changeCurrency}
-            className="gap-1.5"
+            className="gap-1 rounded-full pr-1.5"
           >
-            <Coins className="size-4" />
             <span className="text-xs font-medium">{settings.total}</span>
+            <ChevronDown className="size-3.5 opacity-60" />
           </Button>
         }
       />

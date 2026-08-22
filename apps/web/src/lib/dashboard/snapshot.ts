@@ -1,8 +1,12 @@
 import {
+  contributionRoomFor,
   convertViaPln,
+  currency as toCurrency,
   instrumentKinds,
   Money,
+  publishedWrapperRules,
   UnknownFxRateError,
+  UnknownWrapperRulesError,
   type Account,
   type AccountId,
   type CashBalanceLine,
@@ -15,6 +19,8 @@ import {
   type Wrapper,
 } from '@finansify/core';
 import type Decimal from 'decimal.js';
+
+const PLN = toCurrency('PLN');
 
 /**
  * The dashboard's holdings list is a single-currency, at-a-glance summary —
@@ -57,6 +63,31 @@ export interface DashboardHolding {
   readonly valuation: DashboardHoldingValuation | null;
 }
 
+/**
+ * The IKE/IKZE contribution-limit bar's numbers.
+ *
+ * `limit` is real: `publishedWrapperRules` transcribes it from the KNF's
+ * tables, with the source recorded per row. **`used` is not.** Nothing in the
+ * ledger distinguishes a contribution from a transfer or from growth inside
+ * the wrapper — `docs/domain.md` puts that in `wrapper_rules` alongside a
+ * per-year contribution ledger, which does not exist yet — so `used` is the
+ * account's current PLN value standing in for the year's paid-in total. That
+ * over-states a wrapper that has grown and under-states one that has fallen.
+ *
+ * It is labelled as an approximation wherever it is drawn
+ * (`dashboard.accounts.limitApproximate`), the same way
+ * `lib/dashboard/demo-enrichment.ts` and `news-list.tsx` label theirs. Replace
+ * `used` — and only `used` — once contributions are tracked.
+ */
+export interface AccountContribution {
+  readonly year: number;
+  /** Always PLN: the statutory limit is a złoty figure, so the comparison has to happen in złoty regardless of the reader's presentation currency. */
+  readonly limit: Money;
+  readonly used: Money;
+  /** `used / limit`, unclamped — a wrapper past its limit reports a ratio above 1 and the bar decides what to do about it. */
+  readonly ratio: string;
+}
+
 export interface DashboardAccount {
   readonly id: AccountId;
   readonly name: string;
@@ -69,6 +100,8 @@ export interface DashboardAccount {
    * number at all (rule 7).
    */
   readonly value: Money | null;
+  /** `null` for an uncapped wrapper (brokerage, PPK), for a year with no published rules on file, and whenever the account's value is incomplete. */
+  readonly contribution: AccountContribution | null;
 }
 
 export interface DashboardTotals {
@@ -194,8 +227,18 @@ export function buildAccountTotals(
   cash: readonly CashBalanceLine[],
   ratesToPln: ReadonlyMap<Currency, Decimal>,
   total: Currency,
+  /**
+   * The year the contribution limits are read for. Passed in rather than taken
+   * from a clock here, so this function stays pure — the caller is the one
+   * that already has `clock` (`server/container.ts`).
+   */
+  year: number,
 ): readonly DashboardAccount[] {
   const amountsByAccount = new Map<AccountId, Money[]>();
+  // A second running total in PLN, kept alongside the presentation-currency
+  // one: a contribution limit is a złoty figure, so comparing an account
+  // valued in dollars against it would be comparing two different things.
+  const plnByAccount = new Map<AccountId, Money[]>();
   const incomplete = new Set<AccountId>();
 
   const add = (accountId: AccountId, amount: Money | null) => {
@@ -204,12 +247,15 @@ export function buildAccountTotals(
       return;
     }
     const converted = convertOrNull(amount, total, ratesToPln);
-    if (converted === null) {
+    const inPln = convertOrNull(amount, PLN, ratesToPln);
+    if (converted === null || inPln === null) {
       incomplete.add(accountId);
       return;
     }
     const running = amountsByAccount.get(accountId);
     amountsByAccount.set(accountId, running === undefined ? [converted] : [...running, converted]);
+    const runningPln = plnByAccount.get(accountId);
+    plnByAccount.set(accountId, runningPln === undefined ? [inPln] : [...runningPln, inPln]);
   };
 
   for (const position of positions) {
@@ -232,14 +278,51 @@ export function buildAccountTotals(
       ? null
       : amounts.reduce((sum, amount) => sum.plus(amount), Money.zero(total));
 
+    const usedInPln = incomplete.has(account.id)
+      ? null
+      : (plnByAccount.get(account.id) ?? []).reduce(
+          (sum, amount) => sum.plus(amount),
+          Money.zero(PLN),
+        );
+
     return {
       id: account.id,
       name: account.name,
       broker: account.broker,
       wrapper: account.wrapper,
       value,
+      contribution: usedInPln === null ? null : contributionFor(account.wrapper, year, usedInPln),
     };
   });
+}
+
+/**
+ * A wrapper's limit row for `year`, or `null` when there is nothing to draw.
+ *
+ * `contributionRoomFor` **throws** rather than extrapolating a year it has no
+ * published figure for — deliberately, per its own doc comment, because a
+ * stale limit tells someone they have room they do not have. A dashboard tile
+ * is not the place to surface that as an error, so a missing year drops the
+ * bar and leaves the tile as it was before this existed.
+ */
+function contributionFor(
+  wrapper: Wrapper,
+  year: number,
+  usedInPln: Money,
+): AccountContribution | null {
+  try {
+    const room = contributionRoomFor(publishedWrapperRules, wrapper, year, usedInPln);
+    if (room.limit === null || room.limit.isZero()) return null;
+    return {
+      year,
+      limit: room.limit,
+      used: usedInPln,
+      ratio: usedInPln.amount.dividedBy(room.limit.amount).toFixed(6),
+    };
+  } catch (error) {
+    if (error instanceof UnknownWrapperRulesError) return null;
+    throw error;
+  }
 }
 
 export function filterByAssetClass(

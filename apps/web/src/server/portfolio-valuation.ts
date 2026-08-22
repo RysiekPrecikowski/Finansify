@@ -24,6 +24,19 @@ export interface PortfolioValuation {
   readonly valuation: PositionsValuation;
   /** Per-instrument lookup, so a caller can tell a stale price from a never-fetched one. */
   readonly priceLookups: ReadonlyMap<InstrumentId, PriceLookup>;
+  /**
+   * `priceLookups` plus the accrued retail-bond and rescaled Catalyst entries —
+   * i.e. everything `valuePositions` was actually handed.
+   *
+   * Kept separate because the two answer different questions. `priceLookups`
+   * is "what did a provider quote", which is what a *price* column should
+   * show: a retail bond has no quote (ADR 0011) and must keep rendering a dash
+   * rather than an accrual dressed up as a market price. This map is "what was
+   * this valuation computed from", which is what a whole-page "data as of"
+   * timestamp has to read, or an all-bond portfolio reports no timestamp at
+   * all while plainly showing values.
+   */
+  readonly valuationLookups: ReadonlyMap<InstrumentId, PriceLookup>;
   /** Mid rates to PLN, for a caller that needs to convert something `valuePositions` itself doesn't touch — cash, for instance. */
   readonly ratesToPln: ReadonlyMap<Currency, Decimal>;
 }
@@ -146,5 +159,5 @@ export async function valuePositionsFor(
 
   const valuation = valuePositions(positions, withBonds, ratesToPln, displayCurrencies);
 
-  return { valuation, priceLookups, ratesToPln };
+  return { valuation, priceLookups, valuationLookups: withBonds, ratesToPln };
 }

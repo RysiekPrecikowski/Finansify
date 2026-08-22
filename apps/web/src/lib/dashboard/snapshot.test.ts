@@ -35,6 +35,9 @@ function uid(hex: string): string {
 const PLN = currency('PLN');
 const USD = currency('USD');
 
+/** A year `publishedWrapperRules` actually has rows for, so the contribution bar isn't silently dropped in these fixtures. */
+const LIMIT_YEAR = 2026;
+
 const ASOF = Temporal.PlainDate.from('2026-08-13');
 const FETCHED_AT = Temporal.Instant.from('2026-08-13T12:00:00Z');
 
@@ -286,6 +289,7 @@ describe('buildAccountTotals', () => {
       [cashA, cashB],
       new Map(),
       PLN,
+      LIMIT_YEAR,
     );
 
     expect(result).toHaveLength(3);
@@ -315,7 +319,14 @@ describe('buildAccountTotals', () => {
     });
     const position = makeValuedPosition({ lines: [openLineNoPrice, closedLineNoPrice] });
 
-    const result = buildAccountTotals([accountD, accountE], [position], [], new Map(), PLN);
+    const result = buildAccountTotals(
+      [accountD, accountE],
+      [position],
+      [],
+      new Map(),
+      PLN,
+      LIMIT_YEAR,
+    );
 
     expect(result[0]!.value).toBeNull();
     expect(result[1]!.value).not.toBeNull();
@@ -339,6 +350,7 @@ describe('buildAccountTotals', () => {
       [unconvertibleCash],
       new Map(), // no USD rate
       PLN,
+      LIMIT_YEAR,
     );
 
     // Not 100 PLN (the convertible leg alone) — the whole account is null.

@@ -5,6 +5,9 @@ export const pl = {
   app: {
     name: 'Finansify',
     tagline: 'Portfel inwestycyjny',
+    // Nadtytuł w pasku nagłówka, nad nazwą bieżącego ekranu. Jeden portfel na
+    // użytkownika — kiedy pojawi się ich więcej, to miejsce pokaże wybrany.
+    portfolioName: 'Portfel główny',
   },
   nav: {
     dashboard: 'Pulpit',
@@ -26,6 +29,7 @@ export const pl = {
     title: 'Pulpit',
     totalValue: 'Wartość całkowita',
     totalChange: 'Łącznie',
+    invested: 'Zainwestowane',
     asOf: 'Dane z',
     stale: 'nieaktualne',
     filterByAssetClass: 'Filtruj według klasy aktywów',
@@ -39,9 +43,31 @@ export const pl = {
       MAX: 'MAX',
     },
     chart: {
+      title: 'Wartość portfela',
       ariaLabel: 'Wartość portfela w czasie',
       loadingHistory: 'Wczytywanie historii…',
       unsupportedRange: 'jeszcze niedostępne',
+      legendPortfolio: 'Portfel',
+    },
+    benchmark: {
+      label: 'Indeks',
+      select: 'Wybierz indeks porównawczy',
+      // Rule 7 w wersji dla serii: linia indeksu jest jawnie oznaczona jako
+      // poglądowa, dopóki nie ma prawdziwego źródła notowań indeksów.
+      demo: 'Linia indeksu jest poglądowa — brak jeszcze źródła notowań indeksów.',
+      names: {
+        wig20tr: 'WIG20TR',
+        msciWorld: 'MSCI World',
+        sp500: 'S&P 500',
+      },
+    },
+    performance: {
+      portfolio: 'Portfel (TWR)',
+      difference: 'Różnica',
+      // Wyliczane z serii wartości portfela, więc wpłaty i wypłaty w okresie
+      // podbijają albo obniżają ten wynik. Prawdziwy TWR (z neutralizacją
+      // przepływów) jest częścią Fazy 5.
+      note: 'Zwrot z serii wartości portfela w wybranym zakresie — wpłaty i wypłaty nie są jeszcze neutralizowane.',
     },
     assetClasses: {
       all: 'Wszystko',
@@ -53,6 +79,19 @@ export const pl = {
     },
     accounts: {
       title: 'Konta',
+      // Polska liczba mnoga ma trzy formy — `plural()` wybiera je przez
+      // `Intl.PluralRules`, nie przez ręczne `if`y na liczbie.
+      count: {
+        one: '{count} rachunek',
+        few: '{count} rachunki',
+        many: '{count} rachunków',
+        other: '{count} rachunku',
+      },
+      limit: 'Limit {year}',
+      // Do czasu, aż `wrapper_rules` będzie miało ewidencję wpłat w roku,
+      // pasek pokazuje wartość konta, a nie sumę wpłat — mówimy o tym wprost.
+      limitApproximate:
+        'Przybliżenie: bieżąca wartość konta, nie zweryfikowana suma wpłat w {year} r.',
     },
     holdings: {
       title: 'Pozycje',

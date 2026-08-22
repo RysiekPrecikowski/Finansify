@@ -1,3 +1,4 @@
+import { benchmarks, defaultBenchmark, type Benchmark } from '@/lib/dashboard/benchmarks';
 import {
   assetClasses,
   sortOrders,
@@ -44,12 +45,21 @@ export interface DashboardParams {
   readonly range: Range;
   readonly assetClass: AssetClass | null;
   readonly sort: SortOrder;
+  /**
+   * Which index the hero chart overlays. Switches client-side exactly the way
+   * `range` does — the series is derived on the client
+   * (`lib/dashboard/benchmarks.ts`), so there is nothing for a server round
+   * trip to fetch — but still lives in the URL, so a shared link shows the same
+   * comparison the sender was looking at.
+   */
+  readonly benchmark: Benchmark;
 }
 
 export const defaultDashboardParams: DashboardParams = {
   range: '1M',
   assetClass: null,
   sort: 'valueDesc',
+  benchmark: defaultBenchmark,
 };
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
@@ -75,6 +85,7 @@ export function parseDashboardParams(raw: RawSearchParams): DashboardParams {
     range: isSupportedRange(range) ? range : defaultDashboardParams.range,
     assetClass: oneOf(assetClasses, first(raw.class)),
     sort: oneOf(sortOrders, first(raw.sort)) ?? defaultDashboardParams.sort,
+    benchmark: oneOf(benchmarks, first(raw.bench)) ?? defaultDashboardParams.benchmark,
   };
 }
 
@@ -94,6 +105,7 @@ export function dashboardHref(
   if (next.range !== defaultDashboardParams.range) query.range = next.range;
   if (next.assetClass !== null) query.class = next.assetClass;
   if (next.sort !== defaultDashboardParams.sort) query.sort = next.sort;
+  if (next.benchmark !== defaultDashboardParams.benchmark) query.bench = next.benchmark;
 
   return { pathname: '/dashboard', query };
 }

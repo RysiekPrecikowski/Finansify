@@ -43,6 +43,16 @@ export interface ValueChartProps {
    * identity, which a re-render would break without the data having moved.
    */
   readonly seriesKey: string;
+  /**
+   * The benchmark overlay, already normalized onto the portfolio's own scale
+   * (`lib/dashboard/benchmarks.ts`) and the same length as `points`. Empty
+   * draws nothing. Dashed and in `--brand`, never in gain/loss green or red:
+   * an index has no profit and loss of its own to colour (docs/ui.md).
+   */
+  readonly benchmarkPoints?: readonly number[];
+  /** Legend text. Both required for the legend to render at all. */
+  readonly portfolioLabel?: string;
+  readonly benchmarkLabel?: string;
 }
 
 const viewWidth = 1000;
@@ -59,9 +69,22 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function scale(points: readonly number[]): { xs: number[]; ys: number[] } {
-  const high = Math.max(...points);
-  const low = Math.min(...points);
+/** Stable identity for "no benchmark", so the tween hook below isn't handed a new array every render. */
+const noPoints: readonly number[] = [];
+
+/**
+ * `domain` is what sets the y-scale, `points` is what gets positioned in it —
+ * the same call twice with one shared domain is what puts the portfolio and
+ * the benchmark on **one** scale rather than two that happen to overlap.
+ * `xs` spans the full width for whichever series it is given, which is only
+ * correct because both arrive resampled to the same length.
+ */
+function scale(
+  points: readonly number[],
+  domain: readonly number[],
+): { xs: number[]; ys: number[] } {
+  const high = Math.max(...domain);
+  const low = Math.min(...domain);
   const span = high - low || 1;
   const usable = viewHeight - padding * 2;
 
@@ -168,9 +191,16 @@ export function ValueChart({
   valueLabels,
   label,
   seriesKey,
+  benchmarkPoints = noPoints,
+  portfolioLabel,
+  benchmarkLabel,
 }: ValueChartProps) {
   const gradientId = useId();
   const tweened = useTweenedPoints(points, seriesKey);
+  // Its own tween on the same key: the two lines have to travel together, or a
+  // range switch would slide the portfolio into a scale the benchmark has
+  // already jumped to.
+  const tweenedBenchmark = useTweenedPoints(benchmarkPoints, seriesKey);
   const figureRef = useRef<HTMLElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -185,7 +215,18 @@ export function ValueChart({
     setHoverIndex(Math.round(ratio * (tweened.length - 1)));
   }
 
-  const { xs, ys } = scale(tweened);
+  // One shared domain for both series (see `scale`). A benchmark that ran
+  // above or below everything the portfolio did still fits, and the portfolio
+  // never silently rescales to hide it.
+  const hasBenchmark = tweenedBenchmark.length === tweened.length && tweened.length >= 2;
+  const domain = hasBenchmark ? [...tweened, ...tweenedBenchmark] : tweened;
+
+  const { xs, ys } = scale(tweened, domain);
+  const benchmarkYs = hasBenchmark ? scale(tweenedBenchmark, domain).ys : null;
+  const benchmarkLine =
+    benchmarkYs === null
+      ? null
+      : xs.map((x, index) => `${index === 0 ? 'M' : 'L'}${x} ${benchmarkYs[index]}`).join(' ');
   const line = xs.map((x, index) => `${index === 0 ? 'M' : 'L'}${x} ${ys[index]}`).join(' ');
   const area = `${line} L${viewWidth} ${viewHeight} L0 ${viewHeight} Z`;
 
@@ -293,6 +334,25 @@ export function ValueChart({
           />
 
           <path d={area} fill={`url(#${gradientId})`} />
+
+          {/* The benchmark, under the portfolio line and after the area fill so
+              the gradient never washes it out. `--brand`, the one second accent
+              (globals.css) — green and red stay reserved for profit and loss,
+              and an index has neither. */}
+          {benchmarkLine !== null && (
+            <path
+              d={benchmarkLine}
+              fill="none"
+              stroke="var(--brand)"
+              strokeWidth="1.75"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeDasharray="5 4"
+              strokeOpacity="0.85"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
           {/* Still-loading history: dashed, at reduced opacity, so a chart with
               an unbackfilled left edge reads as "loading" rather than as a real
               (and wrong) flat run at zero. */}
@@ -397,6 +457,41 @@ export function ValueChart({
           <span key={position}>{dateLabels[index]}</span>
         ))}
       </div>
+
+      {/* Which line is which. Drawn as two short SVG rules rather than as
+          coloured dots, so the dash pattern itself is what distinguishes them —
+          the same thing the reader is matching against on the chart. */}
+      {benchmarkLine !== null && portfolioLabel !== undefined && benchmarkLabel !== undefined && (
+        <div className="text-muted-foreground mt-1 flex items-center gap-4 text-[0.6875rem]">
+          <span className="flex items-center gap-1.5">
+            <svg width="16" height="2" viewBox="0 0 16 2" aria-hidden="true">
+              <line
+                x1="0"
+                y1="1"
+                x2="16"
+                y2="1"
+                stroke={direction === 'down' ? 'var(--loss)' : 'var(--gain)'}
+                strokeWidth="2"
+              />
+            </svg>
+            {portfolioLabel}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <svg width="16" height="2" viewBox="0 0 16 2" aria-hidden="true">
+              <line
+                x1="0"
+                y1="1"
+                x2="16"
+                y2="1"
+                stroke="var(--brand)"
+                strokeWidth="2"
+                strokeDasharray="4 3"
+              />
+            </svg>
+            {benchmarkLabel}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,10 @@ import {
   type Account,
   type CashBalanceLine,
   type FxSourcePreference,
+  type InstrumentId,
   type InstrumentPosition,
+  type PriceLookup,
+  type Temporal,
   type UserId,
 } from '@finansify/core';
 import type { Route } from 'next';
@@ -40,9 +43,32 @@ import { getDisplaySettings, getFxPreference } from '@/lib/display/server';
 import { type Dictionary } from '@/lib/i18n/dictionaries';
 import { getDictionary, getLocale } from '@/lib/i18n/server';
 import { type Locale } from '@/lib/i18n/locales';
-import { getInstruments, scopedLedgerFor } from '@/server/container';
+import { formatInstant } from '@/lib/format';
+import { clock, getInstruments, scopedLedgerFor } from '@/server/container';
 import { valuePositionsFor } from '@/server/portfolio-valuation';
 import { readValueSeries, toApiValueSeriesResponse } from '@/server/value-series';
+
+/**
+ * When the prices behind this render were last fetched — the most recent
+ * `fetchedAt` across every instrument that has one.
+ *
+ * The *newest* rather than the oldest: this line answers "how current is this
+ * screen", and the oldest reading belongs to whichever instrument is most
+ * stale, which is a per-position fact `/portfolio` already shows per row. A
+ * portfolio with nothing quoted (all retail bonds, which are accrued rather
+ * than priced — ADR 0011) has no timestamp at all, and gets `null` rather than
+ * `now()` dressed up as a data timestamp.
+ */
+function latestFetchedAt(lookups: ReadonlyMap<InstrumentId, PriceLookup>): Temporal.Instant | null {
+  let latest: Temporal.Instant | null = null;
+  for (const lookup of lookups.values()) {
+    if (lookup.status === 'unavailable') continue;
+    if (latest === null || lookup.fetchedAt.epochMilliseconds > latest.epochMilliseconds) {
+      latest = lookup.fetchedAt;
+    }
+  }
+  return latest;
+}
 
 /** Shown while `<DashboardSections>` reads storage and, if due, refreshes it — never a spinner over the whole page. */
 function DashboardSectionsFallback() {
@@ -104,7 +130,7 @@ async function DashboardSections({
   // doesn't touch `valuePositionsFor`'s price/FX refresh at all, so running it
   // in parallel rather than after adds essentially nothing to this section's
   // own wait — it resolves at `max(valuation, series)`, not their sum.
-  const [{ valuation, priceLookups, ratesToPln }, series] = await Promise.all([
+  const [{ valuation, priceLookups, valuationLookups, ratesToPln }, series] = await Promise.all([
     // Every dashboard row is a single `Money`, never an array of them —
     // `lines` is pinned to the presentation total regardless of what the
     // reader picked for `/portfolio`'s detailed, per-line-currency table.
@@ -118,7 +144,21 @@ async function DashboardSections({
     ...new Set(allHoldings.map((holding) => holding.assetClass)),
   ];
   const holdings = sortHoldings(filterByAssetClass(allHoldings, assetClass), sort);
-  const accountTiles = buildAccountTotals(accounts, valuation.positions, cash, ratesToPln, total);
+  // The contribution year comes from the clock here rather than inside
+  // `buildAccountTotals`, which stays pure — see its `year` parameter.
+  const year = clock.now().toZonedDateTimeISO('Europe/Warsaw').year;
+  const accountTiles = buildAccountTotals(
+    accounts,
+    valuation.positions,
+    cash,
+    ratesToPln,
+    total,
+    year,
+  );
+  // `valuationLookups`, not `priceLookups`: an all-bond portfolio is valued
+  // entirely from accruals, and reading the quote-only map would report no
+  // timestamp for a page full of numbers.
+  const fetchedAt = latestFetchedAt(valuationLookups);
 
   const sortOptions: readonly SortOption[] = sortOrders.map((order) => ({
     order,
@@ -129,7 +169,12 @@ async function DashboardSections({
     <>
       <AssetClassChips present={present} dictionary={dictionary} />
 
-      <PortfolioHeadline totals={totals} locale={locale} dictionary={dictionary} />
+      <PortfolioHeadline
+        totals={totals}
+        asOf={fetchedAt === null ? null : formatInstant(fetchedAt, locale)}
+        locale={locale}
+        dictionary={dictionary}
+      />
 
       <ChartCard
         initialRange={range}
@@ -222,11 +267,10 @@ export default async function DashboardPage({
     );
 
   return (
+    // No page `<h1>`: the header bar carries the screen name now
+    // (`components/header-title.tsx`), so repeating it here would be the same
+    // two-title stack the redesign collapsed.
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-lg font-semibold tracking-tight">{dictionary.dashboard.title}</h1>
-      </div>
-
       {view.open.length === 0 && accounts.length === 0 ? (
         <p className="text-muted-foreground px-1 py-8 text-sm">{empty}</p>
       ) : (

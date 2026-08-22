@@ -63,18 +63,43 @@ One formatting decision worth knowing: `formatMoney` passes `useGrouping:
 
 Top to bottom:
 
-1. **Headline** — total value in the presentation currency, today's change and
-   total change as both absolute and percent, and a currency switcher.
-2. **Hero chart** — portfolio value over time. Range selector 1D / 1W / 1M / YTD
-   / 1Y / MAX, with granularity following the range: 15-minute bars for 1D,
-   hourly for 1W, daily beyond. A benchmark overlay toggle draws WIG, a world
-   ETF, or the S&P 500 as a normalized second series.
+1. **Headline** — total value in the presentation currency, a "data as of"
+   timestamp, the total change as absolute and percent, and a summary strip of
+   total change beside cost basis ("Zainwestowane"). The scope note — open
+   positions only, NBP mid, cash not yet counted — is an info icon beside the
+   value rather than a sentence in the flow; it is a caveat about what the
+   figure covers, not a warning about the figure, which is why the
+   `totalValueIncomplete` line still renders inline.
+2. **Hero chart** — portfolio value over time, under its own header row (title
+   left, benchmark selector right). Range selector 1D / 1W / 1M / YTD / 1Y /
+   MAX, with granularity following the range: 15-minute bars for 1D, hourly for
+   1W, daily beyond. A benchmark selector draws WIG20TR, MSCI World, or the
+   S&P 500 as a normalized second series — dashed, in `--brand`, with a legend
+   under the chart — and three tiles below the range tabs give portfolio,
+   benchmark and the difference for the selected window.
+
+   **Both the benchmark series and the "TWR" tile are approximations today**,
+   and say so in their own tooltips. No provider fetches an index level, so
+   `lib/dashboard/benchmarks.ts` generates a deterministic, seeded path
+   normalized to the portfolio's own first value — the same
+   honestly-labelled-placeholder stance `lib/dashboard/demo-enrichment.ts` and
+   `news-list.tsx` already take. The portfolio tile is a plain period return
+   over the value series, so deposits and withdrawals inflate it; real
+   deposit-neutralized TWR is Phase 5. Replacing `buildBenchmarkSeries` with a
+   real series is the whole of the first fix.
+
 3. **Allocation** — donut or treemap with a dimension switcher (asset class,
    currency, account, wrapper, geography), click to drill down.
-4. **Account tiles** — one card per account with a wrapper badge, its value, and
-   for IKE and IKZE **a progress bar against this year's contribution limit**.
-   Poland-specific, genuinely useful, and nearly free once `wrapper_rules`
-   exists.
+4. **Account tiles** — one card per account with a wrapper badge, its value, an
+   account count beside the section heading, and for IKE and IKZE **a progress
+   bar against this year's contribution limit**. Poland-specific and genuinely
+   useful. The limit is real — `publishedWrapperRules` in `packages/core`, each
+   row carrying its KNF citation — and a year with no published row drops the
+   bar rather than extrapolating one. **What is contributed is not**: nothing in
+   the ledger separates a contribution from growth inside the wrapper, so the
+   bar stands the account's current PLN value in for it and labels that as an
+   approximation. Replace `AccountContribution.used` — and only `used` — once
+   `wrapper_rules` tracks contributions.
 5. **Income** — stacked monthly bars of dividends and interest with a
    year-over-year overlay.
 6. **Holdings table** — instrument, quantity, average cost, price, value, P&L in
@@ -85,9 +110,18 @@ Top to bottom:
    without a navigation.
 
 Above the headline sits a row of **asset-class filter chips**; the sort order of
-the holdings list is a dropdown of links. Both, and the chart range, are URL
-parameters (`?class=&range=&sort=`), and `class` and `sort` are server renders
-with no view state held anywhere else.
+the holdings list is a dropdown of links. Both, and the chart range and
+benchmark, are URL parameters (`?class=&range=&sort=&bench=`), and `class` and
+`sort` are server renders with no view state held anywhere else. `range` and
+`bench` switch on the client and write the URL back with `replaceState` — both
+are derived from data the browser already holds, so a round trip would fetch
+nothing.
+
+The app bar is **one row**: the sidebar trigger, a two-line identity block
+(portfolio name over screen name, from `components/header-title.tsx`), then
+theme, language and the presentation currency as a filled pill. The wordmark
+lives in the sidebar and the mobile drawer only, and pages under `(app)` do not
+render their own `<h1>` for a title the bar already carries.
 
 ### The hero chart
 

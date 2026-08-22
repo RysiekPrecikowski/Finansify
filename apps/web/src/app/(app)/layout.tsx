@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { AppSidebar } from '@/components/app-sidebar';
 import { BottomNav } from '@/components/bottom-nav';
 import { CurrencySwitcher } from '@/components/currency-switcher';
+import { HeaderTitle } from '@/components/header-title';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
@@ -26,20 +27,25 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     <SidebarProvider style={{ '--sidebar-width': '17rem' } as CSSProperties}>
       <AppSidebar />
       <SidebarInset>
+        {/* One row, not two. The wordmark used to sit here above each page's
+            own `<h1>`; the redesign gives the bar a single identity block —
+            portfolio name over screen name — and leaves "Finansify" to the
+            sidebar/drawer, which is the only place it appears now. */}
         <header className="flex h-14 items-center gap-2 px-4">
           {/* Opens the same `Sidebar` the desktop rail renders — shadcn's
               primitive already swaps it for a `Sheet` under `md`, so this is
               the phone's path to Portfolio/Transactions/More rather than a
               second, parallel nav surface. */}
           <SidebarTrigger />
-          <span className="font-semibold tracking-tight md:hidden">Finansify</span>
-          {/* Currency, language and theme are one control cluster at every
-              width, grouped into a single pill so the header reads as one
-              control rather than three buttons in a row. */}
-          <div className="bg-surface-3 ml-auto flex items-center gap-0.5 rounded-full p-0.5">
-            <CurrencySwitcher settings={display} />
-            <LocaleSwitcher />
+          <HeaderTitle />
+          {/* Theme, language, currency — in that order, weight increasing to
+              the right: two ghost icons and then the presentation currency as
+              a filled pill, because it is the one control here that changes
+              every number on the page. */}
+          <div className="ml-auto flex items-center gap-1">
             <ThemeToggle />
+            <LocaleSwitcher />
+            <CurrencySwitcher settings={display} />
           </div>
           <UserMenu user={user} />
         </header>

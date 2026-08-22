@@ -2,9 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
+import { BenchmarkSelect } from '@/components/dashboard/benchmark-select';
 import { RangeTabs } from '@/components/dashboard/range-tabs';
 import { ValueChart } from '@/components/dashboard/value-chart';
+import {
+  buildBenchmarkSeries,
+  benchmarkReturn,
+  returnDifference,
+  seriesReturn,
+  type Benchmark,
+} from '@/lib/dashboard/benchmarks';
 import { dashboardHref, dashboardUrl, type Range } from '@/lib/dashboard-params';
+import { directionSurface, formatRatioAsPercent, type Direction } from '@/lib/format';
 import {
   buildHeroSeries,
   formatChartDate,
@@ -13,6 +22,7 @@ import {
 } from '@/lib/hero-series';
 import { useI18n } from '@/lib/i18n/client';
 import { useDashboardParams } from '@/lib/use-dashboard-params';
+import { cn } from '@/lib/utils';
 
 /**
  * Caps how many `refresh=1` rounds one mounted chart will chase for a single
@@ -59,6 +69,46 @@ export interface ChartCardProps {
   readonly unsupportedRangeLabel: string;
 }
 
+/**
+ * One of the three figures under the range tabs. `null` renders a dash rather
+ * than a zero — a window with no return to compute (a portfolio that opened at
+ * zero) has no figure, and zero would read as "flat", which is a claim.
+ */
+function MetricTile({
+  label,
+  ratio,
+  locale,
+  title,
+}: Readonly<{
+  label: string;
+  ratio: string | null;
+  locale: ReturnType<typeof useI18n>['locale'];
+  title?: string;
+}>) {
+  const direction: Direction =
+    ratio === null || Number(ratio) === 0 ? 'flat' : Number(ratio) > 0 ? 'up' : 'down';
+
+  return (
+    <div className="bg-card flex flex-col gap-1 rounded-xl px-2.5 py-3 sm:px-3.5" title={title}>
+      {/* No `tracking-wide` and tighter padding under `sm`: at 390 px each of
+          the three tiles gets ~90 px of content box, and the longest label
+          ("PORTFEL (TWR)") ellipsised to "PORTFEL (T…" — a truncated label on
+          the one tile whose meaning depends on the parenthetical. */}
+      <span className="text-muted-foreground truncate text-[0.6875rem] font-medium uppercase sm:tracking-wide">
+        {label}
+      </span>
+      <span
+        className={cn(
+          'w-fit rounded-md px-1.5 py-0.5 text-sm font-semibold tabular-nums',
+          directionSurface[direction],
+        )}
+      >
+        {ratio === null ? '—' : formatRatioAsPercent(ratio, locale, { signed: true })}
+      </span>
+    </div>
+  );
+}
+
 export function ChartCard({
   initialRange,
   initialResponse,
@@ -69,7 +119,7 @@ export function ChartCard({
   unsupportedRangeLabel,
 }: ChartCardProps) {
   const params = useDashboardParams();
-  const { locale } = useI18n();
+  const { locale, dictionary } = useI18n();
   const [cache, setCache] = useState<Partial<Record<Range, ApiValueSeriesResponse>>>({
     [initialRange]: initialResponse,
   });
@@ -80,6 +130,11 @@ export function ChartCard({
     // not a place you arrived at, and flicking through several of them should
     // not leave that many entries to back out through.
     window.history.replaceState(null, '', dashboardUrl(dashboardHref(params, { range: next })));
+  }
+
+  /** Same reasoning as `select`, for the same reason: a comparison you are trying on, not a page you navigated to. */
+  function selectBenchmark(next: Benchmark): void {
+    window.history.replaceState(null, '', dashboardUrl(dashboardHref(params, { benchmark: next })));
   }
 
   useEffect(() => {
@@ -138,8 +193,41 @@ export function ChartCard({
         )
       : null;
 
+  const strings = dictionary.dashboard;
+  // Keyed on range *and* benchmark, so switching the index re-seeds the path
+  // and the tween treats it as a new series rather than as a re-render.
+  const seriesKey = `${params.range}:${params.benchmark}`;
+  const benchmarkSeries =
+    hero === null ? [] : buildBenchmarkSeries(hero.points, params.benchmark, params.range);
+
+  // Read off the *source* points, not the resampled ones: LTTB can drop the
+  // literal last observation from a downsampled window, and the figure a
+  // reader compares against their broker has to be the real endpoint.
+  const portfolioRatio =
+    response === undefined
+      ? null
+      : seriesReturn(response.points.map((point) => Number(point.value)));
+  const benchmarkRatio = benchmarkReturn(params.benchmark, params.range, hero?.points.length ?? 0);
+  const differenceRatio = returnDifference(portfolioRatio, benchmarkRatio);
+
   return (
     <div className="flex flex-col gap-2">
+      {/* The card's own header row: what the chart is, and what it is being
+          compared against. */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-muted-foreground text-[0.6875rem] font-medium tracking-wide uppercase">
+          {strings.chart.title}
+        </h2>
+        <BenchmarkSelect
+          selected={params.benchmark}
+          names={strings.benchmark.names}
+          label={strings.benchmark.label}
+          ariaLabel={strings.benchmark.select}
+          note={strings.benchmark.demo}
+          onSelect={selectBenchmark}
+        />
+      </div>
+
       {hero !== null && hero.points.length >= 2 ? (
         <ValueChart
           points={hero.points}
@@ -151,7 +239,10 @@ export function ChartCard({
           dateLabels={hero.dateLabels}
           valueLabels={hero.valueLabels}
           label={ariaLabel}
-          seriesKey={params.range}
+          seriesKey={seriesKey}
+          benchmarkPoints={benchmarkSeries}
+          portfolioLabel={strings.chart.legendPortfolio}
+          benchmarkLabel={strings.benchmark.names[params.benchmark]}
         />
       ) : (
         // Same footprint as the chart — svg plus its x-axis row — so the range
@@ -176,6 +267,30 @@ export function ChartCard({
         onSelect={select}
         unsupportedLabel={unsupportedRangeLabel}
       />
+
+      {/* Portfolio, index, and the gap between them — all three for whichever
+          range is selected, so the tiles change with the tabs directly above
+          them. */}
+      <div className="mt-1 grid grid-cols-3 gap-3">
+        <MetricTile
+          label={strings.performance.portfolio}
+          ratio={portfolioRatio}
+          locale={locale}
+          title={strings.performance.note}
+        />
+        <MetricTile
+          label={strings.benchmark.names[params.benchmark]}
+          ratio={benchmarkRatio}
+          locale={locale}
+          title={strings.benchmark.demo}
+        />
+        <MetricTile
+          label={strings.performance.difference}
+          ratio={differenceRatio}
+          locale={locale}
+          title={strings.benchmark.demo}
+        />
+      </div>
     </div>
   );
 }
