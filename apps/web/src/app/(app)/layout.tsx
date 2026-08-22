@@ -31,19 +31,22 @@ export default async function AppLayout({ children }: Readonly<{ children: React
             own `<h1>`; the redesign gives the bar a single identity block —
             portfolio name over screen name — and leaves "Finansify" to the
             sidebar/drawer, which is the only place it appears now. */}
-        <header className="flex h-14 items-center gap-2 px-4">
+        <header className="flex h-14 items-center gap-2.5 px-4">
           {/* Opens the same `Sidebar` the desktop rail renders — shadcn's
               primitive already swaps it for a `Sheet` under `md`, so this is
               the phone's path to Portfolio/Transactions/More rather than a
-              second, parallel nav surface. */}
-          <SidebarTrigger />
+              second, parallel nav surface. Filled circle, not a bare icon —
+              matches the trigger's own pill treatment on the canvas. */}
+          <SidebarTrigger className="bg-card text-muted-foreground size-11 shrink-0 rounded-full" />
           <HeaderTitle />
-          {/* Theme, language, currency — in that order, weight increasing to
-              the right: two ghost icons and then the presentation currency as
-              a filled pill, because it is the one control here that changes
-              every number on the page. */}
-          <div className="ml-auto flex items-center gap-1">
-            <ThemeToggle />
+          {/* Theme, language, currency as ONE grouped pill (the canvas nests
+              them in a single surface-1 container with a hairline divider
+              after the theme icon), not three independent controls — only
+              the currency sub-pill gets its own fill, because it is the one
+              control here that changes every number on the page. */}
+          <div className="bg-card ml-auto flex shrink-0 items-center gap-0.5 rounded-full p-[3px]">
+            <ThemeToggle className="text-muted-foreground h-[38px] w-10 rounded-full" />
+            <span aria-hidden className="bg-surface-3 h-[18px] w-px" />
             <LocaleSwitcher />
             <CurrencySwitcher settings={display} />
           </div>

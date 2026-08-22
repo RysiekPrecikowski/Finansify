@@ -29,10 +29,10 @@ export function HeaderTitle() {
 
   return (
     <div className="flex min-w-0 flex-col leading-tight">
-      <span className="text-muted-foreground truncate text-[0.6875rem]">
+      <span className="text-muted-foreground truncate text-[0.6875rem] font-medium">
         {dictionary.app.portfolioName}
       </span>
-      <span className="truncate text-[0.9375rem] font-semibold tracking-tight">{title}</span>
+      <span className="truncate text-xl font-semibold tracking-tight">{title}</span>
     </div>
   );
 }

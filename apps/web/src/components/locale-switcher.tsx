@@ -1,7 +1,6 @@
 'use client';
 
 import { useTransition } from 'react';
-import { Languages } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -22,15 +21,16 @@ export function LocaleSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
+          // Text only, no icon — the canvas's grouped header pill has room
+          // for a code, not an icon-plus-code pairing.
           <Button
             variant="ghost"
             size="sm"
             disabled={pending}
             aria-label={dictionary.actions.changeLanguage}
-            className="gap-1.5"
+            className="text-muted-foreground h-[38px] min-w-10 rounded-full px-1.5"
           >
-            <Languages className="size-4" />
-            <span className="text-xs font-medium">{localeLabel[locale]}</span>
+            <span className="text-xs font-semibold tracking-wide">{localeLabel[locale]}</span>
           </Button>
         }
       />

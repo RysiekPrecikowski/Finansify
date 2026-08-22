@@ -44,9 +44,9 @@ export function CurrencySwitcher({ settings }: Readonly<{ settings: DisplaySetti
             size="sm"
             disabled={pending}
             aria-label={strings.changeCurrency}
-            className="gap-1 rounded-full pr-1.5"
+            className="h-[38px] gap-0.5 rounded-full pr-2 pl-2.5"
           >
-            <span className="text-xs font-medium">{settings.total}</span>
+            <span className="text-xs font-semibold">{settings.total}</span>
             <ChevronDown className="size-3.5 opacity-60" />
           </Button>
         }
